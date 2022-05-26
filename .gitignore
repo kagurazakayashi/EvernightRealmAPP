@@ -1,0 +1,93 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+
+A*.md
+/.*
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+# 本仓库启用忽略：个人开发配置不进版本库；如需团队共享可放开此规则。
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# ===== 以下为本项目补充（模板之外） =====
+
+# Flutter 旧版依赖文件（新版本由 .flutter-plugins-dependencies 取代）
+.flutter-plugins
+.packages
+
+# 通用临时文件与缓存
+*.swo
+*~
+*.bak
+*.tmp
+__pycache__/
+*.py[cod]
+node_modules/
+.npm/
+
+# 环境变量与本地密钥（keystore 等平台级密钥由各平台子目录 .gitignore 处理）
+.env
+.env.*
+!.env.example
+*.jks
+*.p12
+*.pfx
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.AppleDouble
+.LSOverride
+.AppleDB
+.AppleDesktop
+._*
+
+# Linux
+.directory
+.fuse_hidden*
