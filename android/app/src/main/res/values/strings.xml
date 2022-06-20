@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 應用顯示名稱：啟動器與系統設定中可見的品牌名稱（預設語言，含 en-US）。 -->
+    <string name="app_name">Evernight Realm</string>
+</resources>

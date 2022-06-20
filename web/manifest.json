@@ -1,12 +1,12 @@
 {
     "id": "moe.yashi.evernightrealm",
-    "name": "evernight_realm",
-    "short_name": "evernight_realm",
+    "name": "Evernight Realm",
+    "short_name": "Evernight Realm",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "A self-hosted, offline-first LAN platform for immersive activities, characters and virtual assets.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
