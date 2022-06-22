@@ -1,0 +1,108 @@
+{
+  "@@locale": "en",
+  "statusVersionLabel": "Version",
+  "@statusVersionLabel": {
+    "description": "狀態條：版號欄位標籤。"
+  },
+  "statusLocaleLabel": "System language",
+  "@statusLocaleLabel": {
+    "description": "狀態條：系統語言欄位標籤。"
+  },
+  "statusServerLabel": "Server",
+  "@statusServerLabel": {
+    "description": "狀態條：伺服器位址欄位標籤。"
+  },
+  "statusConnectionLabel": "Connection",
+  "@statusConnectionLabel": {
+    "description": "狀態條：連線狀態欄位標籤。"
+  },
+  "labelValuePair": "{label}: {value}",
+  "@labelValuePair": {
+    "description": "狀態條欄位的「標籤：數值」組合，冒號型別依語言慣用。",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "valueNotProvided": "Not provided",
+  "@valueNotProvided": {
+    "description": "未取得值時的顯示文字（例如建置未注入版號）。"
+  },
+  "serverAddressNotSet": "Not configured",
+  "@serverAddressNotSet": {
+    "description": "伺服器位址尚未設定時的顯示文字。"
+  },
+  "connectionNotWired": "Not connected (no network layer yet)",
+  "@connectionNotWired": {
+    "description": "網路層尚未實作時的連線狀態文字。"
+  },
+  "notWiredBody": "The backend for this page is not developed yet, so nothing is displayed and no sample or simulated data is used.",
+  "@notWiredBody": {
+    "description": "尚未實作頁面的狀態說明，明確表示不使用模擬資料。"
+  },
+  "notWiredHint": "Actual content appears once the backend provides data.",
+  "@notWiredHint": {
+    "description": "尚未實作頁面的補充提示。"
+  },
+  "unknownRouteTitle": "Cannot open this page",
+  "@unknownRouteTitle": {
+    "description": "未登記路由回退頁面的標題。"
+  },
+  "unknownRouteBody": "The requested route is not in the navigation table, or its feature is not available yet.",
+  "@unknownRouteBody": {
+    "description": "未登記路由回退頁面的說明。"
+  },
+  "unknownRouteDetail": "Requested route: {route}",
+  "@unknownRouteDetail": {
+    "description": "未登記路由回退頁面顯示的路由名稱。",
+    "placeholders": {
+      "route": {
+        "type": "String"
+      }
+    }
+  },
+  "serverEntryTitle": "Server entry",
+  "@serverEntryTitle": {
+    "description": "伺服器入口層的頁面標題。"
+  },
+  "serverEntrySummary": "Choose a server and sign in, register, or continue as Guest; the server decides which identities are available.",
+  "@serverEntrySummary": {
+    "description": "伺服器入口層的範圍說明。"
+  },
+  "rootConsoleTitle": "Root console",
+  "@rootConsoleTitle": {
+    "description": "Root 控制台的頁面標題。"
+  },
+  "rootConsoleSummary": "Server-level management context, kept separate from activity navigation.",
+  "@rootConsoleSummary": {
+    "description": "Root 控制台的範圍說明。"
+  },
+  "adminConsoleTitle": "Admin console",
+  "@adminConsoleTitle": {
+    "description": "管理員端的頁面標題。"
+  },
+  "adminConsoleSummary": "Entry for managing activities, players, assets and timelines.",
+  "@adminConsoleSummary": {
+    "description": "管理員端的範圍說明。"
+  },
+  "npcConsoleTitle": "NPC console",
+  "@npcConsoleTitle": {
+    "description": "NPC 操作台的頁面標題。"
+  },
+  "npcConsoleSummary": "Operate as an explicitly selected NPC, separate from player actions.",
+  "@npcConsoleSummary": {
+    "description": "NPC 操作台的範圍說明。"
+  },
+  "playerSurfaceTitle": "Player surface",
+  "@playerSurfaceTitle": {
+    "description": "玩家端的頁面標題。"
+  },
+  "playerSurfaceSummary": "Player pages inside one activity context; Guest and Player share them.",
+  "@playerSurfaceSummary": {
+    "description": "玩家端的範圍說明。"
+  }
+}

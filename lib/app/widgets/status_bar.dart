@@ -1,18 +1,20 @@
-/// 應用壳的狀態條：持續顯示版號、系統語系、伺服器位址與連線狀態。
+/// 應用殼的狀態條：持續顯示版號、系統語系、伺服器位址與連線狀態。
 ///
 /// 數值一律取自 [AppDependencies]，頁面不得自行宣稱連線結果；尚未具備的能力
-/// 如實顯示「未設定」「未接上」，不以範例值填補。
+/// 如實顯示未設定與未接上，不以範例值填補。標籤與「標籤：數值」的組合格式
+/// 全部取自本地化資源。
 library;
 
 import 'package:flutter/material.dart';
 
-import '../../core/app_copy.dart';
+import '../../core/app_information.dart';
 import '../../core/runtime_status.dart';
+import '../../l10n/app_localizations.dart';
 import '../app_dependencies.dart';
 
 /// 狀態條中的單一欄位。
 ///
-/// 標籤與數值一起以文字呈現，確保狀態不只靠顏色區分。
+/// 標籤與數值以當地語言的組合格式一起呈現，確保狀態不只靠顏色區分。
 class StatusItem extends StatelessWidget {
   /// 以標籤與數值建立欄位。
   const StatusItem({
@@ -28,24 +30,17 @@ class StatusItem extends StatelessWidget {
   /// 欄位數值。
   final String value;
 
-  /// 數值文字節點的測試與語意标识。
+  /// 數值文字節點的測試與語意標識。
   final Key valueKey;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final ThemeData theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('$label：', style: theme.textTheme.labelSmall),
-        Text(
-          value,
-          key: valueKey,
-          style: theme.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+    return Text(
+      l10n.labelValuePair(label, value),
+      key: valueKey,
+      style: theme.textTheme.labelSmall,
     );
   }
 }
@@ -70,9 +65,13 @@ class ConnectionStatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final RuntimeStatus status = AppScope.of(context).runtimeStatus;
+    final AppInformation information = status.information;
+    // 系統語系取裝置設定，與介面目前使用的語言是兩件事。
     final Locale systemLocale =
         WidgetsBinding.instance.platformDispatcher.locale;
+
     return Material(
       type: MaterialType.canvas,
       color: theme.colorScheme.surface,
@@ -90,23 +89,29 @@ class ConnectionStatusBar extends StatelessWidget {
             spacing: 12,
             children: [
               StatusItem(
-                label: AppCopy.statusVersionLabel,
-                value: status.information.displayVersion,
+                label: l10n.statusVersionLabel,
+                value: information.hasBuildVersion
+                    ? information.buildVersion
+                    : l10n.valueNotProvided,
                 valueKey: versionKey,
               ),
               StatusItem(
-                label: AppCopy.statusLocaleLabel,
+                label: l10n.statusLocaleLabel,
                 value: systemLocale.toLanguageTag(),
                 valueKey: localeKey,
               ),
               StatusItem(
-                label: AppCopy.statusServerLabel,
-                value: status.serverAddressLabel,
+                label: l10n.statusServerLabel,
+                value: status.hasServerAddress
+                    ? status.serverAddress!
+                    : l10n.serverAddressNotSet,
                 valueKey: serverKey,
               ),
               StatusItem(
-                label: AppCopy.statusConnectionLabel,
-                value: status.connectionLabel,
+                label: l10n.statusConnectionLabel,
+                value: switch (status.connection) {
+                  ServerConnectionState.notWired => l10n.connectionNotWired,
+                },
                 valueKey: connectionKey,
               ),
             ],

@@ -1,0 +1,20 @@
+# 本地化資源與生成設定（flutter gen-l10n）。
+#
+# 模板 ARB 為英文：鍵集的權威來源，任何語言缺鍵即回退模板文字，
+# 與「語言鍵對齊、缺失回退 en-US」的約定一致。
+#
+# 檔名與產品四語言的對應（gen-l10n 要求帶地區碼的語言必須另有基礎語言檔作回退，
+# 因此只在中文上分地區，其餘用基礎語言碼，避免同一份文字維護兩遍）：
+#   app_en.arb     -> en-US（英語）
+#   app_zh.arb     -> zh-CN（簡體中文，大陸習慣）
+#   app_zh_TW.arb  -> zh-TW（繁體中文，台灣習慣）
+#   app_ja.arb     -> ja-JP（日本語）
+# synthetic-package 選項在新版工具已移除，生成物一律落在 output-dir 並由 .gitignore 排除。
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-dir: lib/l10n
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false
+# 缺譯清單輸出到此檔，供構建期檢查（build/ 不入版本庫）。
+untranslated-messages-file: build/l10n-untranslated.json

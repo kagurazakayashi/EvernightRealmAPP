@@ -91,3 +91,6 @@ $RECYCLE.BIN/
 # Linux
 .directory
 .fuse_hidden*
+
+# Generated localization output (權威來源是 lib/l10n/*.arb)
+lib/l10n/app_localizations*.dart

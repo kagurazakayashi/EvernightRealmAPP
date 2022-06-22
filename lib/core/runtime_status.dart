@@ -1,9 +1,11 @@
 /// 使用者端與伺服器的連線狀態，以及狀態條顯示用的一組執行期事實。
+///
+/// 本檔只保存事實與判定，不產出介面文字：狀態對應的顯示字串由元件層
+/// 依目前語言向 AppLocalizations 取得，因此這裡不硬編碼任何語言。
 library;
 
 import 'package:flutter/foundation.dart';
 
-import 'app_copy.dart';
 import 'app_information.dart';
 
 /// 與伺服器的連線狀態。
@@ -12,14 +14,7 @@ import 'app_information.dart';
 /// 等尚無來源的狀態，避免介面出現無依據的判斷。
 enum ServerConnectionState {
   /// 尚未建立任何與伺服器的連線（網路層未實作）。
-  notWired;
-
-  /// 給狀態條顯示的連線狀態文字。
-  String get displayLabel {
-    return switch (this) {
-      ServerConnectionState.notWired => AppCopy.connectionNotWired,
-    };
-  }
+  notWired,
 }
 
 /// 應用殼狀態條所需的一組執行期事實。
@@ -50,9 +45,6 @@ class RuntimeStatus {
   /// 目前連線狀態。
   final ServerConnectionState connection;
 
-  /// 狀態條顯示的伺服器位址文字。
-  String get serverAddressLabel => serverAddress ?? AppCopy.serverAddressNotSet;
-
-  /// 狀態條顯示的連線狀態文字。
-  String get connectionLabel => connection.displayLabel;
+  /// 是否已設定伺服器位址。
+  bool get hasServerAddress => serverAddress != null;
 }

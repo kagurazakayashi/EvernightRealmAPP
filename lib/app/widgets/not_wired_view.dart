@@ -1,51 +1,46 @@
 /// 頂層上下文的共用內容視圖：說明該上下文的範圍，並如實標明後端尚未實作。
 ///
 /// 這裡刻意不放任何範例、模擬或佔位的業務資料（清單、餘額、玩家名稱等一律不出現），
-/// 讓「尚未開發」在介面上是可讀的事實，而不是看起來像已運作的空壳。
+/// 讓「尚未開發」在介面上是可讀的事實，而不是看起來像已運作的空殼。
+/// 顯示文字全部取自本地化資源，本檔不出現任何語言的硬編碼字串。
 library;
 
 import 'package:flutter/material.dart';
 
-import '../../core/app_copy.dart';
+import '../../l10n/app_localizations.dart';
 import '../nav_context.dart';
+import '../nav_context_labels.dart';
 
 /// 「後端尚未實作」的內容視圖。
 class NotWiredView extends StatelessWidget {
-  /// 以說明文字與提示建立視圖。
-  const NotWiredView({
-    super.key,
-    required this.detail,
-    this.body = AppCopy.notWiredBody,
-    this.hint = AppCopy.notWiredHint,
-  });
+  /// 顯示某個頂層上下文的範圍與未實作狀態。
+  const NotWiredView.forContext(this.navContext, {super.key})
+    : routeName = null;
 
-  /// 由頂層上下文建立該上下文的說明。
-  factory NotWiredView.forContext(NavContext navContext) {
-    return NotWiredView(detail: navContext.summary);
-  }
+  /// 顯示未登記路由的回退說明。
+  const NotWiredView.forUnknownRoute(this.routeName, {super.key})
+    : navContext = null;
 
-  /// 為未註冊的路由建立說明。
-  factory NotWiredView.forUnknownRoute(String routeName) {
-    return NotWiredView(
-      detail: '要求的路由：$routeName',
-      body: AppCopy.unknownRouteBody,
-    );
-  }
+  /// 要顯示的頂層上下文；為 `null` 時顯示 [routeName] 的回退說明。
+  final NavContext? navContext;
 
-  /// 上下文範圍說明。
-  final String detail;
-
-  /// 狀態說明文字。
-  final String body;
-
-  /// 補充提示文字。
-  final String hint;
+  /// 未登記的路由名稱；為 `null` 時顯示 [navContext] 的說明。
+  final String? routeName;
 
   /// 狀態說明的測試識別鍵。
   static const Key bodyKey = ValueKey<String>('not-wired-body');
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final NavContext? navContext = this.navContext;
+    final String detail = navContext != null
+        ? navContext.summaryOf(l10n)
+        : l10n.unknownRouteDetail(routeName ?? '');
+    final String body = navContext != null
+        ? l10n.notWiredBody
+        : l10n.unknownRouteBody;
+
     final ThemeData theme = Theme.of(context);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
@@ -54,7 +49,7 @@ class NotWiredView extends StatelessWidget {
         const SizedBox(height: 20),
         Text(body, key: bodyKey, style: theme.textTheme.bodyMedium),
         const SizedBox(height: 8),
-        Text(hint, style: theme.textTheme.bodySmall),
+        Text(l10n.notWiredHint, style: theme.textTheme.bodySmall),
       ],
     );
   }
