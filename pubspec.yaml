@@ -36,6 +36,10 @@ dependencies:
     sdk: flutter
   intl: ^0.20.3
 
+  # 介面語言選擇的本地持久化（Web 用 localStorage、桌面用平台設定檔；
+  # 此套件已內含 web/windows/linux/foundation/android 各平台實作）。
+  shared_preferences: ^2.5.5
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

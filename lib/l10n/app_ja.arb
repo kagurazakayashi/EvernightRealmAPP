@@ -22,5 +22,8 @@
   "npcConsoleTitle": "NPC コンソール",
   "npcConsoleSummary": "明示的に選択した NPC として操作し、プレイヤーの文脈とは分離します。",
   "playerSurfaceTitle": "プレイヤー画面",
-  "playerSurfaceSummary": "単一の活動文脈内にあるプレイヤー向けページで、Guest と Player が共用します。"
+  "playerSurfaceSummary": "単一の活動文脈内にあるプレイヤー向けページで、Guest と Player が共用します。",
+  "interfaceLanguageTitle": "表示言語",
+  "interfaceLanguageFollowSystem": "システムに従う",
+  "interfaceLanguageHint": "言語は表示文にのみ影響し、業務状態は変わりません。"
 }

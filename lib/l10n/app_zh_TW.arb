@@ -22,5 +22,8 @@
   "npcConsoleTitle": "NPC 操作台",
   "npcConsoleSummary": "以顯式選定的 NPC 身分進行操作，與玩家操作上下文分離。",
   "playerSurfaceTitle": "玩家端",
-  "playerSurfaceSummary": "單一活動身份上下文內的玩家頁面，Guest 與 Player 共用。"
+  "playerSurfaceSummary": "單一活動身份上下文內的玩家頁面，Guest 與 Player 共用。",
+  "interfaceLanguageTitle": "介面語言",
+  "interfaceLanguageFollowSystem": "跟隨系統",
+  "interfaceLanguageHint": "語言只改變介面文字，不改變任何業務狀態。"
 }

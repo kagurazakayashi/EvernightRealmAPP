@@ -2,15 +2,15 @@
 /// 且頁面標題與說明隨介面語言改變。
 library;
 
-import 'package:evernight_realm/app/app_dependencies.dart';
 import 'package:evernight_realm/app/app_router.dart';
-import 'package:evernight_realm/app/evernight_app.dart';
 import 'package:evernight_realm/app/nav_context.dart';
 import 'package:evernight_realm/app/nav_context_labels.dart';
 import 'package:evernight_realm/app/widgets/status_bar.dart';
 import 'package:evernight_realm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../support/test_language.dart';
 
 /// 測試固定使用繁體中文。
 const Locale _locale = Locale('zh', 'TW');
@@ -25,10 +25,7 @@ void main() {
   /// 以指定語言啟動應用並回傳測試器。
   Future<void> pumpApp(WidgetTester tester) async {
     await tester.pumpWidget(
-      EvernightApp(
-        dependencies: const AppDependencies(),
-        forcedLocale: _locale,
-      ),
+      await buildTestApp(storedTag: _locale.toLanguageTag()),
     );
     await tester.pumpAndSettle();
   }

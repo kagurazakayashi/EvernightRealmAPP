@@ -28,7 +28,7 @@ Under active development. No stable release is available yet.
 
 ## Languages
 
-Simplified Chinese, Traditional Chinese (Taiwan), English and Japanese.
+Simplified Chinese, Traditional Chinese (Taiwan), English and Japanese. The interface language follows your system language by default and can be switched on the server entry page; the choice is remembered locally. System languages outside this list fall back to English.
 
 ## License
 

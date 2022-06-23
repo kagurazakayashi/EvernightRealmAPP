@@ -104,5 +104,17 @@
   "playerSurfaceSummary": "Player pages inside one activity context; Guest and Player share them.",
   "@playerSurfaceSummary": {
     "description": "玩家端的範圍說明。"
+  },
+  "interfaceLanguageTitle": "Interface language",
+  "@interfaceLanguageTitle": {
+    "description": "伺服器入口层的语言选择区标题。"
+  },
+  "interfaceLanguageFollowSystem": "Follow system",
+  "@interfaceLanguageFollowSystem": {
+    "description": "语言选项：不手工指定，使用装置语言解析结果。"
+  },
+  "interfaceLanguageHint": "The language changes interface text only; it never changes business state.",
+  "@interfaceLanguageHint": {
+    "description": "语言选择的范围说明，强调不影响业务状态。"
   }
 }

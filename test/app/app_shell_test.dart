@@ -2,7 +2,6 @@
 library;
 
 import 'package:evernight_realm/app/app_dependencies.dart';
-import 'package:evernight_realm/app/evernight_app.dart';
 import 'package:evernight_realm/app/widgets/status_bar.dart';
 import 'package:evernight_realm/core/app_information.dart';
 import 'package:evernight_realm/core/runtime_status.dart';
@@ -10,12 +9,17 @@ import 'package:evernight_realm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 測試固定使用繁體中文，斷言文字由同一份資源取得。
+import '../support/test_language.dart';
+
+/// 測試固定使用繁體中文（模擬已手工選擇），斷言文字由同一份資源取得。
 const Locale _locale = Locale('zh', 'TW');
 
 /// 以指定依賴與語言組裝應用根節點。
-Widget _harness(AppDependencies dependencies) {
-  return EvernightApp(dependencies: dependencies, forcedLocale: _locale);
+Future<Widget> _harness(AppDependencies dependencies) {
+  return buildTestApp(
+    storedTag: _locale.toLanguageTag(),
+    dependencies: dependencies,
+  );
 }
 
 void main() {
@@ -28,7 +32,7 @@ void main() {
   group('連線狀態條', () {
     testWidgets('四個欄位齊全且以目前語言標示', (WidgetTester tester) async {
       await tester.pumpWidget(
-        _harness(
+        await _harness(
           const AppDependencies(
             runtimeStatus: RuntimeStatus(
               information: AppInformation(buildVersion: '9.9.9-test'),
@@ -57,7 +61,7 @@ void main() {
     });
 
     testWidgets('尚未具備的能力如實顯示未設定與未接上', (WidgetTester tester) async {
-      await tester.pumpWidget(_harness(const AppDependencies()));
+      await tester.pumpWidget(await _harness(const AppDependencies()));
 
       expect(
         find.text(
@@ -78,7 +82,7 @@ void main() {
       tester.platformDispatcher.localeTestValue = const Locale('ja', 'JP');
       addTearDown(tester.platformDispatcher.clearLocaleTestValue);
 
-      await tester.pumpWidget(_harness(const AppDependencies()));
+      await tester.pumpWidget(await _harness(const AppDependencies()));
 
       expect(
         find.text(l10n.labelValuePair(l10n.statusLocaleLabel, 'ja-JP')),
