@@ -33,3 +33,5 @@ Simplified Chinese, Traditional Chinese (Taiwan), English and Japanese. The inte
 ## License
 
 Mulan Permissive Software License, Version 2 (MulanPSL-2.0). Third-party original licenses are not overridden.
+
+Bundled fonts: Noto Sans SC / Noto Sans TC / Noto Sans JP, SIL Open Font License 1.1 (texts under `licenses/`).

@@ -65,6 +65,11 @@ flutter:
   # 生成物落在 lib/l10n/ 並由 .gitignore 排除，權威來源只有 ARB 檔。
   generate: true
 
+  # 本地 CJK 字體：僅 Web 需要（CanvasKit 取不到系統字體），載入時機見 lib/core/app_fonts.dart。
+  # 授權為 SIL Open Font License 1.1，正文在 licenses/NotoSans*-OFL.txt。
+  assets:
+    - assets/fonts/
+
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

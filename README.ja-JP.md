@@ -33,3 +33,5 @@
 ## ライセンス
 
 Mulan 寛容ライセンス第 2 版（MulanPSL-2.0）。第三者の元ライセンスは上書きされません。
+
+同梱フォント：Noto Sans SC / Noto Sans TC / Noto Sans JP、SIL Open Font License 1.1（本文は `licenses/`）。

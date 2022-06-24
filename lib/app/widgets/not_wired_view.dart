@@ -30,6 +30,9 @@ class NotWiredView extends StatelessWidget {
   /// 狀態說明的測試識別鍵。
   static const Key bodyKey = ValueKey<String>('not-wired-body');
 
+  /// 內容清單的識別鍵（佈局測試據此量測內文寬度）。
+  static const Key listKey = ValueKey<String>('not-wired-list');
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -43,6 +46,7 @@ class NotWiredView extends StatelessWidget {
 
     final ThemeData theme = Theme.of(context);
     return ListView(
+      key: listKey,
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       children: [
         Text(detail, style: theme.textTheme.bodyLarge),

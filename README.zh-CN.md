@@ -33,3 +33,5 @@
 ## 许可证
 
 Mulan 宽松许可证第二版（MulanPSL-2.0）。第三方原许可证不被覆盖。
+
+随附字体：Noto Sans SC / Noto Sans TC / Noto Sans JP，采用 SIL Open Font License 1.1（授权正文见 `licenses/`）。

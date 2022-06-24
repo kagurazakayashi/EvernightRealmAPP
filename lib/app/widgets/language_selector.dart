@@ -2,6 +2,7 @@
 ///
 /// 選項名稱採「以該語言本身書寫」的慣例，不進本地化資源：
 /// 換語言時選項不應跟著翻譯，否則使用者無法認出自己點的是哪一項。
+/// 標籤與選單用 Wrap 排列，窄屏（360 px 起）自動換行而不溢出。
 library;
 
 import 'package:flutter/material.dart';
@@ -28,13 +29,15 @@ class LanguageSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
               l10n.interfaceLanguageTitle,
               style: theme.textTheme.titleSmall,
             ),
-            const SizedBox(width: 12),
             DropdownButtonHideUnderline(
               child: DropdownButton<AppLocale?>(
                 key: dropdownKey,
