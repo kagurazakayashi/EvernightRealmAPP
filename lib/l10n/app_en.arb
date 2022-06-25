@@ -36,10 +36,6 @@
   "@serverAddressNotSet": {
     "description": "伺服器位址尚未設定時的顯示文字。"
   },
-  "connectionNotWired": "Not connected (no network layer yet)",
-  "@connectionNotWired": {
-    "description": "網路層尚未實作時的連線狀態文字。"
-  },
   "notWiredBody": "The backend for this page is not developed yet, so nothing is displayed and no sample or simulated data is used.",
   "@notWiredBody": {
     "description": "尚未實作頁面的狀態說明，明確表示不使用模擬資料。"
@@ -107,14 +103,150 @@
   },
   "interfaceLanguageTitle": "Interface language",
   "@interfaceLanguageTitle": {
-    "description": "伺服器入口层的语言选择区标题。"
+    "description": "伺服器入口層的語言選擇區標題。"
   },
   "interfaceLanguageFollowSystem": "Follow system",
   "@interfaceLanguageFollowSystem": {
-    "description": "语言选项：不手工指定，使用装置语言解析结果。"
+    "description": "語言選項：不手工指定，使用裝置語言解析結果。"
   },
   "interfaceLanguageHint": "The language changes interface text only; it never changes business state.",
   "@interfaceLanguageHint": {
-    "description": "语言选择的范围说明，强调不影响业务状态。"
+    "description": "語言選擇的範圍說明，強調不影響業務狀態。"
+  },
+  "connectionNotConfigured": "Server address not set",
+  "@connectionNotConfigured": {
+    "description": "狀態條與探測區：基準位址未設定或格式不合格。"
+  },
+  "connectionNotProbed": "Not checked yet",
+  "@connectionNotProbed": {
+    "description": "狀態條與探測區：已有位址，但這次啟動尚未探測。"
+  },
+  "connectionProbing": "Checking…",
+  "@connectionProbing": {
+    "description": "狀態條與探測區：探測請求進行中。"
+  },
+  "connectionProbeOk": "Last check succeeded",
+  "@connectionProbeOk": {
+    "description": "狀態條與探測區：上次探測成功（僅代表上次結果，不是持續連線）。"
+  },
+  "connectionProbeFailed": "Last check failed",
+  "@connectionProbeFailed": {
+    "description": "狀態條與探測區：上次探測失敗，原因見下方說明。"
+  },
+  "errorKindNotConfigured": "No server address is set, so the request was not sent.",
+  "@errorKindNotConfigured": {
+    "description": "失敗類別：本地前提不成立，請求根本沒有發出。"
+  },
+  "errorKindUnreachable": "The server could not be reached. The network may be down, the address may be wrong, or the service may not be running.",
+  "@errorKindUnreachable": {
+    "description": "失敗類別：無法取得任何回應（離線、位址錯誤、服務未啟動）。"
+  },
+  "errorKindTimeout": "The server did not respond within the time limit.",
+  "@errorKindTimeout": {
+    "description": "失敗類別：請求已發出但在期限內沒有拿到完整回應。"
+  },
+  "errorKindHttpStatus": "The server rejected this request.",
+  "@errorKindHttpStatus": {
+    "description": "失敗類別：伺服器可達但回了非 2xx，且錯誤碼不在已知清單內。"
+  },
+  "errorKindInvalidResponse": "The server response could not be read, so it is not treated as success.",
+  "@errorKindInvalidResponse": {
+    "description": "失敗類別：伺服器回了 2xx 但內容不符合合同，一律不視為成功。"
+  },
+  "errorCodeInternal": "Internal server error. Please try again later.",
+  "@errorCodeInternal": {
+    "description": "機器錯誤碼 1000：未分類的內部錯誤。"
+  },
+  "errorCodeNotFound": "The requested resource does not exist.",
+  "@errorCodeNotFound": {
+    "description": "機器錯誤碼 1001：請求的路徑不存在。"
+  },
+  "errorCodeMethodNotAllowed": "The request method is not allowed.",
+  "@errorCodeMethodNotAllowed": {
+    "description": "機器錯誤碼 1002：路徑存在但不支援該方法。"
+  },
+  "errorCodePayloadTooLarge": "The request body is too large and was rejected.",
+  "@errorCodePayloadTooLarge": {
+    "description": "機器錯誤碼 1003：請求體超過大小上限。"
+  },
+  "errorCodeInvalidBody": "The request body is malformed or contains unsupported fields.",
+  "@errorCodeInvalidBody": {
+    "description": "機器錯誤碼 1004：請求體無法解析或含未知欄位。"
+  },
+  "errorCodeUnsupportedMediaType": "Unsupported request content type. Use application/json.",
+  "@errorCodeUnsupportedMediaType": {
+    "description": "機器錯誤碼 1005：請求體不是 JSON 內容型別。"
+  },
+  "errorCodeRequestTimeout": "The server timed out while processing the request. Please try again.",
+  "@errorCodeRequestTimeout": {
+    "description": "機器錯誤碼 1006：伺服器處理該請求超過期限。"
+  },
+  "errorCodeNotReady": "The service is not ready yet. Please try again later.",
+  "@errorCodeNotReady": {
+    "description": "機器錯誤碼 1007：服務尚未就緒（依賴不可回應）。"
+  },
+  "serverProbeTitle": "Server connectivity check",
+  "@serverProbeTitle": {
+    "description": "伺服器連通性探測區的標題。"
+  },
+  "serverProbeSummary": "Reads the server's health and time endpoints. Every value comes from the server, never from this device.",
+  "@serverProbeSummary": {
+    "description": "探測區的說明文字：點明數值來自伺服器而非本機。"
+  },
+  "serverProbeAddressLabel": "Address",
+  "@serverProbeAddressLabel": {
+    "description": "探測區：基準位址的欄位標籤。"
+  },
+  "serverProbeAction": "Check now",
+  "@serverProbeAction": {
+    "description": "探測按鈕文字（本次啟動尚未探測過）。"
+  },
+  "serverProbeRetryAction": "Check again",
+  "@serverProbeRetryAction": {
+    "description": "探測按鈕文字（已探測過一次後的再試）。"
+  },
+  "serverProbeRunning": "Requesting health and time…",
+  "@serverProbeRunning": {
+    "description": "探測進行中的提示文字。"
+  },
+  "serverProbeNotConfiguredHint": "No server address is available, so the check is disabled. Address entry and saving come in a later version; during development the address is supplied by a build parameter.",
+  "@serverProbeNotConfiguredHint": {
+    "description": "位址不可用時的說明：按鈕停用原因與位址來源。"
+  },
+  "serverProbeNever": "No check has been run since this session started.",
+  "@serverProbeNever": {
+    "description": "有位址但尚未探測時的提示。"
+  },
+  "serverProbeSucceeded": "Check succeeded",
+  "@serverProbeSucceeded": {
+    "description": "探測成功的結果標題。"
+  },
+  "serverProbeFailed": "Check failed",
+  "@serverProbeFailed": {
+    "description": "探測失敗的結果標題。"
+  },
+  "serverProbeStatusLabel": "Reported status",
+  "@serverProbeStatusLabel": {
+    "description": "存活端點回報的狀態欄位標籤。"
+  },
+  "serverProbeServiceLabel": "Service",
+  "@serverProbeServiceLabel": {
+    "description": "服務名與版本欄位的標籤。"
+  },
+  "serverProbeTimeLabel": "Server time (UTC)",
+  "@serverProbeTimeLabel": {
+    "description": "伺服器 UTC 時間欄位的標籤（顯示回應原文）。"
+  },
+  "serverProbeClockLabel": "Local display",
+  "@serverProbeClockLabel": {
+    "description": "按伺服器顯示時區換算後的牆鐘時間標籤。"
+  },
+  "diagnosticRequestId": "Request ID",
+  "@diagnosticRequestId": {
+    "description": "診斷行：請求關聯 ID 的標籤。"
+  },
+  "diagnosticErrorCode": "Error code",
+  "@diagnosticErrorCode": {
+    "description": "診斷行：機器錯誤碼的標籤。"
   }
 }

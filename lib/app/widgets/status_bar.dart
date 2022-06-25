@@ -1,16 +1,18 @@
 /// 應用殼的狀態條：持續顯示版號、系統語系、伺服器位址與連線狀態。
 ///
-/// 數值一律取自 [AppDependencies]，頁面不得自行宣稱連線結果；尚未具備的能力
-/// 如實顯示未設定與未接上，不以範例值填補。標籤與「標籤：數值」的組合格式
+/// 數值一律取自裝配的依賴與探測狀態，頁面不得自行宣稱連線結果；尚未具備的能力
+/// 如實顯示未設定與尚未探測，不以範例值填補。標籤與「標籤：數值」的組合格式
 /// 全部取自本地化資源。
 library;
 
 import 'package:flutter/material.dart';
 
+import '../../core/api/connection_tracker.dart';
 import '../../core/app_information.dart';
-import '../../core/runtime_status.dart';
 import '../../l10n/app_localizations.dart';
 import '../app_dependencies.dart';
+import '../connection_phase_labels.dart';
+import '../connection_scope.dart';
 
 /// 狀態條中的單一欄位。
 ///
@@ -66,8 +68,9 @@ class ConnectionStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final RuntimeStatus status = AppScope.of(context).runtimeStatus;
-    final AppInformation information = status.information;
+    final AppDependencies dependencies = AppScope.of(context);
+    final ConnectionTracker tracker = ConnectionScope.of(context);
+    final AppInformation information = dependencies.runtimeStatus.information;
     // 系統語系取裝置設定，與介面目前使用的語言是兩件事。
     final Locale systemLocale =
         WidgetsBinding.instance.platformDispatcher.locale;
@@ -102,16 +105,12 @@ class ConnectionStatusBar extends StatelessWidget {
               ),
               StatusItem(
                 label: l10n.statusServerLabel,
-                value: status.hasServerAddress
-                    ? status.serverAddress!
-                    : l10n.serverAddressNotSet,
+                value: tracker.addressDisplay ?? l10n.serverAddressNotSet,
                 valueKey: serverKey,
               ),
               StatusItem(
                 label: l10n.statusConnectionLabel,
-                value: switch (status.connection) {
-                  ServerConnectionState.notWired => l10n.connectionNotWired,
-                },
+                value: connectionPhaseLabel(l10n, tracker.phase),
                 valueKey: connectionKey,
               ),
             ],

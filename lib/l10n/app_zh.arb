@@ -7,7 +7,6 @@
   "labelValuePair": "{label}：{value}",
   "valueNotProvided": "未指定",
   "serverAddressNotSet": "尚未设置",
-  "connectionNotWired": "未连接（尚无网络层）",
   "notWiredBody": "此页面的后端能力尚未开发，因此不显示任何内容，也不使用示例或模拟数据。",
   "notWiredHint": "待后端提供数据后才会出现实际内容。",
   "unknownRouteTitle": "无法打开此页面",
@@ -25,5 +24,141 @@
   "playerSurfaceSummary": "单一活动身份上下文内的玩家页面，Guest 与 Player 共用。",
   "interfaceLanguageTitle": "界面语言",
   "interfaceLanguageFollowSystem": "跟随系统",
-  "interfaceLanguageHint": "语言只改变界面文字，不改变任何业务状态。"
+  "interfaceLanguageHint": "语言只改变界面文字，不改变任何业务状态。",
+  "connectionNotConfigured": "未设置服务器地址",
+  "@connectionNotConfigured": {
+    "description": "狀態條與探測區：基準位址未設定或格式不合格。"
+  },
+  "connectionNotProbed": "尚未探测",
+  "@connectionNotProbed": {
+    "description": "狀態條與探測區：已有位址，但這次啟動尚未探測。"
+  },
+  "connectionProbing": "探测中…",
+  "@connectionProbing": {
+    "description": "狀態條與探測區：探測請求進行中。"
+  },
+  "connectionProbeOk": "上次探测成功",
+  "@connectionProbeOk": {
+    "description": "狀態條與探測區：上次探測成功（僅代表上次結果，不是持續連線）。"
+  },
+  "connectionProbeFailed": "上次探测失败",
+  "@connectionProbeFailed": {
+    "description": "狀態條與探測區：上次探測失敗，原因見下方說明。"
+  },
+  "errorKindNotConfigured": "尚未设置服务器地址，请求没有发出。",
+  "@errorKindNotConfigured": {
+    "description": "失敗類別：本地前提不成立，請求根本沒有發出。"
+  },
+  "errorKindUnreachable": "无法连接服务器。可能已断网、地址有误或服务未启动。",
+  "@errorKindUnreachable": {
+    "description": "失敗類別：無法取得任何回應（離線、位址錯誤、服務未啟動）。"
+  },
+  "errorKindTimeout": "服务器未在时限内响应。",
+  "@errorKindTimeout": {
+    "description": "失敗類別：請求已發出但在期限內沒有拿到完整回應。"
+  },
+  "errorKindHttpStatus": "服务器拒绝了本次请求。",
+  "@errorKindHttpStatus": {
+    "description": "失敗類別：伺服器可达但回了非 2xx，且錯誤碼不在已知清單內。"
+  },
+  "errorKindInvalidResponse": "无法解读服务器响应，因此不视为成功。",
+  "@errorKindInvalidResponse": {
+    "description": "失敗類別：伺服器回了 2xx 但內容不符合合同，一律不視為成功。"
+  },
+  "errorCodeInternal": "服务器内部错误，请稍后重试。",
+  "@errorCodeInternal": {
+    "description": "機器錯誤碼 1000：未分類的內部錯誤。"
+  },
+  "errorCodeNotFound": "请求的资源不存在。",
+  "@errorCodeNotFound": {
+    "description": "機器錯誤碼 1001：請求的路徑不存在。"
+  },
+  "errorCodeMethodNotAllowed": "该请求方法不被允许。",
+  "@errorCodeMethodNotAllowed": {
+    "description": "機器錯誤碼 1002：路徑存在但不支援該方法。"
+  },
+  "errorCodePayloadTooLarge": "请求内容过大，超出服务器允许的上限。",
+  "@errorCodePayloadTooLarge": {
+    "description": "機器錯誤碼 1003：請求體超過大小上限。"
+  },
+  "errorCodeInvalidBody": "请求内容格式不正确，请检查后重试。",
+  "@errorCodeInvalidBody": {
+    "description": "機器錯誤碼 1004：請求體無法解析或含未知欄位。"
+  },
+  "errorCodeUnsupportedMediaType": "请求内容类型不受支持，请使用 application/json。",
+  "@errorCodeUnsupportedMediaType": {
+    "description": "機器錯誤碼 1005：請求體不是 JSON 內容型別。"
+  },
+  "errorCodeRequestTimeout": "服务器处理该请求超时，请稍后重试。",
+  "@errorCodeRequestTimeout": {
+    "description": "機器錯誤碼 1006：伺服器處理該請求超過期限。"
+  },
+  "errorCodeNotReady": "服务尚未就绪，暂时无法处理业务操作，请稍后重试。",
+  "@errorCodeNotReady": {
+    "description": "機器錯誤碼 1007：服務尚未就緒（依賴不可回應）。"
+  },
+  "serverProbeTitle": "服务器连通性探测",
+  "@serverProbeTitle": {
+    "description": "伺服器連通性探測區的標題。"
+  },
+  "serverProbeSummary": "读取服务器的健康与时间端点。每个数值都来自服务器，不使用本机数据。",
+  "@serverProbeSummary": {
+    "description": "探測區的說明文字：點明數值來自伺服器而非本機。"
+  },
+  "serverProbeAddressLabel": "地址",
+  "@serverProbeAddressLabel": {
+    "description": "探測區：基準位址的欄位標籤。"
+  },
+  "serverProbeAction": "立即探测",
+  "@serverProbeAction": {
+    "description": "探測按鈕文字（本次啟動尚未探測過）。"
+  },
+  "serverProbeRetryAction": "重新探测",
+  "@serverProbeRetryAction": {
+    "description": "探測按鈕文字（已探測過一次後的再試）。"
+  },
+  "serverProbeRunning": "正在请求健康与时间…",
+  "@serverProbeRunning": {
+    "description": "探測進行中的提示文字。"
+  },
+  "serverProbeNotConfiguredHint": "没有可用的服务器地址，探测已停用。地址输入与保存将在后续版本提供，开发期由构建参数注入。",
+  "@serverProbeNotConfiguredHint": {
+    "description": "位址不可用時的說明：按鈕停用原因與位址來源。"
+  },
+  "serverProbeNever": "本次启动后还没有进行过探测。",
+  "@serverProbeNever": {
+    "description": "有位址但尚未探測時的提示。"
+  },
+  "serverProbeSucceeded": "探测成功",
+  "@serverProbeSucceeded": {
+    "description": "探測成功的結果標題。"
+  },
+  "serverProbeFailed": "探测失败",
+  "@serverProbeFailed": {
+    "description": "探測失敗的結果標題。"
+  },
+  "serverProbeStatusLabel": "回报状态",
+  "@serverProbeStatusLabel": {
+    "description": "存活端點回報的狀態欄位標籤。"
+  },
+  "serverProbeServiceLabel": "服务",
+  "@serverProbeServiceLabel": {
+    "description": "服務名與版本欄位的標籤。"
+  },
+  "serverProbeTimeLabel": "服务器时间（UTC）",
+  "@serverProbeTimeLabel": {
+    "description": "伺服器 UTC 時間欄位的標籤（顯示回應原文）。"
+  },
+  "serverProbeClockLabel": "当地显示",
+  "@serverProbeClockLabel": {
+    "description": "按伺服器顯示時區換算後的牆鐘時間標籤。"
+  },
+  "diagnosticRequestId": "请求识别码",
+  "@diagnosticRequestId": {
+    "description": "診斷行：請求關聯 ID 的標籤。"
+  },
+  "diagnosticErrorCode": "错误码",
+  "@diagnosticErrorCode": {
+    "description": "診斷行：機器錯誤碼的標籤。"
+  }
 }

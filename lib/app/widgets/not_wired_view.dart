@@ -30,8 +30,8 @@ class NotWiredView extends StatelessWidget {
   /// 狀態說明的測試識別鍵。
   static const Key bodyKey = ValueKey<String>('not-wired-body');
 
-  /// 內容清單的識別鍵（佈局測試據此量測內文寬度）。
-  static const Key listKey = ValueKey<String>('not-wired-list');
+  /// 內容欄的識別鍵（佈局測試據此量測內文寬度）。
+  static const Key contentKey = ValueKey<String>('not-wired-content');
 
   @override
   Widget build(BuildContext context) {
@@ -45,16 +45,21 @@ class NotWiredView extends StatelessWidget {
         : l10n.unknownRouteBody;
 
     final ThemeData theme = Theme.of(context);
-    return ListView(
-      key: listKey,
+    // 垂直滾動由應用殼統一負責，這裡因此是純 Column 而不是清單元件；
+    // stretch 讓寬度等於殼給定的內文寬度，窄屏換行、寬屏不拉成長行。
+    return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-      children: [
-        Text(detail, style: theme.textTheme.bodyLarge),
-        const SizedBox(height: 20),
-        Text(body, key: bodyKey, style: theme.textTheme.bodyMedium),
-        const SizedBox(height: 8),
-        Text(l10n.notWiredHint, style: theme.textTheme.bodySmall),
-      ],
+      child: Column(
+        key: contentKey,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(detail, style: theme.textTheme.bodyLarge),
+          const SizedBox(height: 20),
+          Text(body, key: bodyKey, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          Text(l10n.notWiredHint, style: theme.textTheme.bodySmall),
+        ],
+      ),
     );
   }
 }

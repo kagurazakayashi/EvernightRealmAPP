@@ -28,22 +28,18 @@ void main() {
   });
 
   group('RuntimeStatus', () {
-    test('預設狀態為伺服器位址未設定、網路層未接上', () {
+    test('預設狀態只帶建置資訊，不含任何業務資料', () {
       const RuntimeStatus status = RuntimeStatus.informationOnly();
 
-      expect(status.serverAddress, isNull);
-      expect(status.hasServerAddress, isFalse);
-      expect(status.connection, ServerConnectionState.notWired);
+      expect(status.information.hasBuildVersion, isFalse);
     });
 
-    test('給定伺服器位址後如實保留該位址', () {
+    test('建置資訊原樣保留給定的版號', () {
       const RuntimeStatus status = RuntimeStatus(
         information: AppInformation(buildVersion: '1.0.0'),
-        serverAddress: 'http://192.168.1.20:5206',
       );
 
-      expect(status.hasServerAddress, isTrue);
-      expect(status.serverAddress, 'http://192.168.1.20:5206');
+      expect(status.information.buildVersion, '1.0.0');
     });
   });
 }

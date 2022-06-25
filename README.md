@@ -30,6 +30,12 @@ Under active development. No stable release is available yet.
 
 Simplified Chinese, Traditional Chinese (Taiwan), English and Japanese. The interface language follows your system language by default and can be switched on the server entry page; the choice is remembered locally. System languages outside this list fall back to English.
 
+## Server connectivity check
+
+The server entry page offers a server connectivity check: it reads the health and time endpoints from your server and shows the service name and version, the server's UTC time, that time converted to the server's own display timezone, and the request ID for the call. When a check fails, the interface states only why it failed (unreachable, no response, service not ready, and so on) together with the error code and request ID — nothing that looks like a successful result is left on screen. Every value comes from the server; the app never falls back to the device clock or sample data.
+
+The server address is currently supplied by the build parameter `--dart-define=ER_SERVER_BASE_URL=http://<host>:<port>`; entering and remembering an address in the interface comes in a later release.
+
 ## License
 
 Mulan Permissive Software License, Version 2 (MulanPSL-2.0). Third-party original licenses are not overridden.

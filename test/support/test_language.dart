@@ -1,10 +1,11 @@
-/// 語言相關測試的共用助手：記憶體持久化假實作與應用組裝。
+/// 語言與應用組裝測試的共用助手：記憶體持久化假實作與根節點組裝。
 library;
 
 import 'package:flutter/widgets.dart';
 
 import 'package:evernight_realm/app/app_dependencies.dart';
 import 'package:evernight_realm/app/evernight_app.dart';
+import 'package:evernight_realm/core/api/connection_tracker.dart';
 import 'package:evernight_realm/core/language_settings.dart';
 
 /// 以記憶體欄位模擬持久化，便於直接斷言寫入的值與次數。
@@ -42,11 +43,15 @@ Future<LanguageSettings> buildLanguageSettings({
 }
 
 /// 以系統語言／已存標識（或直接給定設定）與依賴組裝應用根節點。
+///
+/// 未給 [connection] 時，依依賴裡的端點介面自動建立一個追蹤器：大多數測試
+/// 只關心文字與佈局，不需要真假設探測。
 Future<Widget> buildTestApp({
   AppDependencies dependencies = const AppDependencies(),
   Locale systemLocale = const Locale('en'),
   String? storedTag,
   LanguageSettings? language,
+  ConnectionTracker? connection,
 }) async {
   final LanguageSettings settings =
       language ??
@@ -54,5 +59,9 @@ Future<Widget> buildTestApp({
         systemLocale: systemLocale,
         storedTag: storedTag,
       );
-  return EvernightApp(dependencies: dependencies, language: settings);
+  return EvernightApp(
+    dependencies: dependencies,
+    language: settings,
+    connection: connection ?? ConnectionTracker(dependencies.api),
+  );
 }

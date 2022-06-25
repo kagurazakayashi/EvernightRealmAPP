@@ -60,7 +60,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final double bodyWidth = tester
-          .getSize(find.byKey(NotWiredView.listKey))
+          .getSize(find.byKey(NotWiredView.contentKey))
           .width;
       expect(
         bodyWidth,

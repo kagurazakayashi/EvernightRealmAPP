@@ -49,14 +49,18 @@ void main() {
         find.text(l10n.labelValuePair(l10n.statusVersionLabel, '9.9.9-test')),
         findsOneWidget,
       );
+      // 狀態條欄位以鍵定位：同一句話也可能出現在入口頁的探測區，
+      // 用文字搜尋會把兩處混在一起，量不到「狀態條本身寫了什麼」。
+      String statusText(Key key) =>
+          tester.widget<Text>(find.byKey(key)).data ?? '';
+
       expect(
-        find.text(
-          l10n.labelValuePair(
-            l10n.statusConnectionLabel,
-            l10n.connectionNotWired,
-          ),
+        statusText(ConnectionStatusBar.connectionKey),
+        l10n.labelValuePair(
+          l10n.statusConnectionLabel,
+          l10n.connectionNotConfigured,
         ),
-        findsOneWidget,
+        reason: '未注入位址時不得宣稱已連線或已探測',
       );
     });
 
