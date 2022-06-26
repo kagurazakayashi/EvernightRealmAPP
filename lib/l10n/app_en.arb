@@ -248,5 +248,37 @@
   "diagnosticErrorCode": "Error code",
   "@diagnosticErrorCode": {
     "description": "診斷行：機器錯誤碼的標籤。"
+  },
+  "safeErrorTitle": "Something went wrong",
+  "@safeErrorTitle": {
+    "description": "未處理錯誤安全畫面的標題。"
+  },
+  "safeErrorBody": "The problem has been recorded on this device only. You can go back to a working page; nothing was sent anywhere.",
+  "@safeErrorBody": {
+    "description": "安全畫面的說明：記錄只留在本機、不外送，並可返回可用頁面。"
+  },
+  "safeErrorReturnAction": "Return to a working page",
+  "@safeErrorReturnAction": {
+    "description": "安全畫面唯一動作的按鈕文字（清掉失敗並回到起始路由）。"
+  },
+  "safeErrorRepeatedHint": "The same problem came back right after returning. Please reload the app. If it keeps happening, quote the diagnostic code above.",
+  "@safeErrorRepeatedHint": {
+    "description": "返回後同一失敗立刻重現時的額外提示（改請使用者重新載入）。"
+  },
+  "safeErrorKindUi": "A part of the interface could not be drawn.",
+  "@safeErrorKindUi": {
+    "description": "失敗類別：元件建構／佈局／繪製階段出錯。"
+  },
+  "safeErrorKindBackground": "A background task failed.",
+  "@safeErrorKindBackground": {
+    "description": "失敗類別：框架非構建階段或背景工作出錯。"
+  },
+  "safeErrorKindServer": "A request to the server failed.",
+  "@safeErrorKindServer": {
+    "description": "失敗類別：與伺服器往來時出錯。"
+  },
+  "safeErrorDiagnosticCodeLabel": "Diagnostic code",
+  "@safeErrorDiagnosticCodeLabel": {
+    "description": "診斷行：本機診斷碼的標籤。"
   }
 }

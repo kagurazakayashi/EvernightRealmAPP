@@ -38,7 +38,7 @@ void _check(String name, bool ok, [String detail = '']) {
   }
 }
 
-/// 執行 [run]，回傳它抛出的 [ApiError]；正常回傳時回傳 `null`。
+/// 執行 [run]，回傳它拋出的 [ApiError]；正常回傳時回傳 `null`。
 Future<ApiError?> _capture(Future<Object?> Function() run) async {
   try {
     await run();

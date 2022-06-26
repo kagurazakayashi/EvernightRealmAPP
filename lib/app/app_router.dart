@@ -20,6 +20,13 @@ import 'widgets/not_wired_view.dart';
 
 /// 應用殼的路由表。
 abstract final class AppRouter {
+  /// 導航器的金鑰：讓錯誤畫面能在「返回可用頁面」時把堆疊清回起始路由。
+  ///
+  /// 安全畫面由 `MaterialApp.builder` 覆蓋在導航器之上，它自己的 context 取不到
+  /// 下方的 Navigator，因此需要這個由 `MaterialApp.navigatorKey` 接住的金鑰。
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   /// 啟動後的第一個畫面：未登入與已登入通用的伺服器入口層。
   static String get initialRoute => NavContext.serverEntry.routeName;
 

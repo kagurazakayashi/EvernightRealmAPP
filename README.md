@@ -36,6 +36,12 @@ The server entry page offers a server connectivity check: it reads the health an
 
 The server address is currently supplied by the build parameter `--dart-define=ER_SERVER_BASE_URL=http://<host>:<port>`; entering and remembering an address in the interface comes in a later release.
 
+## When something goes wrong
+
+If part of the app cannot be displayed, the interface switches to a safe notice page: it says where the problem happened (drawing the interface, a background task, or talking to the server), gives a diagnostic code you can match against this device's log, and includes the server request ID when the failure involves a request. A single action, "Return to a working page", takes you back to an usable interface. The notice page never shows the raw error text, a stack trace, or the server address, and nothing is sent anywhere — problems are recorded on your own device only.
+
+One honest caveat: the section that just failed may stay blank for a while after you return, until the interface rebuilds. If the same problem keeps coming back, the notice page will tell you to reload the app.
+
 ## License
 
 Mulan Permissive Software License, Version 2 (MulanPSL-2.0). Third-party original licenses are not overridden.

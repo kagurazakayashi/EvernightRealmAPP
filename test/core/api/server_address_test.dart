@@ -51,7 +51,7 @@ void main() {
     });
 
     test('上跳段在解析階段即被正規化，不會逃出基準路徑', () {
-      // Uri 已把 `/../` 化簡；這裡固定該行為，避免以為還需要自行挡。
+      // Uri 已把 `/../` 化簡；這裡固定該行為，避免以為還需要自行擋。
       final ServerAddress? address = ServerAddress.tryParse(
         'http://127.0.0.1:5206/../etc',
       );

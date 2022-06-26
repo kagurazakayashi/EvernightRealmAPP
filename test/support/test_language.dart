@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:evernight_realm/app/app_dependencies.dart';
 import 'package:evernight_realm/app/evernight_app.dart';
 import 'package:evernight_realm/core/api/connection_tracker.dart';
+import 'package:evernight_realm/core/diagnostics/diagnostics_hub.dart';
 import 'package:evernight_realm/core/language_settings.dart';
 
 /// 以記憶體欄位模擬持久化，便於直接斷言寫入的值與次數。
@@ -45,13 +46,15 @@ Future<LanguageSettings> buildLanguageSettings({
 /// 以系統語言／已存標識（或直接給定設定）與依賴組裝應用根節點。
 ///
 /// 未給 [connection] 時，依依賴裡的端點介面自動建立一個追蹤器：大多數測試
-/// 只關心文字與佈局，不需要真假設探測。
+/// 只關心文字與佈局，不需要真假設探測。未給 [diagnostics] 時同樣給一組全新的
+/// 收集器，避免測試之間共用狀態。
 Future<Widget> buildTestApp({
   AppDependencies dependencies = const AppDependencies(),
   Locale systemLocale = const Locale('en'),
   String? storedTag,
   LanguageSettings? language,
   ConnectionTracker? connection,
+  DiagnosticsHub? diagnostics,
 }) async {
   final LanguageSettings settings =
       language ??
@@ -63,5 +66,6 @@ Future<Widget> buildTestApp({
     dependencies: dependencies,
     language: settings,
     connection: connection ?? ConnectionTracker(dependencies.api),
+    diagnostics: diagnostics ?? DiagnosticsHub(sink: (String _) {}),
   );
 }

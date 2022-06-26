@@ -160,5 +160,37 @@
   "diagnosticErrorCode": "错误码",
   "@diagnosticErrorCode": {
     "description": "診斷行：機器錯誤碼的標籤。"
+  },
+  "safeErrorTitle": "出了点问题",
+  "@safeErrorTitle": {
+    "description": "未處理錯誤安全畫面的標題。"
+  },
+  "safeErrorBody": "问题已记录在本机。你可以返回可用的页面；应用没有把任何内容发送到外部。",
+  "@safeErrorBody": {
+    "description": "安全畫面的說明：記錄只留在本機、不外送，並可返回可用頁面。"
+  },
+  "safeErrorReturnAction": "返回可用页面",
+  "@safeErrorReturnAction": {
+    "description": "安全畫面唯一動作的按鈕文字（清掉失敗並回到起始路由）。"
+  },
+  "safeErrorRepeatedHint": "返回后同样的问题马上又出现了。请重新载入应用；若仍然反复出现，请带上上面的诊断码说明情况。",
+  "@safeErrorRepeatedHint": {
+    "description": "返回後同一失敗立刻重現時的額外提示（改請使用者重新載入）。"
+  },
+  "safeErrorKindUi": "界面的某一部分无法绘制。",
+  "@safeErrorKindUi": {
+    "description": "失敗類別：元件建構／佈局／繪製階段出錯。"
+  },
+  "safeErrorKindBackground": "后台任务出错。",
+  "@safeErrorKindBackground": {
+    "description": "失敗類別：框架非構建階段或背景工作出錯。"
+  },
+  "safeErrorKindServer": "与服务器的请求出错。",
+  "@safeErrorKindServer": {
+    "description": "失敗類別：與伺服器往來時出錯。"
+  },
+  "safeErrorDiagnosticCodeLabel": "诊断码",
+  "@safeErrorDiagnosticCodeLabel": {
+    "description": "診斷行：本機診斷碼的標籤。"
   }
 }

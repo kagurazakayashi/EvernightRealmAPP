@@ -16,22 +16,25 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import '../core/api/connection_tracker.dart';
 import '../core/app_fonts.dart';
 import '../core/app_locale.dart';
+import '../core/diagnostics/diagnostics_hub.dart';
 import '../core/language_settings.dart';
 import '../l10n/app_localizations.dart';
 import 'app_dependencies.dart';
 import 'app_router.dart';
 import 'app_theme.dart';
 import 'connection_scope.dart';
+import 'error_boundary.dart';
 import 'language_scope.dart';
 
 /// 長夜幻境使用者端的應用根節點。
 class EvernightApp extends StatefulWidget {
-  /// 以裝配好的依賴、語言設定與連線追蹤建立根節點。
+  /// 以裝配好的依賴、語言設定、連線追蹤與失敗收集器建立根節點。
   const EvernightApp({
     super.key,
     required this.dependencies,
     required this.language,
     required this.connection,
+    required this.diagnostics,
   });
 
   /// 啟動時裝配的依賴集合。
@@ -42,6 +45,9 @@ class EvernightApp extends StatefulWidget {
 
   /// 連線探測狀態；由組裝點建立並負責其生命週期。
   final ConnectionTracker connection;
+
+  /// 未處理錯誤的收集器：安全畫面讀它，啟動護欄寫它。
+  final DiagnosticsHub diagnostics;
 
   @override
   State<EvernightApp> createState() => _EvernightAppState();
@@ -150,19 +156,25 @@ class _EvernightAppState extends State<EvernightApp> {
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: AppLocalizations.supportedLocales,
+            navigatorKey: AppRouter.navigatorKey,
             initialRoute: AppRouter.initialRoute,
             routes: AppRouter.routes,
             onUnknownRoute: AppRouter.onUnknownRoute,
             builder: (BuildContext context, Widget? child) {
-              if (!_waitingForFont) {
-                return child ?? const SizedBox.shrink();
+              if (_waitingForFont) {
+                // 字體就緒前只有指示器：沒有任何文字，因此不會觸發線上取字。
+                // 此時也不放安全畫面——它全是文字，字型還沒到位。
+                return const Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Material(
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
               }
-              // 字體就緒前只有指示器：沒有任何文字，因此不會觸發線上取字。
-              return const Directionality(
-                textDirection: TextDirection.ltr,
-                child: Material(
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+              return ErrorBoundary(
+                diagnostics: widget.diagnostics,
+                navigatorKey: AppRouter.navigatorKey,
+                child: child ?? const SizedBox.shrink(),
               );
             },
           ),
