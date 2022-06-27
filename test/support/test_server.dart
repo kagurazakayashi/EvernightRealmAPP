@@ -43,7 +43,7 @@ ServerApi stubApi({
   }..addAll(overrides);
 
   return ServerApi(
-    config: const ServerApiConfig(baseUrl: testBaseUrl),
+    config: ServerApiConfig.fixed(testBaseUrl),
     client: MockClient((http.Request request) async {
       return http.Response(
         bodies[request.url.path] ?? '{}',
@@ -60,7 +60,7 @@ ServerApi stubApi({
 /// 以自訂處理器建立假端點：既可回正常回應，也可製造連不上、逾時等傳輸級失敗。
 ServerApi apiWithHandler(Future<http.Response> Function(http.Request) handler) {
   return ServerApi(
-    config: const ServerApiConfig(baseUrl: testBaseUrl),
+    config: ServerApiConfig.fixed(testBaseUrl),
     client: MockClient(handler),
   );
 }

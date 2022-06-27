@@ -2,8 +2,8 @@
 ///
 /// 本層未登入與已登入通用，是啟動後的第一個畫面，也是介面語言選擇的所在位置
 /// （全域設定放全局頁面，其他上下文尚未開發時不重複放選單）。
-/// 這裡同時放置連通性探測區：它是目前唯一能如實讀取伺服器的入口。
-/// 伺服器位址輸入、登入、註冊與 Guest 入口待對應能力就緒後在此擴充。
+/// 這裡同時放置伺服器位址輸入卡與連通性探測區：前者決定本機要連哪台伺服器，
+/// 後者以同一個位址如實回報連得上與否。登入、註冊與 Guest 入口待對應能力就緒後在此擴充。
 ///
 /// 內容一律為固定高度的Column：垂直滾動由應用殼承擔，頁面不與殼搶滾動區。
 library;
@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../../app/nav_context.dart';
 import '../../app/widgets/language_selector.dart';
 import '../../app/widgets/not_wired_view.dart';
+import '../../app/widgets/server_address_editor.dart';
 import '../../app/widgets/server_probe_view.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -42,6 +43,10 @@ class ServerEntryPage extends StatelessWidget {
               ),
             ],
           ),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
+          child: ServerAddressEditor(),
         ),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 14, 16, 0),

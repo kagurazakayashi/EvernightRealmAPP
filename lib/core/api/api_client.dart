@@ -19,38 +19,38 @@ import 'package:http/http.dart' as http;
 import 'api_error.dart';
 import 'server_address.dart';
 
-/// 伺服器位址的編譯期參數名稱。
+/// 存取組態。
 ///
-/// 尚未提供位址輸入介面與本地保存（屬後續能力），開發期由建置指令注入：
-/// `--dart-define=ER_SERVER_BASE_URL=http://127.0.0.1:5206`。未注入即如實
-/// 呈現「伺服器位址未設定」，不猜測任何預設主機。
-const String kServerBaseUrlEnvironmentKey = 'ER_SERVER_BASE_URL';
-
-/// 編譯期注入的基準位址，未注入時為空字串。
-const String injectedServerBaseUrl = String.fromEnvironment(
-  kServerBaseUrlEnvironmentKey,
-);
-
-/// API 存取的組態。
+/// 位址以 [ServerAddressSource] 即時取用而非保存一段文字：位址可在執行期間被
+/// 使用者改動並本地保存，若組態複制了一份，就會出現「畫面已改、請求仍打舊位址」。
 class ServerApiConfig {
-  /// 以基準位址文字與期限建立組態。
+  /// 以位址來源與期限建立組態。
   const ServerApiConfig({
-    this.baseUrl = injectedServerBaseUrl,
+    this.source = const InjectedServerAddressSource(),
     this.requestTimeout = defaultRequestTimeout,
   });
+
+  /// 以固定位址文字建立組態：測試、工具腳本，以及驗證尚未保存的候選位址。
+  ServerApiConfig.fixed(
+    String? url, {
+    this.requestTimeout = defaultRequestTimeout,
+  }) : source = StaticServerAddressSource(url);
 
   /// 內建請求期限：區域網路的正常回應在毫秒級，5 秒已涵蓋資料庫尚未就緒時
   /// `/ready` 的 3 秒上限，又短到不會讓探測按鈕卡住介面。
   static const Duration defaultRequestTimeout = Duration(seconds: 5);
 
-  /// 基準位址原值；空字串代表未設定。
-  final String baseUrl;
+  /// 基準位址的即時來源。
+  final ServerAddressSource source;
 
   /// 單一請求的期限。
   final Duration requestTimeout;
 
+  /// 目前生效的基準位址文字；未設定時為 `null`。
+  String? get baseUrl => source.currentUrl();
+
   /// 已驗證的基準位址；未設定或格式不合格時為 `null`。
-  ServerAddress? get address => ServerAddress.tryParse(baseUrl);
+  ServerAddress? get address => ServerAddress.tryParse(baseUrl ?? '');
 
   /// 是否具備可用的基準位址。
   bool get hasAddress => address != null;

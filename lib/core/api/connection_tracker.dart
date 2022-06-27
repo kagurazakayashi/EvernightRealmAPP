@@ -5,13 +5,17 @@
 ///
 /// 刻意不保存本機時間戳：探測成功時顯示的是伺服器回傳的 UTC 時間（DEC-015），
 /// 「何時探測過」在沒有伺服器依據的情況下不是一個值得宣稱的事實。
+///
+/// 位址可在執行期間被使用者改動，因此本追蹤器記錄「這筆結果是對哪個位址探測的」：
+/// 位址一改，舊結果立刻作廢（改回尚未探測），否則狀態條會掛著另一台伺服器的
+/// 時間卻顯示新地址，那是比「尚未探測」更糟的假象。
 library;
 
 import 'package:flutter/foundation.dart';
 
 import 'api_error.dart';
+import 'server_address_settings.dart';
 import 'server_api.dart';
-import 'server_models.dart';
 
 /// 連線探測所處的階段。
 ///
@@ -27,40 +31,43 @@ enum ServerConnectionPhase {
   /// 探測請求進行中。
   probing,
 
-  /// 上次探測成功：三個端點都回傳了符合合同的回應。
+  /// 上次探測成功：存活與校時端點都回傳了符合合同的回應。
   probeSucceeded,
 
   /// 上次探測失敗：原因見 [ConnectionTracker.error]。
   probeFailed,
 }
 
-/// 一次成功探測收集到的回應。
-class ServerProbeResult {
-  /// 以已驗證的回應建立探測結果。
-  const ServerProbeResult({required this.health, required this.time});
-
-  /// `/health` 的存活回應。
-  final HealthReport health;
-
-  /// `/time` 的校時回應。
-  final ServerTimeReport time;
-}
-
 /// 連線探測狀態（可訂閱）。
 class ConnectionTracker extends ChangeNotifier {
   /// 以統一存取介面建立追蹤器；起點階段由組態決定，不預先假裝已探測過。
-  ConnectionTracker(this.api)
+  ///
+  /// [addresses] 給定時會訂閱其變更：位址一改，舊的探測結果與失敗原因立即
+  /// 作廢。未給定（位址不可變的工具與測試）時行為與從前相同。
+  ConnectionTracker(this.api, {ServerAddressSettings? addresses})
     : _phase = api.isConfigured
           ? ServerConnectionPhase.notProbed
-          : ServerConnectionPhase.notConfigured;
+          : ServerConnectionPhase.notConfigured,
+      _stateUrl = api.addressDisplay {
+    if (addresses != null) {
+      _addresses = addresses..addListener(_onAddressChanged);
+    }
+  }
 
   /// 探測所用的端點存取介面。
   final ServerApi api;
 
+  ServerAddressSettings? _addresses;
   ServerConnectionPhase _phase = ServerConnectionPhase.notConfigured;
   ServerProbeResult? _result;
   ApiError? _error;
   Future<void>? _inFlight;
+
+  /// 目前這份狀態（階段與數值）是針對哪個位址算出來的。
+  ///
+  /// 這是作廢與否的唯一依據：位址一變，掛著的結果與階段就不再描述這台伺服器，
+  /// 連「尚未探測」這種起點階段也要重算——起點本身就是從位址推出來的。
+  String? _stateUrl;
 
   /// 目前階段。
   ServerConnectionPhase get phase => _phase;
@@ -92,9 +99,7 @@ class ConnectionTracker extends ChangeNotifier {
       return running;
     }
     if (!api.isConfigured) {
-      _phase = ServerConnectionPhase.notConfigured;
-      _result = null;
-      notifyListeners();
+      _resetToAddressState();
       return Future<void>.value();
     }
 
@@ -108,29 +113,91 @@ class ConnectionTracker extends ChangeNotifier {
     return task;
   }
 
+  /// 收用一趟已完成的探測結果（保存位址時那趟驗證打的就是同一個位址）。
+  ///
+  /// 由呼叫端在 [ServerAddressSettings.save] 成功後轉交，避免「剛驗證過又立刻
+  /// 再探一次」的重複請求；失敗或不屬成功的結果不改變狀態。
+  void adopt(ServerProbeOutcome outcome) {
+    final ServerProbeResult? result = outcome.result;
+    if (!outcome.isSuccessful || result == null) {
+      return;
+    }
+    _result = result;
+    _error = null;
+    _stateUrl = api.addressDisplay;
+    _phase = ServerConnectionPhase.probeSucceeded;
+    notifyListeners();
+  }
+
   /// 實際執行探測；任何失敗都收斂為狀態，不外洩例外。
   Future<void> _runProbe(String? acceptLanguage) async {
+    // 記錄發起時的位址：探測期間使用者若改了地址，完成時寫回的就是過期結果。
+    final String? probedUrl = api.addressDisplay;
+    _stateUrl = probedUrl;
     _phase = ServerConnectionPhase.probing;
     _error = null;
     notifyListeners();
 
-    try {
-      final HealthReport health = await api.health(
-        acceptLanguage: acceptLanguage,
-      );
-      final ServerTimeReport time = await api.time(
-        acceptLanguage: acceptLanguage,
-      );
-      _result = ServerProbeResult(health: health, time: time);
-      _error = null;
-      _phase = ServerConnectionPhase.probeSucceeded;
-    } on ApiError catch (error) {
-      // 失敗時一併清掉上次的成功回應：狀態條與探測區不會出現「已失敗」
-      // 卻還掛著舊數值的矛盾畫面。要保留舊數值的呈現屬後續能力。
-      _result = null;
-      _error = error;
-      _phase = ServerConnectionPhase.probeFailed;
+    final ServerProbeOutcome outcome = await probeServerConnectivity(
+      api,
+      acceptLanguage: acceptLanguage,
+    );
+    if (api.addressDisplay != probedUrl) {
+      // 位址在請求進行間被換掉：丟棄這筆結果，讓介面停在「尚未探測」，
+      // 由下一次顯式探測給出新地址的真實狀態。
+      _resetToAddressState();
+      return;
+    }
+
+    switch (outcome) {
+      case ServerProbeOutcome(result: final ServerProbeResult result?):
+        // 失敗時一併清掉上次的成功回應：狀態條與探測區不會出現「已失敗」
+        // 卻還掛著舊數值的矛盾畫面。要保留舊數值的呈現屬後續能力。
+        _result = result;
+        _error = null;
+        _phase = ServerConnectionPhase.probeSucceeded;
+      case ServerProbeOutcome(error: final ApiError error?):
+        _result = null;
+        _error = error;
+        _phase = ServerConnectionPhase.probeFailed;
+      default:
+        // 探測結果必為成功或失敗之一；走到這裡代表拿到不成對的值，
+        // 當成沒有依據處理，絕不保留任何看起來像數值的東西。
+        _result = null;
+        _error = null;
+        _resetToAddressState();
+        return;
     }
     notifyListeners();
+  }
+
+  /// 位址變更：舊結果不再描述目前這台伺服器，一律作廢。
+  void _onAddressChanged() {
+    if (_phase == ServerConnectionPhase.probing) {
+      // 探測進行中：完成時 [_runProbe] 自行比對並丟棄過期結果，此處不打斷。
+      return;
+    }
+    if (_stateUrl == api.addressDisplay) {
+      return;
+    }
+    _resetToAddressState();
+  }
+
+  /// 依目前位址回到起點階段，並清掉所有數值。
+  void _resetToAddressState() {
+    _stateUrl = api.addressDisplay;
+    _result = null;
+    _error = null;
+    _phase = api.isConfigured
+        ? ServerConnectionPhase.notProbed
+        : ServerConnectionPhase.notConfigured;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _addresses?.removeListener(_onAddressChanged);
+    _addresses = null;
+    super.dispose();
   }
 }

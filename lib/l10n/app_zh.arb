@@ -121,7 +121,7 @@
   "@serverProbeRunning": {
     "description": "探測進行中的提示文字。"
   },
-  "serverProbeNotConfiguredHint": "没有可用的服务器地址，探测已停用。地址输入与保存将在后续版本提供，开发期由构建参数注入。",
+  "serverProbeNotConfiguredHint": "没有可用的服务器地址，探测已停用。请在上方输入地址并保存。",
   "@serverProbeNotConfiguredHint": {
     "description": "位址不可用時的說明：按鈕停用原因與位址來源。"
   },
@@ -192,5 +192,93 @@
   "safeErrorDiagnosticCodeLabel": "诊断码",
   "@safeErrorDiagnosticCodeLabel": {
     "description": "診斷行：本機診斷碼的標籤。"
+  },
+  "serverAddressTitle": "服务器地址",
+  "@serverAddressTitle": {
+    "description": "伺服器入口層：位址輸入卡的標題。"
+  },
+  "serverAddressSummary": "输入要使用的服务器地址，并保存在本机。只接受完整的 http 或 https 地址（不得包含用户名或密码），且地址必须能连通才会保存。",
+  "@serverAddressSummary": {
+    "description": "位址輸入卡的範圍說明：點明只接受完整位址、且驗證得通才會保存。"
+  },
+  "serverAddressInputHint": "例如：http://192.168.1.10:5206",
+  "@serverAddressInputHint": {
+    "description": "位址輸入框的範例提示（含協定與埠號的寫法）。"
+  },
+  "serverAddressEffectiveLabel": "当前使用的地址",
+  "@serverAddressEffectiveLabel": {
+    "description": "位址輸入卡：目前實際生效的位址欄位標籤。"
+  },
+  "serverAddressSavedLabel": "本机已保存的地址",
+  "@serverAddressSavedLabel": {
+    "description": "位址輸入卡：本機已保存位址的欄位標籤（未必正在生效）。"
+  },
+  "serverAddressSaveAction": "检查并保存",
+  "@serverAddressSaveAction": {
+    "description": "保存按鈕文字：先探測可達性再寫入本機。"
+  },
+  "serverAddressSaving": "正在检查该地址…",
+  "@serverAddressSaving": {
+    "description": "保存進行中的按鈕文字（正在探測候選位址）。"
+  },
+  "serverAddressClearAction": "清除已保存地址",
+  "@serverAddressClearAction": {
+    "description": "清除按鈕文字：移除本機保存的位址。"
+  },
+  "serverAddressFromBuildNote": "当前使用的地址来自构建参数，不是本机保存的。",
+  "@serverAddressFromBuildNote": {
+    "description": "生效位址來自編譯期注入時的來源說明。"
+  },
+  "serverAddressInactiveNote": "这是调试构建，构建参数优先；本机保存的地址尚未生效。",
+  "@serverAddressInactiveNote": {
+    "description": "debug 建置下注入值壓過本機值時的提示，避免使用者誤以為剛存的地址已生效。"
+  },
+  "serverAddressSavedNote": "地址已保存到本机。",
+  "@serverAddressSavedNote": {
+    "description": "已驗證可達並成功寫入本機後的確認文字。"
+  },
+  "serverAddressVerifyFailed": "这个地址没有响应，因此未保存。",
+  "@serverAddressVerifyFailed": {
+    "description": "格式合格但連不通時的說明：明確表示沒有保存。"
+  },
+  "serverAddressStorageFailed": "本机无法写入该更改，因此未改动任何设置。",
+  "@serverAddressStorageFailed": {
+    "description": "本機寫入失敗（保存或清除）時的說明：狀態保持原樣。"
+  },
+  "serverAddressCleared": "已从本机移除保存的地址。",
+  "@serverAddressCleared": {
+    "description": "清除本機已存位址成功後的確認文字。"
+  },
+  "addressIssueEmpty": "请输入服务器地址。",
+  "@addressIssueEmpty": {
+    "description": "格式判定：沒有任何輸入。"
+  },
+  "addressIssueMissingScheme": "地址需要以 http:// 或 https:// 开头。",
+  "@addressIssueMissingScheme": {
+    "description": "格式判定：最常見的錯誤——只寫了主機與埠號，忘了協定前綴。"
+  },
+  "addressIssueUnsupportedScheme": "只支持 http 或 https 协议的地址。",
+  "@addressIssueUnsupportedScheme": {
+    "description": "格式判定：協定不是 http 或 https。"
+  },
+  "addressIssueWhitespace": "地址中不能包含空格或制表符。",
+  "@addressIssueWhitespace": {
+    "description": "格式判定：位址中間夾帶空白、製表符或零寬字元。"
+  },
+  "addressIssueUnresolved": "无法把这段文字识别为服务器地址。",
+  "@addressIssueUnresolved": {
+    "description": "格式判定：無法解析出帶主機的絕對位址。"
+  },
+  "addressIssueHostMissing": "地址缺少主机名。",
+  "@addressIssueHostMissing": {
+    "description": "格式判定：有協定與斜線，但主機名稱為空。"
+  },
+  "addressIssueCredentials": "地址中不能包含用户名或密码。",
+  "@addressIssueCredentials": {
+    "description": "格式判定：位址內含使用者名稱或密碼（憑證不入位址）。"
+  },
+  "addressIssueQueryOrFragment": "地址中不能包含查询参数或 # 片段。",
+  "@addressIssueQueryOrFragment": {
+    "description": "格式判定：位址內含查詢字串或片段標記。"
   }
 }

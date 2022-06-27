@@ -106,4 +106,68 @@ void main() {
       expect(withCredentials.contains('secret'), isTrue);
     });
   });
+
+  group('ServerAddress.validate 給出具體原因', () {
+    // 完成判斷要求「格式錯誤有可理解提示」，因此每一類拒絕都要落到一個
+    // 說得清「該怎麼改」的原因上，而不是一句「格式不正確」。
+    const Map<String?, ServerAddressIssue> cases =
+        <String?, ServerAddressIssue>{
+          null: ServerAddressIssue.empty,
+          '': ServerAddressIssue.empty,
+          '   ': ServerAddressIssue.empty,
+          '192.168.1.20:5206': ServerAddressIssue.missingScheme,
+          'localhost:5206': ServerAddressIssue.missingScheme,
+          '127.0.0.1': ServerAddressIssue.missingScheme,
+          '/health': ServerAddressIssue.missingScheme,
+          '本地端:5206': ServerAddressIssue.missingScheme,
+          'file:///etc/passwd': ServerAddressIssue.unsupportedScheme,
+          'javascript:alert(1)': ServerAddressIssue.unsupportedScheme,
+          'ftp://192.168.1.20': ServerAddressIssue.unsupportedScheme,
+          'http://127.0.0.1:520 6': ServerAddressIssue.embeddedWhitespace,
+          'http://127.0.0.1:52\t06': ServerAddressIssue.embeddedWhitespace,
+          'http://127.0.0.1:52​06': ServerAddressIssue.embeddedWhitespace,
+          'http://': ServerAddressIssue.hostMissing,
+          'http://root:password@192.168.1.20:5206':
+              ServerAddressIssue.credentials,
+          'http://127.0.0.1:5206?admin=1': ServerAddressIssue.queryOrFragment,
+          'http://127.0.0.1:5206#token': ServerAddressIssue.queryOrFragment,
+          'http://[': ServerAddressIssue.unresolved,
+        };
+
+    for (final MapEntry<String?, ServerAddressIssue> entry in cases.entries) {
+      final String label = entry.key ?? '（null）';
+      test('$label → ${entry.value.name}', () {
+        expect(
+          ServerAddress.validate(entry.key),
+          entry.value,
+          reason: '$entry 的判定與預期不符',
+        );
+        // 同一份判定必須兩個入口一致：提示說不行的，tryParse 也一定不能通過。
+        expect(ServerAddress.tryParse(entry.key), isNull);
+      });
+    }
+
+    test('合格的位址回傳 ok，且 tryParse 必定建立實例', () {
+      for (final String text in <String>[
+        'http://127.0.0.1:5206',
+        'https://lan.example',
+        '  http://192.168.1.20:8080/evernight  ',
+        'HTTP://127.0.0.1:5206',
+      ]) {
+        expect(ServerAddress.validate(text), ServerAddressIssue.ok);
+        expect(ServerAddress.tryParse(text), isNotNull, reason: text);
+      }
+    });
+
+    test('原因清單覆蓋枚舉全部非 ok 的值，新增分類不會沒有文案', () {
+      final Set<ServerAddressIssue> expected = ServerAddressIssue.values
+          .toSet()
+          .difference(<ServerAddressIssue>{ServerAddressIssue.ok});
+      expect(
+        cases.values.toSet(),
+        equals(expected),
+        reason: 'ServerAddressIssue 新增了分類，測試與四語言文案要一併補齊',
+      );
+    });
+  });
 }

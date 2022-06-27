@@ -51,8 +51,8 @@ Future<ApiError?> _capture(Future<Object?> Function() run) async {
 /// 以真實連線建立端點介面（刻意不注入假傳輸）。
 ServerApi _live(String baseUrl, {Duration? timeout}) {
   return ServerApi(
-    config: ServerApiConfig(
-      baseUrl: baseUrl,
+    config: ServerApiConfig.fixed(
+      baseUrl,
       requestTimeout: timeout ?? const Duration(seconds: 5),
     ),
   );
@@ -135,7 +135,7 @@ Future<void> _readLiveEndpoints(String baseUrl) async {
 
 /// 對真實服務製造 404 與四語言原文，驗證錯誤轉換與「介面文案不取伺服器原文」的前提。
 Future<void> _mapRealErrors(String baseUrl) async {
-  final ApiClient client = ApiClient(config: ServerApiConfig(baseUrl: baseUrl));
+  final ApiClient client = ApiClient(config: ServerApiConfig.fixed(baseUrl));
   const String missing = '/step051-live-probe-does-not-exist';
 
   final ApiError? fallback = await _capture(
@@ -265,7 +265,7 @@ Future<void> _rejectBadContract() async {
   });
 
   final String base = 'http://127.0.0.1:${fake.port}';
-  final ApiClient client = ApiClient(config: ServerApiConfig(baseUrl: base));
+  final ApiClient client = ApiClient(config: ServerApiConfig.fixed(base));
 
   Future<void> expectInvalid(
     String path,

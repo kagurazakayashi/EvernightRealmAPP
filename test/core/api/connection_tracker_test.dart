@@ -6,11 +6,14 @@ import 'dart:async';
 import 'package:evernight_realm/core/api/api_client.dart';
 import 'package:evernight_realm/core/api/api_error.dart';
 import 'package:evernight_realm/core/api/connection_tracker.dart';
+import 'package:evernight_realm/core/api/server_address.dart';
+import 'package:evernight_realm/core/api/server_address_settings.dart';
 import 'package:evernight_realm/core/api/server_api.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import '../../support/test_address.dart';
 import '../../support/test_server.dart';
 
 /// 記錄每次請求的路徑，並依 [respond] 決定回應。
@@ -32,7 +35,7 @@ class _Recorder {
 }) {
   final _Recorder recorder = _Recorder();
   final ServerApi api = ServerApi(
-    config: ServerApiConfig(baseUrl: baseUrl),
+    config: ServerApiConfig.fixed(baseUrl),
     client: recorder.client(
       respond ??
           (http.Request request) async =>
@@ -156,7 +159,7 @@ void main() {
       final Completer<http.Response> gate = Completer<http.Response>();
       final List<String> paths = <String>[];
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: testBaseUrl),
+        config: ServerApiConfig.fixed(testBaseUrl),
         client: MockClient((http.Request request) async {
           paths.add(request.url.path);
           return request.url.path == kHealthPath
@@ -197,7 +200,7 @@ void main() {
     test('探測把介面語言送給伺服器', () async {
       final List<String?> sent = <String?>[];
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: testBaseUrl),
+        config: ServerApiConfig.fixed(testBaseUrl),
         client: MockClient((http.Request request) async {
           sent.add(request.headers['accept-language']);
           return jsonOk(request.url.path == kTimePath ? timeBody : healthBody);
@@ -208,6 +211,144 @@ void main() {
       await tracker.probe(acceptLanguage: 'zh-TW');
 
       expect(sent, <String?>['zh-TW', 'zh-TW']);
+    });
+  });
+
+  group('位址可變時的結果歸屬', () {
+    /// 以「位址設定」當來源建立端點與追蹤器：這才是接入使用者輸入後的真實接法。
+    ///
+    /// 驗證器刻意共用同一個假傳輸，保存前那趟驗證與探測區探測因此記錄在同一份
+    /// 請求清單上，「沿用結果、不多發請求」才真的可被斷言。
+    Future<(ConnectionTracker, ServerAddressSettings, List<String>)> wired({
+      String? storedUrl,
+      Future<http.Response> Function(http.Request)? respond,
+    }) async {
+      final List<String> paths = <String>[];
+      final MockClient client = MockClient((http.Request request) async {
+        paths.add('${request.url.host}${request.url.path}');
+        // 測試可自行決定回應（例如把 /health 掛住），未指定時給正常回應。
+        if (respond != null) {
+          return respond(request);
+        }
+        return jsonOk(request.url.path == kTimePath ? timeBody : healthBody);
+      });
+
+      final ServerAddressSettings settings = ServerAddressSettings(
+        InMemoryServerAddressPersistence(storedUrl),
+        preferInjected: false,
+        verifier: (ServerAddress address, {String? acceptLanguage}) =>
+            probeServerConnectivity(
+              ServerApi(
+                config: ServerApiConfig.fixed(address.displayText),
+                client: client,
+              ),
+              acceptLanguage: acceptLanguage,
+            ),
+      );
+      await settings.restore();
+
+      final ServerApi api = ServerApi(
+        config: ServerApiConfig(source: settings),
+        client: client,
+      );
+      return (ConnectionTracker(api, addresses: settings), settings, paths);
+    }
+
+    test('換位址後舊探測結果立即作廢，不掛著另一台伺服器的數值', () async {
+      const String other = 'http://10.0.0.77:5206';
+      final (ConnectionTracker tracker, ServerAddressSettings settings, _) =
+          await wired(storedUrl: testBaseUrl);
+
+      await tracker.probe();
+      expect(tracker.phase, ServerConnectionPhase.probeSucceeded);
+      expect(tracker.result, isNotNull);
+
+      await settings.save(other);
+
+      expect(
+        tracker.phase,
+        ServerConnectionPhase.notProbed,
+        reason: '地址已換，上一台的結果不能留著',
+      );
+      expect(tracker.result, isNull);
+      expect(tracker.addressDisplay, other);
+    });
+
+    test('保存時那趟驗證的結果可直接沿用，不必再發一次請求', () async {
+      const String other = 'http://10.0.0.77:5206';
+      final (
+        ConnectionTracker tracker,
+        ServerAddressSettings settings,
+        List<String> paths,
+      ) = await wired(
+        storedUrl: testBaseUrl,
+      );
+      int notifications = 0;
+      tracker.addListener(() => notifications++);
+
+      final ServerAddressSaveResult result = await settings.save(other);
+      final int pathsAfterSave = paths.length;
+      tracker.adopt(result.probe!);
+
+      expect(result.isSaved, isTrue);
+      expect(pathsAfterSave, greaterThanOrEqualTo(2), reason: '保存前確實探過');
+      expect(tracker.phase, ServerConnectionPhase.probeSucceeded);
+      expect(tracker.result?.time.timezone, 'Asia/Shanghai');
+      expect(paths.length, pathsAfterSave, reason: 'adopt 不該再發出請求');
+      expect(notifications, greaterThanOrEqualTo(2), reason: '作廢一次、沿用一次');
+    });
+
+    test('探測期間位址被換掉時丟棄該筆結果', () async {
+      final Completer<http.Response> gate = Completer<http.Response>();
+      const String other = 'http://10.0.0.77:5206';
+      final (
+        ConnectionTracker tracker,
+        ServerAddressSettings settings,
+        _,
+      ) = await wired(
+        storedUrl: testBaseUrl,
+        respond: (http.Request request) async => request.url.path == kHealthPath
+            ? await gate.future
+            : jsonOk(timeBody),
+      );
+
+      final Future<void> probing = tracker.probe();
+      expect(tracker.phase, ServerConnectionPhase.probing);
+
+      // 請求還沒回來就換了地址：完成後這筆結果描述的已不是目前這台伺服器。
+      final Future<ServerAddressSaveResult> pendingSave = settings.save(other);
+      gate.complete(jsonOk(healthBody));
+      await pendingSave;
+      await probing;
+
+      expect(tracker.addressDisplay, other);
+      expect(tracker.phase, ServerConnectionPhase.notProbed);
+      expect(tracker.result, isNull);
+    });
+
+    test('位址未變時不多餘作廢', () async {
+      final (ConnectionTracker tracker, ServerAddressSettings settings, _) =
+          await wired(storedUrl: testBaseUrl);
+
+      await tracker.probe();
+      final ServerProbeResult? before = tracker.result;
+      int notifications = 0;
+      tracker.addListener(() => notifications++);
+
+      // 重新載入同一個值並通知（其他設定變更也會走到）：位址相同就不該動結果。
+      await settings.restore();
+
+      expect(tracker.phase, ServerConnectionPhase.probeSucceeded);
+      expect(tracker.result, same(before));
+      expect(notifications, 0);
+    });
+
+    test('未接入位址設定時行為不變（工具與既有測試的路徑）', () async {
+      final ConnectionTracker tracker = tracked().$1;
+
+      await tracker.probe();
+
+      expect(tracker.phase, ServerConnectionPhase.probeSucceeded);
     });
   });
 }

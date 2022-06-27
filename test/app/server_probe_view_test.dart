@@ -159,7 +159,7 @@ void main() {
     testWidgets('未就緒時按機器碼取 ARB 文案，不顯示伺服器原文', (WidgetTester tester) async {
       const String serverMessage = 'The service is not ready yet.';
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: testBaseUrl),
+        config: ServerApiConfig.fixed(testBaseUrl),
         client: MockClient((http.Request request) async {
           return http.Response(
             '{"code":1007,"message":"$serverMessage","request_id":"r-777"}',
@@ -206,7 +206,7 @@ void main() {
 
     testWidgets('伺服器原文帶憑證時不會出現在介面', (WidgetTester tester) async {
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: testBaseUrl),
+        config: ServerApiConfig.fixed(testBaseUrl),
         client: MockClient(
           (_) async => http.Response(
             '{"code":1000,"message":"token=abc123secret",'
@@ -296,7 +296,7 @@ class CompletableGate {
   /// 未放行前讓每個請求停在門口，放行後直接回正常回應。
   ServerApi api() {
     return ServerApi(
-      config: const ServerApiConfig(baseUrl: testBaseUrl),
+      config: ServerApiConfig.fixed(testBaseUrl),
       client: MockClient((http.Request request) async {
         if (!_released) {
           final Completer<http.Response> completer = Completer<http.Response>();

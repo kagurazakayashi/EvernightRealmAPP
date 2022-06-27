@@ -89,7 +89,7 @@ void main() {
     test('帶路徑前綴的定位仍接到正確的端點', () async {
       final List<Uri> requested = <Uri>[];
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: 'http://10.0.0.5:80/evernight'),
+        config: ServerApiConfig.fixed('http://10.0.0.5:80/evernight'),
         client: MockClient((http.Request request) async {
           requested.add(request.url);
           return jsonOk(timeBody);
@@ -132,7 +132,7 @@ void main() {
     test('基準位址未設定時不發出任何請求', () async {
       int requests = 0;
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: ''),
+        config: ServerApiConfig.fixed(''),
         client: MockClient((http.Request request) async {
           requests++;
           return jsonOk(healthBody);
@@ -150,7 +150,7 @@ void main() {
 
     test('位址格式不合格時等同未設定', () async {
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: 'http://user:pass@10.0.0.1'),
+        config: ServerApiConfig.fixed('http://user:pass@10.0.0.1'),
       );
 
       expect(
@@ -187,8 +187,8 @@ void main() {
     test('超過期限沒有回應時歸類為逾時', () async {
       final Completer<http.Response> never = Completer<http.Response>();
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(
-          baseUrl: testBaseUrl,
+        config: ServerApiConfig.fixed(
+          testBaseUrl,
           requestTimeout: Duration(milliseconds: 30),
         ),
         client: MockClient((_) => never.future),
@@ -211,7 +211,7 @@ void main() {
 
     test('HTTP 200 但內容型別不是 JSON 時不視為成功', () async {
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: testBaseUrl),
+        config: ServerApiConfig.fixed(testBaseUrl),
         client: MockClient(
           (_) async => http.Response(
             healthBody,
@@ -411,7 +411,7 @@ void main() {
     test('描述不含基準位址，只含路徑與關聯資訊', () async {
       // 注入假傳輸：這支測試要驗的是錯誤描述會不會漏出主機，不該真的去連它。
       final ServerApi api = ServerApi(
-        config: const ServerApiConfig(baseUrl: 'http://10.0.0.9:5206/private'),
+        config: ServerApiConfig.fixed('http://10.0.0.9:5206/private'),
         client: MockClient(
           (_) async => http.Response(
             '{"code":1001,"message":"nope","request_id":"r-9999"}',

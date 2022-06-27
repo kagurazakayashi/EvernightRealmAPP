@@ -6,8 +6,11 @@ import 'package:flutter/widgets.dart';
 import 'package:evernight_realm/app/app_dependencies.dart';
 import 'package:evernight_realm/app/evernight_app.dart';
 import 'package:evernight_realm/core/api/connection_tracker.dart';
+import 'package:evernight_realm/core/api/server_address_settings.dart';
 import 'package:evernight_realm/core/diagnostics/diagnostics_hub.dart';
 import 'package:evernight_realm/core/language_settings.dart';
+
+import 'test_address.dart';
 
 /// 以記憶體欄位模擬持久化，便於直接斷言寫入的值與次數。
 class InMemoryLanguagePersistence implements LanguagePersistence {
@@ -47,12 +50,14 @@ Future<LanguageSettings> buildLanguageSettings({
 ///
 /// 未給 [connection] 時，依依賴裡的端點介面自動建立一個追蹤器：大多數測試
 /// 只關心文字與佈局，不需要真假設探測。未給 [diagnostics] 時同樣給一組全新的
-/// 收集器，避免測試之間共用狀態。
+/// 收集器，避免測試之間共用狀態。[addresses] 未給定時一律以「本機未保存位址」
+/// 起算，讓位址輸入卡在多數測試裡保持中立狀態。
 Future<Widget> buildTestApp({
-  AppDependencies dependencies = const AppDependencies(),
+  AppDependencies? dependencies,
   Locale systemLocale = const Locale('en'),
   String? storedTag,
   LanguageSettings? language,
+  ServerAddressSettings? addresses,
   ConnectionTracker? connection,
   DiagnosticsHub? diagnostics,
 }) async {
@@ -62,10 +67,16 @@ Future<Widget> buildTestApp({
         systemLocale: systemLocale,
         storedTag: storedTag,
       );
+  final ServerAddressSettings addressSettings =
+      addresses ?? await buildAddressSettings();
+  final AppDependencies deps =
+      dependencies ?? AppDependencies.assembled(addresses: addressSettings);
   return EvernightApp(
-    dependencies: dependencies,
+    dependencies: deps,
     language: settings,
-    connection: connection ?? ConnectionTracker(dependencies.api),
+    addresses: addressSettings,
+    connection:
+        connection ?? ConnectionTracker(deps.api, addresses: addressSettings),
     diagnostics: diagnostics ?? DiagnosticsHub(sink: (String _) {}),
   );
 }

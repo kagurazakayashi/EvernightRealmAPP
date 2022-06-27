@@ -11,6 +11,7 @@ library;
 import 'package:http/http.dart' as http;
 
 import 'api_client.dart';
+import 'api_error.dart';
 import 'server_models.dart';
 
 /// 存活檢查端點路徑。
@@ -67,5 +68,61 @@ class ServerApi {
       decode: ServerTimeReport.decode,
       acceptLanguage: acceptLanguage,
     );
+  }
+}
+
+/// 一趟成功探測收集到的回應。
+class ServerProbeResult {
+  /// 以已驗證的回應建立探測結果。
+  const ServerProbeResult({required this.health, required this.time});
+
+  /// `/health` 的存活回應。
+  final HealthReport health;
+
+  /// `/time` 的校時回應。
+  final ServerTimeReport time;
+}
+
+/// 一趟連通性探測的結果：成功時帶 [result]，失敗時帶 [error]，兩者必居其一。
+///
+/// 之所以把失敗做成值而非例外，是因為探測的呼叫端（狀態條、位址卡片）需要的
+/// 都是「把原因顯示出來」，而不是中斷執行流；做成例外會讓每條路徑都得自己接。
+class ServerProbeOutcome {
+  /// 以成功回應建立結果。
+  const ServerProbeOutcome.success(this.result) : error = null;
+
+  /// 以失敗原因建立結果。
+  const ServerProbeOutcome.failure(this.error) : result = null;
+
+  /// 成功的探測回應；失敗時為 `null`。
+  final ServerProbeResult? result;
+
+  /// 失敗原因；成功時為 `null`。
+  final ApiError? error;
+
+  /// 本次探測是否成功。
+  bool get isSuccessful => error == null;
+}
+
+/// 依序讀取存活與校時端點，把成敗收斂為 [ServerProbeOutcome]（本函式不拋例外）。
+///
+/// 這是「這個位址到底通不通」的唯一依據：探測區的探測與保存前的候選位址驗證
+/// 都走它，因此不會出現「探測區說通、保存時用另一套標準說不通」。
+Future<ServerProbeOutcome> probeServerConnectivity(
+  ServerApi api, {
+  String? acceptLanguage,
+}) async {
+  try {
+    final HealthReport health = await api.health(
+      acceptLanguage: acceptLanguage,
+    );
+    final ServerTimeReport time = await api.time(
+      acceptLanguage: acceptLanguage,
+    );
+    return ServerProbeOutcome.success(
+      ServerProbeResult(health: health, time: time),
+    );
+  } on ApiError catch (error) {
+    return ServerProbeOutcome.failure(error);
   }
 }

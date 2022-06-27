@@ -8,6 +8,8 @@ library;
 
 import 'package:flutter/widgets.dart';
 
+import '../core/api/api_client.dart';
+import '../core/api/server_address.dart';
 import '../core/api/server_api.dart';
 import '../core/runtime_status.dart';
 
@@ -20,14 +22,19 @@ class AppDependencies {
     this.api = const ServerApi(),
   });
 
-  /// 由編譯期資訊組裝的預設依賴（不含任何業務資料）。
+  /// 由位址來源裝配的預設依賴（不含任何業務資料）。
   ///
-  /// 端點介面以常值組裝：基準位址取自編譯期注入，傳輸連線採共用實例，
-  /// 因此不需要在這裡管理生命週期。
-  factory AppDependencies.assembled() {
-    return const AppDependencies(
-      runtimeStatus: RuntimeStatus.informationOnly(),
-      api: ServerApi(),
+  /// 端點介面只拿到「去哪取位址」這件事而不複制位址文字：使用者改過地址後
+  /// 不需要重建依賴集合，也不會出現新舊兩份基準位址。未給來源時退回編譯期
+  /// 注入值，供尚未接入使用者設定的場合（工具腳本、只看文字的測試）使用。
+  factory AppDependencies.assembled({ServerAddressSource? addresses}) {
+    return AppDependencies(
+      runtimeStatus: const RuntimeStatus.informationOnly(),
+      api: ServerApi(
+        config: ServerApiConfig(
+          source: addresses ?? const InjectedServerAddressSource(),
+        ),
+      ),
     );
   }
 

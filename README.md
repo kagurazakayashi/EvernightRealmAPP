@@ -34,7 +34,9 @@ Simplified Chinese, Traditional Chinese (Taiwan), English and Japanese. The inte
 
 The server entry page offers a server connectivity check: it reads the health and time endpoints from your server and shows the service name and version, the server's UTC time, that time converted to the server's own display timezone, and the request ID for the call. When a check fails, the interface states only why it failed (unreachable, no response, service not ready, and so on) together with the error code and request ID — nothing that looks like a successful result is left on screen. Every value comes from the server; the app never falls back to the device clock or sample data.
 
-The server address is currently supplied by the build parameter `--dart-define=ER_SERVER_BASE_URL=http://<host>:<port>`; entering and remembering an address in the interface comes in a later release.
+## Server address
+
+The server entry page lets you type the address of the server you want to use and keep it on this device, so switching between test servers no longer needs a rebuild. Only a complete `http://` or `https://` address that carries no user name or password is accepted, and an address is saved only after it answers. A wrong format is reported with the specific reason — for example "The address must start with http:// or https://" — and no request is sent at all; an address with a valid format that does not respond is not saved, and the page says why instead of pretending otherwise. The address in use and the address saved on this device are listed separately, together with where the current one came from; a debug build keeps the build parameter `--dart-define=ER_SERVER_BASE_URL` in priority and states on screen that a locally saved address is not yet in effect. Your entry is stored on your own device only.
 
 ## When something goes wrong
 

@@ -209,7 +209,7 @@
   "@serverProbeRunning": {
     "description": "探測進行中的提示文字。"
   },
-  "serverProbeNotConfiguredHint": "No server address is available, so the check is disabled. Address entry and saving come in a later version; during development the address is supplied by a build parameter.",
+  "serverProbeNotConfiguredHint": "No server address is available, so the check is disabled. Enter an address above and save it.",
   "@serverProbeNotConfiguredHint": {
     "description": "位址不可用時的說明：按鈕停用原因與位址來源。"
   },
@@ -280,5 +280,93 @@
   "safeErrorDiagnosticCodeLabel": "Diagnostic code",
   "@safeErrorDiagnosticCodeLabel": {
     "description": "診斷行：本機診斷碼的標籤。"
+  },
+  "serverAddressTitle": "Server address",
+  "@serverAddressTitle": {
+    "description": "伺服器入口層：位址輸入卡的標題。"
+  },
+  "serverAddressSummary": "Type the address of the server to use and keep it on this device. Only complete http or https addresses without credentials are accepted, and an address is saved only after it answers.",
+  "@serverAddressSummary": {
+    "description": "位址輸入卡的範圍說明：點明只接受完整位址、且驗證得通才會保存。"
+  },
+  "serverAddressInputHint": "For example: http://192.168.1.10:5206",
+  "@serverAddressInputHint": {
+    "description": "位址輸入框的範例提示（含協定與埠號的寫法）。"
+  },
+  "serverAddressEffectiveLabel": "Address in use",
+  "@serverAddressEffectiveLabel": {
+    "description": "位址輸入卡：目前實際生效的位址欄位標籤。"
+  },
+  "serverAddressSavedLabel": "Saved on this device",
+  "@serverAddressSavedLabel": {
+    "description": "位址輸入卡：本機已保存位址的欄位標籤（未必正在生效）。"
+  },
+  "serverAddressSaveAction": "Check and save",
+  "@serverAddressSaveAction": {
+    "description": "保存按鈕文字：先探測可達性再寫入本機。"
+  },
+  "serverAddressSaving": "Checking this address…",
+  "@serverAddressSaving": {
+    "description": "保存進行中的按鈕文字（正在探測候選位址）。"
+  },
+  "serverAddressClearAction": "Remove saved address",
+  "@serverAddressClearAction": {
+    "description": "清除按鈕文字：移除本機保存的位址。"
+  },
+  "serverAddressFromBuildNote": "The address in use comes from a build parameter rather than this device.",
+  "@serverAddressFromBuildNote": {
+    "description": "生效位址來自編譯期注入時的來源說明。"
+  },
+  "serverAddressInactiveNote": "This is a debug build, so the build parameter takes priority; the address saved on this device is not in use yet.",
+  "@serverAddressInactiveNote": {
+    "description": "debug 建置下注入值壓過本機值時的提示，避免使用者誤以為剛存的地址已生效。"
+  },
+  "serverAddressSavedNote": "Address saved on this device.",
+  "@serverAddressSavedNote": {
+    "description": "已驗證可達並成功寫入本機後的確認文字。"
+  },
+  "serverAddressVerifyFailed": "This address did not answer, so it was not saved.",
+  "@serverAddressVerifyFailed": {
+    "description": "格式合格但連不通時的說明：明確表示沒有保存。"
+  },
+  "serverAddressStorageFailed": "This device could not store the change, so nothing was modified.",
+  "@serverAddressStorageFailed": {
+    "description": "本機寫入失敗（保存或清除）時的說明：狀態保持原樣。"
+  },
+  "serverAddressCleared": "The saved address was removed from this device.",
+  "@serverAddressCleared": {
+    "description": "清除本機已存位址成功後的確認文字。"
+  },
+  "addressIssueEmpty": "Enter a server address.",
+  "@addressIssueEmpty": {
+    "description": "格式判定：沒有任何輸入。"
+  },
+  "addressIssueMissingScheme": "The address must start with http:// or https://.",
+  "@addressIssueMissingScheme": {
+    "description": "格式判定：最常見的錯誤——只寫了主機與埠號，忘了協定前綴。"
+  },
+  "addressIssueUnsupportedScheme": "Only http and https addresses are supported.",
+  "@addressIssueUnsupportedScheme": {
+    "description": "格式判定：協定不是 http 或 https。"
+  },
+  "addressIssueWhitespace": "The address cannot contain spaces or tab characters.",
+  "@addressIssueWhitespace": {
+    "description": "格式判定：位址中間夾帶空白、製表符或零寬字元。"
+  },
+  "addressIssueUnresolved": "This text cannot be read as a server address.",
+  "@addressIssueUnresolved": {
+    "description": "格式判定：無法解析出帶主機的絕對位址。"
+  },
+  "addressIssueHostMissing": "The address is missing a host name.",
+  "@addressIssueHostMissing": {
+    "description": "格式判定：有協定與斜線，但主機名稱為空。"
+  },
+  "addressIssueCredentials": "The address cannot contain a user name or password.",
+  "@addressIssueCredentials": {
+    "description": "格式判定：位址內含使用者名稱或密碼（憑證不入位址）。"
+  },
+  "addressIssueQueryOrFragment": "The address cannot contain query parameters or a # fragment.",
+  "@addressIssueQueryOrFragment": {
+    "description": "格式判定：位址內含查詢字串或片段標記。"
   }
 }
