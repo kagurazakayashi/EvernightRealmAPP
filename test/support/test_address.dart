@@ -4,10 +4,10 @@
 /// 解碼與合同判定程式碼，而不是直接塞一個構造好的成功值。
 library;
 
-import 'package:evernight_realm/core/api/api_error.dart';
-import 'package:evernight_realm/core/api/server_address.dart';
-import 'package:evernight_realm/core/api/server_address_settings.dart';
-import 'package:evernight_realm/core/api/server_api.dart';
+import 'package:evernightrealm/core/api/api_error.dart';
+import 'package:evernightrealm/core/api/server_address.dart';
+import 'package:evernightrealm/core/api/server_address_settings.dart';
+import 'package:evernightrealm/core/api/server_api.dart';
 
 import 'test_server.dart';
 

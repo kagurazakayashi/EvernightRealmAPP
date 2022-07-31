@@ -14,7 +14,7 @@ class SharedPreferencesLanguageStore implements LanguagePersistence {
   const SharedPreferencesLanguageStore();
 
   /// 介面語言選擇使用的儲存鍵（含套件前綴，避免與他機設定相撞）。
-  static const String storageKey = 'evernight_realm.interface_locale';
+  static const String storageKey = 'evernightrealm.interface_locale';
 
   @override
   Future<String?> readTag() async {

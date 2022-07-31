@@ -3,8 +3,8 @@
 /// 這裡只驗資料與判定；顯示文字的正誤由本地化資源的測試負責。
 library;
 
-import 'package:evernight_realm/core/app_information.dart';
-import 'package:evernight_realm/core/runtime_status.dart';
+import 'package:evernightrealm/core/app_information.dart';
+import 'package:evernightrealm/core/runtime_status.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

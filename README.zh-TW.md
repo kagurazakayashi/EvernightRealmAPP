@@ -1,4 +1,4 @@
-# 長夜幻境 Web（Evernight Realm Web）
+# 長夜幻境 Web（EvernightRealm Web）
 
 > 長夜幻境的客戶端介面——用瀏覽器或桌面客戶端，走進屬於你小圈子的私密世界。
 

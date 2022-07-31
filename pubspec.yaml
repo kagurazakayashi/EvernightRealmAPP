@@ -1,5 +1,5 @@
-name: evernight_realm
-description: "長夜幻境（Evernight Realm）使用者端：自架、離線優先的區域網多人沉浸式活動管理與虛擬資產互動應用，玩家、NPC 與管理端共用同一構建。"
+name: evernightrealm
+description: "長夜幻境（EvernightRealm）使用者端：自架、離線優先的區域網多人沉浸式活動管理與虛擬資產互動應用，玩家、NPC 與管理端共用同一構建。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

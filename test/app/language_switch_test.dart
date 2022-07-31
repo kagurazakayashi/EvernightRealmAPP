@@ -2,10 +2,10 @@
 /// 重新啟動後仍沿用該選擇；未支援的系統語言回退 en-US。
 library;
 
-import 'package:evernight_realm/app/widgets/language_selector.dart';
-import 'package:evernight_realm/core/app_locale.dart';
-import 'package:evernight_realm/core/language_settings.dart';
-import 'package:evernight_realm/l10n/app_localizations.dart';
+import 'package:evernightrealm/app/widgets/language_selector.dart';
+import 'package:evernightrealm/core/app_locale.dart';
+import 'package:evernightrealm/core/language_settings.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

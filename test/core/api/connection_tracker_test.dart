@@ -3,12 +3,12 @@ library;
 
 import 'dart:async';
 
-import 'package:evernight_realm/core/api/api_client.dart';
-import 'package:evernight_realm/core/api/api_error.dart';
-import 'package:evernight_realm/core/api/connection_tracker.dart';
-import 'package:evernight_realm/core/api/server_address.dart';
-import 'package:evernight_realm/core/api/server_address_settings.dart';
-import 'package:evernight_realm/core/api/server_api.dart';
+import 'package:evernightrealm/core/api/api_client.dart';
+import 'package:evernightrealm/core/api/api_error.dart';
+import 'package:evernightrealm/core/api/connection_tracker.dart';
+import 'package:evernightrealm/core/api/server_address.dart';
+import 'package:evernightrealm/core/api/server_address_settings.dart';
+import 'package:evernightrealm/core/api/server_api.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

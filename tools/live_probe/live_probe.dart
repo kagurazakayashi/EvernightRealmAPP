@@ -14,11 +14,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:evernight_realm/core/api/api_client.dart';
-import 'package:evernight_realm/core/api/api_error.dart';
-import 'package:evernight_realm/core/api/server_address.dart';
-import 'package:evernight_realm/core/api/server_api.dart';
-import 'package:evernight_realm/core/api/server_models.dart';
+import 'package:evernightrealm/core/api/api_client.dart';
+import 'package:evernightrealm/core/api/api_error.dart';
+import 'package:evernightrealm/core/api/server_address.dart';
+import 'package:evernightrealm/core/api/server_api.dart';
+import 'package:evernightrealm/core/api/server_models.dart';
 
 /// 通過的檢查數。
 int _passed = 0;

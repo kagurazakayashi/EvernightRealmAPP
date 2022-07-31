@@ -4,7 +4,7 @@
 /// 那種日誌等於沒有。
 library;
 
-import 'package:evernight_realm/core/diagnostics/redaction.dart';
+import 'package:evernightrealm/core/diagnostics/redaction.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

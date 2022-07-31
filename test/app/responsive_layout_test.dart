@@ -4,11 +4,11 @@
 /// 同時檢查狀態條四個欄位與內容在各尺寸下都仍在畫面上。
 library;
 
-import 'package:evernight_realm/app/app_shell.dart';
-import 'package:evernight_realm/app/widgets/language_selector.dart';
-import 'package:evernight_realm/app/widgets/not_wired_view.dart';
-import 'package:evernight_realm/app/widgets/status_bar.dart';
-import 'package:evernight_realm/core/layout_breakpoints.dart';
+import 'package:evernightrealm/app/app_shell.dart';
+import 'package:evernightrealm/app/widgets/language_selector.dart';
+import 'package:evernightrealm/app/widgets/not_wired_view.dart';
+import 'package:evernightrealm/app/widgets/status_bar.dart';
+import 'package:evernightrealm/core/layout_breakpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

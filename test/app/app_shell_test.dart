@@ -1,11 +1,11 @@
 /// 應用殼狀態條的測試：四個欄位都要以目前語言呈現，且數值有真實來源。
 library;
 
-import 'package:evernight_realm/app/app_dependencies.dart';
-import 'package:evernight_realm/app/widgets/status_bar.dart';
-import 'package:evernight_realm/core/app_information.dart';
-import 'package:evernight_realm/core/runtime_status.dart';
-import 'package:evernight_realm/l10n/app_localizations.dart';
+import 'package:evernightrealm/app/app_dependencies.dart';
+import 'package:evernightrealm/app/widgets/status_bar.dart';
+import 'package:evernightrealm/core/app_information.dart';
+import 'package:evernightrealm/core/runtime_status.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

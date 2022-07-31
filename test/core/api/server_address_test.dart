@@ -1,7 +1,7 @@
 /// 基準位址驗證的測試：不合格的定位一律拒絕，不接受「先試試看」。
 library;
 
-import 'package:evernight_realm/core/api/server_address.dart';
+import 'package:evernightrealm/core/api/server_address.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

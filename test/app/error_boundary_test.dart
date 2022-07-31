@@ -12,14 +12,14 @@
 /// 畫面用收集器驅動。
 library;
 
-import 'package:evernight_realm/app/app_failure_labels.dart';
-import 'package:evernight_realm/app/bootstrap.dart';
-import 'package:evernight_realm/app/error_boundary.dart';
-import 'package:evernight_realm/app/widgets/safe_error_view.dart';
-import 'package:evernight_realm/core/api/api_error.dart';
-import 'package:evernight_realm/core/diagnostics/app_failure.dart';
-import 'package:evernight_realm/core/diagnostics/diagnostics_hub.dart';
-import 'package:evernight_realm/l10n/app_localizations.dart';
+import 'package:evernightrealm/app/app_failure_labels.dart';
+import 'package:evernightrealm/app/bootstrap.dart';
+import 'package:evernightrealm/app/error_boundary.dart';
+import 'package:evernightrealm/app/widgets/safe_error_view.dart';
+import 'package:evernightrealm/core/api/api_error.dart';
+import 'package:evernightrealm/core/diagnostics/app_failure.dart';
+import 'package:evernightrealm/core/diagnostics/diagnostics_hub.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

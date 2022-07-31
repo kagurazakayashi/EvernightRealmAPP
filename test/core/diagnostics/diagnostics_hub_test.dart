@@ -1,9 +1,9 @@
 /// 失敗收集器的測試：記錄內容安全、容量有界、返回後可重現判定，且不會自我放大。
 library;
 
-import 'package:evernight_realm/core/diagnostics/app_failure.dart';
-import 'package:evernight_realm/core/diagnostics/diagnostics_hub.dart';
-import 'package:evernight_realm/core/diagnostics/redaction.dart';
+import 'package:evernightrealm/core/diagnostics/app_failure.dart';
+import 'package:evernightrealm/core/diagnostics/diagnostics_hub.dart';
+import 'package:evernightrealm/core/diagnostics/redaction.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -3,15 +3,15 @@ library;
 
 import 'dart:async';
 
-import 'package:evernight_realm/app/app_dependencies.dart';
-import 'package:evernight_realm/app/widgets/server_probe_view.dart';
-import 'package:evernight_realm/app/widgets/status_bar.dart';
-import 'package:evernight_realm/core/api/api_client.dart';
-import 'package:evernight_realm/core/api/connection_tracker.dart';
-import 'package:evernight_realm/core/api/server_api.dart';
-import 'package:evernight_realm/core/app_locale.dart';
-import 'package:evernight_realm/core/language_settings.dart';
-import 'package:evernight_realm/l10n/app_localizations.dart';
+import 'package:evernightrealm/app/app_dependencies.dart';
+import 'package:evernightrealm/app/widgets/server_probe_view.dart';
+import 'package:evernightrealm/app/widgets/status_bar.dart';
+import 'package:evernightrealm/core/api/api_client.dart';
+import 'package:evernightrealm/core/api/connection_tracker.dart';
+import 'package:evernightrealm/core/api/server_api.dart';
+import 'package:evernightrealm/core/app_locale.dart';
+import 'package:evernightrealm/core/language_settings.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

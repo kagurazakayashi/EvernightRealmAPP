@@ -14,7 +14,7 @@ class SharedPreferencesServerAddressStore implements ServerAddressPersistence {
   const SharedPreferencesServerAddressStore();
 
   /// 伺服器位址使用的儲存鍵（含套件前綴，避免與他機設定相撞）。
-  static const String storageKey = 'evernight_realm.server_base_url';
+  static const String storageKey = 'evernightrealm.server_base_url';
 
   @override
   Future<String?> readUrl() async {

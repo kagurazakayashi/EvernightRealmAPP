@@ -1,12 +1,12 @@
-# Evernight Realm Web
+# EvernightRealm Web
 
-> The client interface of Evernight Realm — step into your group's private world from a browser or desktop app.
+> The client interface of EvernightRealm — step into your group's private world from a browser or desktop app.
 
 [English](./README.md) · [简体中文](./README.zh-CN.md) · [繁體中文（台灣）](./README.zh-TW.md) · [日本語](./README.ja-JP.md)
 
 ## What is this?
 
-This is the client of Evernight Realm, a self-hosted, offline-first platform for a small group of players. Activities, characters, assets and chat all come to life here, on a local network — no internet, cloud accounts or telemetry.
+This is the client of EvernightRealm, a self-hosted, offline-first platform for a small group of players. Activities, characters, assets and chat all come to life here, on a local network — no internet, cloud accounts or telemetry.
 
 ## Features (under development)
 

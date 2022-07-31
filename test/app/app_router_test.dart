@@ -2,11 +2,11 @@
 /// 且頁面標題與說明隨介面語言改變。
 library;
 
-import 'package:evernight_realm/app/app_router.dart';
-import 'package:evernight_realm/app/nav_context.dart';
-import 'package:evernight_realm/app/nav_context_labels.dart';
-import 'package:evernight_realm/app/widgets/status_bar.dart';
-import 'package:evernight_realm/l10n/app_localizations.dart';
+import 'package:evernightrealm/app/app_router.dart';
+import 'package:evernightrealm/app/nav_context.dart';
+import 'package:evernightrealm/app/nav_context_labels.dart';
+import 'package:evernightrealm/app/widgets/status_bar.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -4,8 +4,8 @@
 /// 它走的是同一套 `Client` 協定，測試因此仍然經過存取層的真實程式碼。
 library;
 
-import 'package:evernight_realm/core/api/api_client.dart';
-import 'package:evernight_realm/core/api/server_api.dart';
+import 'package:evernightrealm/core/api/api_client.dart';
+import 'package:evernightrealm/core/api/server_api.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 

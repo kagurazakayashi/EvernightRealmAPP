@@ -21,7 +21,7 @@ typedef DiagnosticSink = void Function(String line);
 
 /// 預設出口：寫進平台控制台（Web 為瀏覽器 console，桌面為 stderr）。
 void consoleDiagnosticSink(String line) =>
-    developer.log(line, name: 'evernight-realm');
+    developer.log(line, name: 'evernightrealm');
 
 /// 失敗收集器（可訂閱）。
 class DiagnosticsHub extends ChangeNotifier {

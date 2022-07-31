@@ -1,7 +1,7 @@
 {
     "id": "moe.yashi.evernightrealm",
-    "name": "Evernight Realm",
-    "short_name": "Evernight Realm",
+    "name": "EvernightRealm",
+    "short_name": "EvernightRealm",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

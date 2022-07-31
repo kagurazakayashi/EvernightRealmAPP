@@ -7,16 +7,16 @@ library;
 
 import 'dart:async';
 
-import 'package:evernight_realm/app/app_dependencies.dart';
-import 'package:evernight_realm/app/server_address_labels.dart';
-import 'package:evernight_realm/app/widgets/server_address_editor.dart';
-import 'package:evernight_realm/app/widgets/server_probe_view.dart';
-import 'package:evernight_realm/app/widgets/status_bar.dart';
-import 'package:evernight_realm/core/api/api_client.dart';
-import 'package:evernight_realm/core/api/server_address.dart';
-import 'package:evernight_realm/core/api/server_address_settings.dart';
-import 'package:evernight_realm/core/api/server_api.dart';
-import 'package:evernight_realm/l10n/app_localizations.dart';
+import 'package:evernightrealm/app/app_dependencies.dart';
+import 'package:evernightrealm/app/server_address_labels.dart';
+import 'package:evernightrealm/app/widgets/server_address_editor.dart';
+import 'package:evernightrealm/app/widgets/server_probe_view.dart';
+import 'package:evernightrealm/app/widgets/status_bar.dart';
+import 'package:evernightrealm/core/api/api_client.dart';
+import 'package:evernightrealm/core/api/server_address.dart';
+import 'package:evernightrealm/core/api/server_address_settings.dart';
+import 'package:evernightrealm/core/api/server_api.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

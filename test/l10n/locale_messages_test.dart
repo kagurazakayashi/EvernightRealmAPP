@@ -3,7 +3,7 @@ library;
 
 import 'dart:ui' show Locale;
 
-import 'package:evernight_realm/l10n/app_localizations.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 逐一載入四語言，取得該語言實際會顯示的文字。

@@ -124,7 +124,7 @@ class _EvernightAppState extends State<EvernightApp> {
         FlutterErrorDetails(
           exception: error,
           stack: stack,
-          library: 'evernight_realm',
+          library: 'evernightrealm',
           context: ErrorDescription('載入本地 CJK 字體失敗'),
         ),
       );

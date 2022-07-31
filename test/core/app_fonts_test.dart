@@ -7,8 +7,8 @@ library;
 
 import 'dart:io';
 
-import 'package:evernight_realm/core/app_fonts.dart';
-import 'package:evernight_realm/core/app_locale.dart';
+import 'package:evernightrealm/core/app_fonts.dart';
+import 'package:evernightrealm/core/app_locale.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

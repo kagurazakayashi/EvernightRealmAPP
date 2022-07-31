@@ -3,10 +3,10 @@ library;
 
 import 'dart:ui' show Locale;
 
-import 'package:evernight_realm/core/app_locale.dart';
-import 'package:evernight_realm/core/language_settings.dart';
-import 'package:evernight_realm/l10n/app_localizations.dart';
-import 'package:evernight_realm/platform/shared_preferences_language_store.dart';
+import 'package:evernightrealm/core/app_locale.dart';
+import 'package:evernightrealm/core/language_settings.dart';
+import 'package:evernightrealm/l10n/app_localizations.dart';
+import 'package:evernightrealm/platform/shared_preferences_language_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -138,7 +138,7 @@ void main() {
     test('儲存鍵名固定，避免後續改名造成既有選擇失蹤', () {
       expect(
         SharedPreferencesLanguageStore.storageKey,
-        'evernight_realm.interface_locale',
+        'evernightrealm.interface_locale',
       );
     });
   });

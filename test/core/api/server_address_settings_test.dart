@@ -4,9 +4,9 @@
 /// 生效位址與已保存位址是分開的兩件事（debug 建置下注入值會壓過本機值）。
 library;
 
-import 'package:evernight_realm/core/api/server_address.dart';
-import 'package:evernight_realm/core/api/server_address_settings.dart';
-import 'package:evernight_realm/platform/shared_preferences_server_store.dart';
+import 'package:evernightrealm/core/api/server_address.dart';
+import 'package:evernightrealm/core/api/server_address_settings.dart';
+import 'package:evernightrealm/platform/shared_preferences_server_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -282,7 +282,7 @@ void main() {
     test('儲存鍵名固定，避免後續改名造成既有位址失蹤', () {
       expect(
         SharedPreferencesServerAddressStore.storageKey,
-        'evernight_realm.server_base_url',
+        'evernightrealm.server_base_url',
       );
     });
   });

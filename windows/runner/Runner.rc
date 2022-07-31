@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "moe.yashi" "\0"
-            VALUE "FileDescription", "Evernight Realm" "\0"
+            VALUE "FileDescription", "EvernightRealm" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "evernight_realm" "\0"
+            VALUE "InternalName", "evernightrealm" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 moe.yashi. All rights reserved." "\0"
-            VALUE "OriginalFilename", "evernight_realm.exe" "\0"
-            VALUE "ProductName", "Evernight Realm" "\0"
+            VALUE "OriginalFilename", "evernightrealm.exe" "\0"
+            VALUE "ProductName", "EvernightRealm" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

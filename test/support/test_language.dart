@@ -3,12 +3,12 @@ library;
 
 import 'package:flutter/widgets.dart';
 
-import 'package:evernight_realm/app/app_dependencies.dart';
-import 'package:evernight_realm/app/evernight_app.dart';
-import 'package:evernight_realm/core/api/connection_tracker.dart';
-import 'package:evernight_realm/core/api/server_address_settings.dart';
-import 'package:evernight_realm/core/diagnostics/diagnostics_hub.dart';
-import 'package:evernight_realm/core/language_settings.dart';
+import 'package:evernightrealm/app/app_dependencies.dart';
+import 'package:evernightrealm/app/evernight_app.dart';
+import 'package:evernightrealm/core/api/connection_tracker.dart';
+import 'package:evernightrealm/core/api/server_address_settings.dart';
+import 'package:evernightrealm/core/diagnostics/diagnostics_hub.dart';
+import 'package:evernightrealm/core/language_settings.dart';
 
 import 'test_address.dart';
 
