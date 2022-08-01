@@ -19,6 +19,28 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// 品牌顯示名依系統語言選擇（四語言對照見規格 §1.1；無匹配時回退英文）。
+// g_get_language_names() 是 GLib 的候選清單（例：ja_JP.UTF-8、ja、C），
+// 取第一個可辨識的語言標籤；字串本身是 UTF-8，GTK 直接接受。
+static const char* brand_window_title(void) {
+  const char* const* names = g_get_language_names();
+  for (int i = 0; names != NULL && names[i] != NULL; i++) {
+    if (g_str_has_prefix(names[i], "ja")) {
+      return "長夜幻境";
+    }
+    if (g_str_has_prefix(names[i], "zh")) {
+      if (g_strrstr(names[i], "Hant") != NULL ||
+          g_strrstr(names[i], "TW") != NULL ||
+          g_strrstr(names[i], "HK") != NULL ||
+          g_strrstr(names[i], "MO") != NULL) {
+        return "長夜幻境";
+      }
+      return "长夜幻境";
+    }
+  }
+  return "EvernightRealm";
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -45,11 +67,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "EvernightRealm");
+    gtk_header_bar_set_title(header_bar, brand_window_title());
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "EvernightRealm");
+    gtk_window_set_title(window, brand_window_title());
   }
 
   gtk_window_set_default_size(window, 1280, 720);

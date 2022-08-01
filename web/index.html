@@ -31,6 +31,44 @@
 
   <title>EvernightRealm</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // 品牌顯示名依瀏覽器首選語言切換（四語言對照見規格 §1.1；引入零依賴）。
+    // <title> 與 manifest 連結此處先寫英文值，是為了讓停用指令碼的環境仍拿到
+    // 英文名；Flutter 側的 MaterialApp.title 刻意不設（DEC-026），故不會被覆寫。
+    // PWA 的 manifest 沒有「單档多語言」機制，因此另備三份在地化 manifest 依語言指路。
+    (function () {
+      var tag = String(
+        navigator.languages && navigator.languages.length
+          ? navigator.languages[0]
+          : navigator.language || 'en'
+      ).toLowerCase();
+      var name = 'EvernightRealm';
+      var manifest = 'manifest.json';
+      if (tag.indexOf('ja') === 0) {
+        name = '長夜幻境';
+        manifest = 'manifest.ja.json';
+      } else if (tag.indexOf('zh') === 0) {
+        if (/hant|tw|hk|mo/.test(tag)) {
+          name = '長夜幻境';
+          manifest = 'manifest.zh-TW.json';
+        } else {
+          name = '长夜幻境';
+          manifest = 'manifest.zh-CN.json';
+        }
+      }
+      document.title = name;
+      var appleTitle = document.querySelector(
+        'meta[name="apple-mobile-web-app-title"]'
+      );
+      if (appleTitle) {
+        appleTitle.setAttribute('content', name);
+      }
+      var manifestLink = document.querySelector('link[rel="manifest"]');
+      if (manifestLink) {
+        manifestLink.setAttribute('href', manifest);
+      }
+    })();
+  </script>
 </head>
 <body>
   <!--
