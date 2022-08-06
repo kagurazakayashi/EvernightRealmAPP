@@ -1,3 +1,6 @@
+![EvernightRealm Web](assets/icons/EvernightRealmFrontendRounded.ico)
+<!-- 圖示：來源檔在 assets/icons/，各平台尺寸由 tools/icons/generate_icons.py 推導 -->
+
 # EvernightRealm Web
 
 > The client interface of EvernightRealm — step into your group's private world from a browser or desktop app.
@@ -43,6 +46,14 @@ The server entry page lets you type the address of the server you want to use an
 If part of the app cannot be displayed, the interface switches to a safe notice page: it says where the problem happened (drawing the interface, a background task, or talking to the server), gives a diagnostic code you can match against this device's log, and includes the server request ID when the failure involves a request. A single action, "Return to a working page", takes you back to an usable interface. The notice page never shows the raw error text, a stack trace, or the server address, and nothing is sent anywhere — problems are recorded on your own device only.
 
 One honest caveat: the section that just failed may stay blank for a while after you return, until the interface rebuilds. If the same problem keeps coming back, the notice page will tell you to reload the app.
+
+## Building from source
+
+The per-platform icons and launch screens are generated, not committed: they are derived from the four source images in `assets/icons/`. On a fresh clone, run
+
+    python tools/icons/generate_icons.py
+
+before building — Android, iOS, macOS and Windows builds fail while their icon resources are missing, and a web build would ship without icons. `python tools/icons/generate_icons.py --check` reports the current state without writing anything; see `tools/icons/README.md`.
 
 ## License
 

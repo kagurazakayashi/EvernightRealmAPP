@@ -76,6 +76,12 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
+  // 視窗圖示：以應用程式 ID 向圖示主題取用。
+  // 對應的圖檔由 tools/icons/generate_icons.py 產生到
+  // packaging/linux/icons/hicolor/<尺寸>/apps/<應用程式 ID>.png，
+  // 由發行版或打包流程安裝到系統圖示目錄；找不到時 GTK 會退回預設圖示。
+  gtk_window_set_icon_name(window, APPLICATION_ID);
+
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);

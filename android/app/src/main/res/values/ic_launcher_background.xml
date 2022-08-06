@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自適應圖示的底色。色值必須與 tools/icons/generate_icons.py 的 BRAND_BG
+     一致（該腳本負責產生前景圖層，並以檢查模式核對這裡的字面值）。 -->
+<resources>
+    <color name="ic_launcher_background">#2C2740</color>
+</resources>

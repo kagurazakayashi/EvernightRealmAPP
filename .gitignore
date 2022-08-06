@@ -13,6 +13,8 @@
 
 A*.md
 /.*
+# 忽略規則不得吞掉規則檔本身：.gitignore 必須永遠可被跟蹤與正常暫存。
+!.gitignore
 migrate_working_dir/
 
 # IntelliJ related
@@ -94,3 +96,30 @@ $RECYCLE.BIN/
 
 # Generated localization output (權威來源是 lib/l10n/*.arb)
 lib/l10n/app_localizations*.dart
+
+# ===== 圖示產物（本項目補充） =====
+# 唯一保留在版本庫裡的是四張來源圖（assets/icons/ 下的 Rounded／Square PNG 與
+# ico／icns）與指向它們的設定檔（*.xml、Contents.json、manifest、index.html）。
+# 其餘圖檔全部是從來源圖推導出來的，一律不進版本庫。
+#
+# 產生物件：在本倉庫根執行
+#     python tools/icons/generate_icons.py
+# 乾淨 clone 後務必先跑一次，否則：
+#   Android／iOS／macOS／Windows 建置會因資源缺失直接失敗，Web 則會沒有圖示。
+# 核對現況（不寫入）：
+#     python tools/icons/generate_icons.py --check
+
+# 平台圖示
+/android/app/src/main/res/mipmap-*/ic_launcher.png
+/android/app/src/main/res/mipmap-*/ic_launcher_foreground.png
+/ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png
+/ios/Runner/Assets.xcassets/LaunchImage.imageset/*.png
+/macos/Runner/Assets.xcassets/AppIcon.appiconset/*.png
+/web/favicon.png
+/web/favicon.ico
+/web/icons/*.png
+/windows/runner/resources/app_icon.ico
+
+# 多尺寸展示圖、店鋪素材與 Linux 圖示主題（非建置必需，需要時再產生）
+/assets/icons/generated/
+/packaging/linux/icons/

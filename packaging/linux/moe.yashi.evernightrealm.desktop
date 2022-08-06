@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+# 顯示名沿用 DEC-031 的四語言品牌名（權威=根倉庫 §1.1）；無匹配語言時回退英文。
+Name=EvernightRealm
+Name[zh_CN]=长夜幻境
+Name[zh_TW]=長夜幻境
+Name[ja]=長夜幻境
+Comment=Step into your group's private world from a browser or desktop app
+Comment[zh_CN]=从浏览器或桌面应用进入你的私人世界
+Comment[zh_TW]=從瀏覽器或桌面應用進入你的私人世界
+Comment[ja]=ブラウザまたはデスクトップアプリから、仲間だけのプライベートな世界へ
+# 圖示名稱必須與 packaging/linux/icons/hicolor/<尺寸>/apps/<應用程式 ID>.png 一致；
+# 那組 PNG 由 tools/icons/generate_icons.py 產生（不進版本庫）。
+# 應用程式 ID 與 GTK 的 g_set_prgname / gtk_window_set_icon_name 相同，桌面才能正確配對。
+Icon=moe.yashi.evernightrealm
+Exec=evernightrealm
+Terminal=false
+Categories=Game;Network;
+StartupWMClass=moe.yashi.evernightrealm

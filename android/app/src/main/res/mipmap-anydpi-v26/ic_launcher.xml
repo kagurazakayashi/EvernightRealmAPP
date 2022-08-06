@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8.0（API 26）以上的自適應圖示：底色為品牌色，前景為置中的圓角標誌
+     （縮到 72/108，落在系統遮罩的安全區內）。
+     兩層圖示都由 tools/icons/generate_icons.py 產生；
+     舊版系統仍使用 mipmap-*/ic_launcher.png 這組正方形滿版圖示作為後備。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

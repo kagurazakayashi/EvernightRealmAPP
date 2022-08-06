@@ -1,3 +1,6 @@
+![長夜幻境 Web（EvernightRealm Web）](assets/icons/EvernightRealmFrontendRounded.ico)
+<!-- 圖示：來源檔在 assets/icons/，各平台尺寸由 tools/icons/generate_icons.py 推導 -->
+
 # 長夜幻境 Web（EvernightRealm Web）
 
 > 長夜幻境的客戶端介面——用瀏覽器或桌面客戶端，走進屬於你小圈子的私密世界。
@@ -43,6 +46,14 @@
 如果應用某一部分無法正常顯示，介面會切換到一個安全的提示頁面：說明問題發生的位置（介面繪製、背景工作或與伺服器往來）、一個用於對照本機日誌的診斷碼，以及伺服器請求的關聯 ID（若與請求有關）。你可以按「返回可用頁面」回到可使用的介面。提示頁面不會顯示錯誤原文、程式堆疊或伺服器位址，也不會把任何內容傳送到外部——問題只記錄在你自己的裝置上。
 
 需要說明的是：剛出錯的那一塊在返回後可能短暫留白，要等介面下一次重建才會恢復；若同樣的問題反覆出現，提示頁面會建議你重新載入應用。
+
+## 從原始碼建置
+
+各平台圖示與啟動畫面是產生出來的、不納入版本控制：它們由 `assets/icons/` 下的四張來源圖推導。全新複製的倉庫在建置前先執行
+
+    python tools/icons/generate_icons.py
+
+缺圖示資源時 Android、iOS、macOS 與 Windows 建置會直接失敗，Web 建置則會沒有圖示。`python tools/icons/generate_icons.py --check` 只核對現況，不寫入任何檔案；詳見 `tools/icons/README.md`。
 
 ## 許可證
 
