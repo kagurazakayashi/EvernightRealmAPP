@@ -23,6 +23,55 @@ const String kReadyPath = '/ready';
 /// 伺服器時間端點路徑。
 const String kTimePath = '/time';
 
+/// 普通帳戶登入端點路徑。
+const String kAuthLoginPath = '/auth/login';
+
+/// Root 登入端點路徑（校驗對象是伺服器組態的 Root 憑據，與帳戶端點完全分開）。
+const String kAuthRootLoginPath = '/auth/root/login';
+
+/// 當前會話端點路徑。
+const String kAuthSessionPath = '/auth/session';
+
+/// 會話 Cookie 名（後端合同的固定值）。
+///
+/// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
+/// 屬會話狀態管理步驟，必須走批准的安全保存方案，不得進 shared_preferences。
+const String kSessionCookieName = 'evernight_session';
+
+/// 從 `Set-Cookie` 標頭文字提取會話秘密；讀不到時回傳 `null`。
+///
+/// 只認合同內那一枚 Cookie（名稱見 [kSessionCookieName]）。注意標頭文字可能
+/// 含属性段（`; Path=/` 等），比對到分號、逗號與空白為止；瀏覽器環境
+/// 本來就拿不到 `Set-Cookie`，回傳 `null` 是預期行為而不是失敗。
+String? extractSessionCookie(String? setCookieHeader) {
+  if (setCookieHeader == null || setCookieHeader.isEmpty) {
+    return null;
+  }
+  final RegExpMatch? match = RegExp(
+    '(?:^|,)\\s*$kSessionCookieName=([^;,\\s]+)',
+  ).firstMatch(setCookieHeader);
+  final String? value = match?.group(1);
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  return value;
+}
+
+/// 一次登入的完整成果：已驗證的回應，與（僅原生可得）的會話秘密。
+class LoginExchange {
+  /// 以已驗證的回應建立成果。
+  const LoginExchange({required this.report, this.sessionSecret});
+
+  /// 登入回應的事實欄位（主體類別、設備標識、到期時刻）。
+  final LoginReport report;
+
+  /// 會話秘密的一次性明文；瀏覽器環境恆為 `null`（HttpOnly 語意）。
+  ///
+  /// 不得寫入日誌、診斷輸出或任何介面文字；保存與回傳方式屬後續的
+  /// 會話狀態管理步驟（批准的安全儲存）。
+  final String? sessionSecret;
+}
+
 /// 基礎端點的存取介面。
 class ServerApi {
   /// 以組態與（可選的）傳輸實作建立存取介面。
@@ -67,6 +116,67 @@ class ServerApi {
       kTimePath,
       decode: ServerTimeReport.decode,
       acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 普通帳戶登入：POST `/auth/login`。
+  ///
+  /// 失敗（查無此人、口令錯誤、帳戶不可登入）由後端收斂為同一個機器碼 2001，
+  /// 呼叫端只拿得到「被拒」這件事，拿不到可據以枚舉帳戶的第二句。
+  /// 成功時若在执行环境能讀到 `Set-Cookie`（原生平台），會話秘密一併回傳。
+  Future<LoginExchange> login({
+    required String loginName,
+    required String password,
+    String? acceptLanguage,
+  }) async {
+    final ({LoginReport value, String? setCookie}) result = await apiClient
+        .postCapturingCookie(
+          kAuthLoginPath,
+          jsonBody: <String, Object?>{
+            'login_name': loginName,
+            'password': password,
+          },
+          decode: LoginReport.decode,
+          acceptLanguage: acceptLanguage,
+        );
+    return LoginExchange(
+      report: result.value,
+      sessionSecret: extractSessionCookie(result.setCookie),
+    );
+  }
+
+  /// Root 登入：POST `/auth/root/login`，只交出口令，沒有也不需要登入名。
+  Future<LoginExchange> rootLogin({
+    required String password,
+    String? acceptLanguage,
+  }) async {
+    final ({LoginReport value, String? setCookie}) result = await apiClient
+        .postCapturingCookie(
+          kAuthRootLoginPath,
+          jsonBody: <String, Object?>{'password': password},
+          decode: LoginReport.decode,
+          acceptLanguage: acceptLanguage,
+        );
+    return LoginExchange(
+      report: result.value,
+      sessionSecret: extractSessionCookie(result.setCookie),
+    );
+  }
+
+  /// 讀取當前會話：GET `/auth/session`。
+  ///
+  /// 瀏覽器路徑不帶任何參數（Cookie 自動附帶）；原生路徑傳 [bearerToken]。
+  /// 未認證回機器碼 2002、憑據失效回 2003——兩者都以 `ApiError` 拋出，
+  /// 不存在「回傳了報告但其實沒登入」的形態。
+  Future<CurrentSessionReport> currentSession({
+    String? bearerToken,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      kAuthSessionPath,
+      decode: CurrentSessionReport.decode,
+      acceptLanguage: acceptLanguage,
+      bearerToken: bearerToken,
     );
   }
 }

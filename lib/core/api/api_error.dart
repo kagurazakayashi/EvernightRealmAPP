@@ -30,7 +30,7 @@ enum ApiErrorKind {
   invalidResponse,
 }
 
-/// 已發布的穩定機器錯誤碼（1xxx 通用與協定段）。
+/// 已發布的穩定機器錯誤碼（1xxx 通用與協定段、2xxx 帳號與身分段）。
 ///
 /// 數值由後端權威定義且不得重用；這裡只做「已知碼→語意」的對應，
 /// 未收錄的數值仍以 [ApiError.machineCode] 原樣保留，不丟棄也不猜測。
@@ -57,7 +57,23 @@ enum ApiMachineCode {
   requestTimeout(1006),
 
   /// 1007：服務尚未就緒，業務操作暫不可執行。
-  notReady(1007);
+  notReady(1007),
+
+  /// 2001：登入被拒。查無此人、口令錯誤、帳戶不可登入在後端收斂為同一個碼，
+  /// 介面據此顯示唯一的失敗文案（不透露是哪一半錯的）。
+  invalidCredentials(2001),
+
+  /// 2002：請求沒有攜帶任何會話憑據（需要身分的端點收到匿名請求）。
+  notAuthenticated(2002),
+
+  /// 2003：攜帶的會話憑據無效（過期、撤銷或主體狀態變化），處置是重新登入。
+  sessionInvalid(2003),
+
+  /// 2004：請求混用認證方式（Cookie 與 Bearer 並存，或瀏覽器企圖用 Bearer）。
+  authMethodConflict(2004),
+
+  /// 2005：有副作用的請求未通過來源（CSRF）策略。
+  originForbidden(2005);
 
   /// 以對外發布的數值建立錯誤碼。
   const ApiMachineCode(this.value);

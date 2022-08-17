@@ -192,3 +192,137 @@ class ServerTimeReport {
   /// 伺服器時間在其顯示時區的牆鐘時間 HH:mm:ss（本機時區不參與計算）。
   String get displayClock => formatShiftedClock(time, utcOffsetSeconds);
 }
+
+/// 認証合同發布的主體類別（值與後端 `subject_kind` 欄位逐字一致）。
+enum AuthSubjectKind {
+  /// 普通帳戶主體（accounts 表中的帳戶）。
+  account,
+
+  /// 伺服器級 Root 主體（不在 accounts 表，無帳戶標識）。
+  root,
+}
+
+/// 嚴格讀取 `subject_kind`：只收已發布的兩個值，其餘一律判為合同違例。
+///
+/// 未知值不降級成「帳戶」也不原樣保留列舉：那讓前端把「後端多發了一類主體」
+/// 誤讀成「這類主體我早就認識」，是權限展示最容易出事的錯法。
+AuthSubjectKind _requireSubjectKind(Map<String, Object?> json) {
+  final String text = _requireText(json, 'subject_kind');
+  return switch (text) {
+    'account' => AuthSubjectKind.account,
+    'root' => AuthSubjectKind.root,
+    _ => throw ApiResponseShapeException('subject_kind 值 $text 不在合同內'),
+  };
+}
+
+/// 嚴格讀取可選的帳戶標識：Root 主體該欄缺席；出現但型別不合即失敗。
+String? _optionalAccountId(Map<String, Object?> json, AuthSubjectKind kind) {
+  final Object? value = json['account_id'];
+  if (kind == AuthSubjectKind.root) {
+    if (value != null) {
+      throw ApiResponseShapeException('root 主體不該攜帶 account_id');
+    }
+    return null;
+  }
+  if (value is! String || value.isEmpty) {
+    throw ApiResponseShapeException('account 主體必須攜帶 account_id');
+  }
+  return value;
+}
+
+/// `/auth/login` 與 `/auth/root/login` 的成功回應。
+///
+/// 合同裡沒有會話秘密：它只出現在 `Set-Cookie` 標頭（原生客戶端由此讀取，
+/// 瀏覽器由 HttpOnly Cookie 代管）。本模型因此也沒有任何欄位可以「忘記不顯示」它。
+class LoginReport {
+  /// 以已驗證的欄位建立登入結果。
+  const LoginReport({
+    required this.subjectKind,
+    required this.accountId,
+    required this.deviceId,
+    required this.expiresAt,
+    required this.requestId,
+  });
+
+  /// 從登入回應的 JSON 建立結果。
+  static LoginReport decode(Map<String, Object?> json) {
+    final AuthSubjectKind kind = _requireSubjectKind(json);
+    return LoginReport(
+      subjectKind: kind,
+      accountId: _optionalAccountId(json, kind),
+      deviceId: _requireText(json, 'device_id'),
+      expiresAt: _requireUtcTime(json, 'expires_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 主體類別。
+  final AuthSubjectKind subjectKind;
+
+  /// 帳戶標識（UUIDv7 字串）；Root 主體為 `null`。
+  final String? accountId;
+
+  /// 用戶可見的設備標識（洩露也換不來操作能力，可安全展示與保存）。
+  final String deviceId;
+
+  /// 會話到期時刻（UTC，取自伺服器）。
+  final DateTime expiresAt;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 是否為 Root 主體的登入。
+  bool get isRoot => subjectKind == AuthSubjectKind.root;
+}
+
+/// `/auth/session` 的成功回應：當前會話的事實，比登入回應多帶建立與最近活動時刻。
+class CurrentSessionReport {
+  /// 以已驗證的欄位建立當前會話報告。
+  const CurrentSessionReport({
+    required this.subjectKind,
+    required this.accountId,
+    required this.deviceId,
+    required this.createdAt,
+    required this.lastActiveAt,
+    required this.expiresAt,
+    required this.requestId,
+  });
+
+  /// 從 `/auth/session` 的 JSON 回應建立報告。
+  static CurrentSessionReport decode(Map<String, Object?> json) {
+    final AuthSubjectKind kind = _requireSubjectKind(json);
+    return CurrentSessionReport(
+      subjectKind: kind,
+      accountId: _optionalAccountId(json, kind),
+      deviceId: _requireText(json, 'device_id'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      lastActiveAt: _requireUtcTime(json, 'last_active_at'),
+      expiresAt: _requireUtcTime(json, 'expires_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 主體類別。
+  final AuthSubjectKind subjectKind;
+
+  /// 帳戶標識；Root 主體為 `null`。
+  final String? accountId;
+
+  /// 用戶可見的設備標識。
+  final String deviceId;
+
+  /// 會話建立時刻（UTC）。
+  final DateTime createdAt;
+
+  /// 最近一次通過驗證的時刻（UTC）。
+  final DateTime lastActiveAt;
+
+  /// 會話到期時刻（UTC）。
+  final DateTime expiresAt;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 是否為 Root 主體的會話。
+  bool get isRoot => subjectKind == AuthSubjectKind.root;
+}

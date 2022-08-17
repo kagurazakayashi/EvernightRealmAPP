@@ -82,10 +82,67 @@ class ApiClient {
   /// 任何一步不合格都拋出 [ApiError]：本方法沒有任何「回傳值但其實失敗」的
   /// 路徑。[acceptLanguage] 決定送出的 `Accept-Language`，讓伺服器的診斷
   /// 訊息與介面使用同一種語言（介面顯示文字仍一律取自本地化資源）。
+  /// [bearerToken] 僅供原生客戶端回傳會話秘密；瀏覽器路徑的會話由 HttpOnly
+  /// Cookie 代管，不使用此參數（後端對帶 Origin 的 Bearer 請求一律拒絕）。
   Future<T> get<T>(
     String path, {
     required ResponseDecoder<T> decode,
     String? acceptLanguage,
+    String? bearerToken,
+  }) async {
+    final http.Response response = await _send(
+      method: 'GET',
+      path: path,
+      acceptLanguage: acceptLanguage,
+      bearerToken: bearerToken,
+    );
+    return _finish(response: response, path: path, decode: decode);
+  }
+
+  /// 對指定路徑發起帶 JSON 本體的 POST，失敗語意與 [get] 完全一致。
+  Future<T> post<T>(
+    String path, {
+    required Map<String, Object?> jsonBody,
+    required ResponseDecoder<T> decode,
+    String? acceptLanguage,
+  }) async {
+    final http.Response response = await _send(
+      method: 'POST',
+      path: path,
+      acceptLanguage: acceptLanguage,
+      jsonBody: jsonBody,
+    );
+    return _finish(response: response, path: path, decode: decode);
+  }
+
+  /// 發起 POST 並把成功回應解碼，同時原樣带回回應的 `Set-Cookie` 標頭文字。
+  ///
+  /// 存在的唯一理由是登入合同：會話秘密只進 `Set-Cookie`，原生客戶端需要它才能
+  /// 之後以 Bearer 回傳。瀏覽器環境（BrowserClient）依規範讀不到 `Set-Cookie`，
+  /// 回傳值恆為 `null`——這不是缺陷而是 HttpOnly 的定義本身，呼叫端不得想辦法繞。
+  Future<({T value, String? setCookie})> postCapturingCookie<T>(
+    String path, {
+    required Map<String, Object?> jsonBody,
+    required ResponseDecoder<T> decode,
+    String? acceptLanguage,
+  }) async {
+    final http.Response response = await _send(
+      method: 'POST',
+      path: path,
+      acceptLanguage: acceptLanguage,
+      jsonBody: jsonBody,
+    );
+    final T value = _finish(response: response, path: path, decode: decode);
+    return (value: value, setCookie: response.headers['set-cookie']);
+  }
+
+  /// 低層發送：组装位址、標頭與本體，任何傳輸層失敗都轉為 [ApiError] 拋出。
+  Future<http.Response> _send({
+    required String method,
+    required String path,
+    String? acceptLanguage,
+    String? bearerToken,
+    Map<String, Object?>? jsonBody,
   }) async {
     final ServerAddress? address = config.address;
     if (address == null) {
@@ -97,12 +154,22 @@ class ApiClient {
       'accept': 'application/json',
       if (acceptLanguage != null && acceptLanguage.isNotEmpty)
         'accept-language': acceptLanguage,
+      if (jsonBody != null) 'content-type': 'application/json',
+      if (bearerToken != null && bearerToken.isNotEmpty)
+        'authorization': 'Bearer $bearerToken',
     };
+
+    final http.Request request = http.Request(method, uri)
+      ..headers.addAll(headers);
+    if (jsonBody != null) {
+      request.body = jsonEncode(jsonBody);
+    }
 
     final http.Response response;
     try {
       response = await _transport
-          .get(uri, headers: headers)
+          .send(request)
+          .then(http.Response.fromStream)
           .timeout(config.requestTimeout);
     } on TimeoutException {
       throw ApiError(
@@ -128,7 +195,15 @@ class ApiClient {
             : _reasonOf(error),
       );
     }
+    return response;
+  }
 
+  /// 判定回應成敗：非 2xx 一律拋 [ApiError]，2xx 才走內容合同檢查與解碼。
+  T _finish<T>({
+    required http.Response response,
+    required String path,
+    required ResponseDecoder<T> decode,
+  }) {
     final String? requestId = _headerOf(response, 'x-request-id');
 
     if (response.statusCode < 200 || response.statusCode >= 300) {

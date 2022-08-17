@@ -185,6 +185,26 @@
   "@errorCodeNotReady": {
     "description": "機器錯誤碼 1007：服務尚未就緒（依賴不可回應）。"
   },
+  "errorCodeInvalidCredentials": "The login name or password is incorrect, or this account cannot sign in right now.",
+  "@errorCodeInvalidCredentials": {
+    "description": "机器错误码 2001：登录被拒。后端把「查无此人／口令错误／不可登录」收敛为同一句话，不得拆成可区分的文案。"
+  },
+  "errorCodeNotAuthenticated": "This request carries no session. Please sign in first.",
+  "@errorCodeNotAuthenticated": {
+    "description": "机器错误码 2002：请求没有携带任何会话凭据，而该端点需要身份。"
+  },
+  "errorCodeSessionInvalid": "The session is no longer valid. Please sign in again.",
+  "@errorCodeSessionInvalid": {
+    "description": "机器错误码 2003：携带的会话已过期、被撤销或主体状态不可用。"
+  },
+  "errorCodeAuthMethodConflict": "The request mixes authentication methods, or a browser request used a disallowed method.",
+  "@errorCodeAuthMethodConflict": {
+    "description": "机器错误码 2004：认证方式混用（Cookie 与 Bearer 并存，或浏览器请求使用 Bearer）。"
+  },
+  "errorCodeOriginForbidden": "The request origin failed the cross-site protection check and was rejected.",
+  "@errorCodeOriginForbidden": {
+    "description": "机器错误码 2005：有副作用的请求未通过来源（CSRF）策略。"
+  },
   "serverProbeTitle": "Server connectivity check",
   "@serverProbeTitle": {
     "description": "伺服器連通性探測區的標題。"

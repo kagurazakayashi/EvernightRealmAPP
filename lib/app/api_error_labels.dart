@@ -23,6 +23,11 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.unsupportedMediaType => l10n.errorCodeUnsupportedMediaType,
       ApiMachineCode.requestTimeout => l10n.errorCodeRequestTimeout,
       ApiMachineCode.notReady => l10n.errorCodeNotReady,
+      ApiMachineCode.invalidCredentials => l10n.errorCodeInvalidCredentials,
+      ApiMachineCode.notAuthenticated => l10n.errorCodeNotAuthenticated,
+      ApiMachineCode.sessionInvalid => l10n.errorCodeSessionInvalid,
+      ApiMachineCode.authMethodConflict => l10n.errorCodeAuthMethodConflict,
+      ApiMachineCode.originForbidden => l10n.errorCodeOriginForbidden,
     };
   }
 
