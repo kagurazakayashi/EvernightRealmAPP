@@ -73,7 +73,11 @@ enum ApiMachineCode {
   authMethodConflict(2004),
 
   /// 2005：有副作用的請求未通過來源（CSRF）策略。
-  originForbidden(2005);
+  originForbidden(2005),
+
+  /// 2006：登入嘗試過於頻繁，已被伺服器冷卻。處置是依 Retry-After 稍後再試；
+  /// 後端對「哪個帳戶被打滿」完全同形，介面據此也只能顯示通用的稍後再試。
+  loginThrottled(2006);
 
   /// 以對外發布的數值建立錯誤碼。
   const ApiMachineCode(this.value);
@@ -148,7 +152,9 @@ class ApiError implements Exception {
     ApiErrorKind.unreachable || ApiErrorKind.timeout => true,
     ApiErrorKind.invalidResponse => false,
     ApiErrorKind.httpStatus => switch (knownCode) {
-      ApiMachineCode.notReady || ApiMachineCode.requestTimeout => true,
+      ApiMachineCode.notReady ||
+      ApiMachineCode.requestTimeout ||
+      ApiMachineCode.loginThrottled => true,
       ApiMachineCode.internalError => true,
       _ => (httpStatus ?? 0) >= 500,
     },

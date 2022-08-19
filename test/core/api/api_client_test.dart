@@ -392,16 +392,22 @@ void main() {
     });
 
     test('未收錄的錯誤碼保留原數值供診斷', () async {
+      // 樣本取自「尚未發布」的號段：借用已發布區段裡的空缺（例如 1008 之於 1xxx）
+      // 會讓本測試在日後補上該碼時無聲失真，故固定用不可能成為正式碼的高位數。
+      const int unlistedMachineCode = 9999;
+      expect(ApiMachineCode.fromValue(unlistedMachineCode), isNull);
+
       final ApiError error = await captureApiError(
         stubApi(
           overrides: <String, String>{
-            kHealthPath: '{"code":2003,"message":"e","request_id":"r"}',
+            kHealthPath:
+                '{"code":$unlistedMachineCode,"message":"e","request_id":"r"}',
           },
           statuses: <String, int>{kHealthPath: 403},
         ).health,
       );
 
-      expect(error.machineCode, 2003);
+      expect(error.machineCode, unlistedMachineCode);
       expect(error.knownCode, isNull);
       expect(error.retryable, isFalse);
     });

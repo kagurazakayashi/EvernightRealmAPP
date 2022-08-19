@@ -205,6 +205,10 @@
   "@errorCodeOriginForbidden": {
     "description": "机器错误码 2005：有副作用的请求未通过来源（CSRF）策略。"
   },
+  "errorCodeLoginThrottled": "Too many login attempts. Please try again later.",
+  "@errorCodeLoginThrottled": {
+    "description": "机器错误码 2006：登录尝试过于频繁，服务端冷却中；处置为稍后重试，不指出是哪个账户被限制。"
+  },
   "serverProbeTitle": "Server connectivity check",
   "@serverProbeTitle": {
     "description": "伺服器連通性探測區的標題。"

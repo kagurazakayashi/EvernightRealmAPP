@@ -28,6 +28,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.sessionInvalid => l10n.errorCodeSessionInvalid,
       ApiMachineCode.authMethodConflict => l10n.errorCodeAuthMethodConflict,
       ApiMachineCode.originForbidden => l10n.errorCodeOriginForbidden,
+      ApiMachineCode.loginThrottled => l10n.errorCodeLoginThrottled,
     };
   }
 
