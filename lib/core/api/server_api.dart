@@ -32,6 +32,9 @@ const String kAuthRootLoginPath = '/auth/root/login';
 /// 當前會話端點路徑。
 const String kAuthSessionPath = '/auth/session';
 
+/// Root 初始化狀態端點路徑（唯讀：查一次不會改變伺服器任何狀態）。
+const String kRootInitStatusPath = '/root/init-status';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -177,6 +180,22 @@ class ServerApi {
       decode: CurrentSessionReport.decode,
       acceptLanguage: acceptLanguage,
       bearerToken: bearerToken,
+    );
+  }
+
+  /// 讀取 Root 初始化狀態：GET `/root/init-status`。
+  ///
+  /// 這是本應用對「這台伺服器有沒有 Root」唯一的得知管道，而且只進不出：
+  /// 請求本體是空的，沒有任何欄位可以攜帶口令——初始化的通路只有伺服器本機的
+  /// `evernight-server init-root`，把那個命令搬到 HTTP 上並不是本端點在做的事。
+  ///
+  /// 查不出來（後端讀組態檔失敗等）時一樣拋出 `ApiError`：呼叫端據此顯示
+  /// 「狀態不明」，不存在「把查詢失敗當成尚未初始化」的可能。
+  Future<InitStatusReport> initStatus({String? acceptLanguage}) {
+    return apiClient.get(
+      kRootInitStatusPath,
+      decode: InitStatusReport.decode,
+      acceptLanguage: acceptLanguage,
     );
   }
 }

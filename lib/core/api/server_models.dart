@@ -33,6 +33,19 @@ int _requireInt(Map<String, Object?> json, String field) {
   return value;
 }
 
+/// 嚴格讀取布林欄位：不接受字串、0/1 或「看起來像真」的寫法。
+///
+/// 型別寬容在這裡的代價比別處都大：`root_initialized` 一旦被誤讀成真，
+/// 介面就會對一個還沒初始化的部署說「已經好了」；誤讀成假，則會對一個已經有 Root
+/// 的服務建議一次注定被拒的初始化。兩個錯法都比直接判為合同違例嚴重。
+bool _requireBool(Map<String, Object?> json, String field) {
+  final Object? value = json[field];
+  if (value is! bool) {
+    throw ApiResponseShapeException('欄位 $field 不是布林');
+  }
+  return value;
+}
+
 /// 嚴格讀取 UTC 時間戳欄位。
 ///
 /// 只接受帶 `Z` 或明確偏移的 RFC3339 寫法，並正規化為 UTC。沒有時區標記的
@@ -191,6 +204,49 @@ class ServerTimeReport {
 
   /// 伺服器時間在其顯示時區的牆鐘時間 HH:mm:ss（本機時區不參與計算）。
   String get displayClock => formatShiftedClock(time, utcOffsetSeconds);
+}
+
+/// `/root/init-status` 的回應：這台伺服器的 Root 初始化進行到哪一步。
+///
+/// 三個布林就是後端發布全部内容——沒有路徑、沒有長度、沒有任何憑據片段，
+/// 因此這個模型也沒有任何欄位需要「記得不要顯示」。
+///
+/// 它是**只讀**的：查這一次不會讓 Root 出現，也不會讓 Root 消失。
+/// 初始化的通路只有伺服器本機的 `evernight-server init-root`，
+/// 本應用因此沒有任何表單可以向這條路送出口令。
+class InitStatusReport {
+  /// 以已驗證的欄位建立狀態報告。
+  const InitStatusReport({
+    required this.configExists,
+    required this.rootInitialized,
+    required this.envOverride,
+    required this.requestId,
+  });
+
+  /// 從 `/root/init-status` 的 JSON 回應建立報告。
+  static InitStatusReport decode(Map<String, Object?> json) {
+    return InitStatusReport(
+      configExists: _requireBool(json, 'config_exists'),
+      rootInitialized: _requireBool(json, 'root_initialized'),
+      envOverride: _requireBool(json, 'env_override'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 伺服器的組態檔是否已建立（全新資料目錄可能還沒跑過任何命令）。
+  final bool configExists;
+
+  /// 組態檔是否已帶有非空的 Root 憑據。
+  final bool rootInitialized;
+
+  /// Root 憑據的環境變數覆蓋是否處於設定狀態。
+  ///
+  /// 這一位決定「檔案裡沒有」能不能講成「這個服務沒有 Root」：兩者不等時介面必須
+  /// 如實分開說，否則會勸操作者去跑一個在這種狀態下必然拒絕寫入的初始化命令。
+  final bool envOverride;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
 }
 
 /// 認証合同發布的主體類別（值與後端 `subject_kind` 欄位逐字一致）。

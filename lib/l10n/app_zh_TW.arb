@@ -177,6 +177,86 @@
   "@serverProbeClockLabel": {
     "description": "按伺服器顯示時區換算後的牆鐘時間標籤。"
   },
+  "rootInitTitle": "Root 初始化檢查",
+  "@rootInitTitle": {
+    "description": "首次啟動的 Root 初始化引導卡標題。"
+  },
+  "rootInitSummary": "向伺服器詢問它是否已經有 Root 憑證。這一項只讀：本頁從不收集也不傳送口令。",
+  "@rootInitSummary": {
+    "description": "引導卡的說明：點明這是一次只讀查詢，本頁面不收集也不傳送口令。"
+  },
+  "rootInitAction": "檢查初始化",
+  "@rootInitAction": {
+    "description": "查詢按鈕文字：首次查詢與重新檢查都用同一句（措辭刻意不與同屏的連通性探測按鈕相同）。"
+  },
+  "rootInitRunning": "正在查詢初始化狀態…",
+  "@rootInitRunning": {
+    "description": "查詢進行中的提示。"
+  },
+  "rootInitNotConfiguredHint": "還沒有可用的伺服器位址，因此無從查詢。請先在上方填入並儲存位址。",
+  "@rootInitNotConfiguredHint": {
+    "description": "位址不可用時的說明：無從查詢的原因與該先做什麼。"
+  },
+  "rootInitUninitializedTitle": "尚未初始化：這台伺服器還沒有 Root 憑證",
+  "@rootInitUninitializedTitle": {
+    "description": "伺服器明確回報「還沒有 Root」時的狀態結論。只有在這個階段才列出初始化步驟。"
+  },
+  "rootInitInitializedTitle": "初始化已完成",
+  "@rootInitInitializedTitle": {
+    "description": "伺服器回報已有 Root 憑據時的狀態結論。"
+  },
+  "rootInitInitializedNote": "伺服器的設定檔裡已經有 Root 憑證，那扇一次性的初始化門因此已經關上：再跑一次 init-root 一律會被拒絕，這是設計而不是故障。Root 登入介面在伺服器上已經開放，但本應用還沒有登入畫面，所以這裡不提供任何表單。",
+  "@rootInitInitializedNote": {
+    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、但本應用的登入畫面尚未開發，因此本步不提供任何表單。"
+  },
+  "rootInitUnreachableTitle": "連不上伺服器，初始化狀態無從得知",
+  "@rootInitUnreachableTitle": {
+    "description": "連不上伺服器（含逾時）時的狀態結論：不能把它講成「尚未初始化」。"
+  },
+  "rootInitForbiddenTitle": "伺服器拒絕回報初始化狀態",
+  "@rootInitForbiddenTitle": {
+    "description": "伺服器有回應但拒絕把狀態交給這個呼叫端時的狀態結論。"
+  },
+  "rootInitUnknownTitle": "這一次沒有得到可信的結果",
+  "@rootInitUnknownTitle": {
+    "description": "伺服器答了但結果不可信（內容抵觸合同或其他錯誤）時的狀態結論。"
+  },
+  "rootInitUnknownHint": "請再問一次。這一項只讀，重複查詢不會建立、更換或覆蓋任何 Root 憑證。",
+  "@rootInitUnknownHint": {
+    "description": "結果不明確時的處置：再問一次，並保證重複查詢不會動到任何 Root 憑據。"
+  },
+  "rootInitConfigMissingHint": "那個資料目錄裡還沒有設定檔——這和「有設定檔但還沒填 Root」是兩回事。",
+  "@rootInitConfigMissingHint": {
+    "description": "config_exists 為偽時補的一句：與「有檔案但還沒填 Root」分開講。"
+  },
+  "rootInitEnvOverrideHint": "注意：環境變數 ER_SECURITY_ROOT_PASSWORD_HASH 已設定，它會在執行期蓋掉設定檔裡的 Root 憑證。這種狀態下 init-root 會拒絕寫入——請先移除該變數，或把那份憑證當成真正的 Root 來源。",
+  "@rootInitEnvOverrideHint": {
+    "description": "env_override 為真時的警告：檔案裡沒有不等於這個服務沒有 Root，且此時 init-root 必然拒絕寫入。"
+  },
+  "rootInitStepStop": "在伺服器所在的那台機器上停止正在執行的服務。初始化必須在服務釋放資料庫鎖之後進行；服務還在執行時跑 init-root 一定會被拒絕。",
+  "@rootInitStepStop": {
+    "description": "步驟一：停服務（單寫入實例鎖的真實約束）。"
+  },
+  "rootInitStepMigrate": "如果是全新的資料目錄，先執行 `evernight-server migrate --data-dir <資料目錄>` 建立結構——沒有審計表時 init-root 同樣會拒絕。",
+  "@rootInitStepMigrate": {
+    "description": "步驟二：全新資料目錄先建結構；命令列文字不翻譯，四份逐字相同。"
+  },
+  "rootInitStepInitialize": "執行 `evernight-server init-root --data-dir <資料目錄> --password-stdin`，依標準輸入先後給出口令與其確認，各一行。",
+  "@rootInitStepInitialize": {
+    "description": "步驟三：本機一次性初始化命令；口令只經標準輸入，命令列上不出現口令值。"
+  },
+  "rootInitStepRestart": "重新啟動服務。",
+  "@rootInitStepRestart": {
+    "description": "步驟四：重新啟動服務（生效的憑據由啟動時讀取）。"
+  },
+  "rootInitStepRecheck": "回到本頁再查一次，狀態會跟著設定檔更新。",
+  "@rootInitStepRecheck": {
+    "description": "步驟五：回本頁重新檢查。"
+  },
+  "rootInitSecretBoundary": "本頁沒有任何口令輸入欄，也不會把任何憑證發往伺服器：初始化 Root 只有在伺服器本機執行命令這一條路。",
+  "@rootInitSecretBoundary": {
+    "description": "本步不收集口令、不開 HTTP 初始化通路。"
+  },
   "diagnosticRequestId": "請求識別碼",
   "@diagnosticRequestId": {
     "description": "診斷行：請求關聯 ID 的標籤。"
