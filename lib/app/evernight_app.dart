@@ -19,6 +19,7 @@ import '../core/app_fonts.dart';
 import '../core/app_locale.dart';
 import '../core/diagnostics/diagnostics_hub.dart';
 import '../core/language_settings.dart';
+import '../core/session/session_controller.dart';
 import '../l10n/app_localizations.dart';
 import 'app_dependencies.dart';
 import 'app_router.dart';
@@ -27,16 +28,18 @@ import 'address_scope.dart';
 import 'connection_scope.dart';
 import 'error_boundary.dart';
 import 'language_scope.dart';
+import 'session_scope.dart';
 
 /// 長夜幻境使用者端的應用根節點。
 class EvernightApp extends StatefulWidget {
-  /// 以裝配好的依賴、語言設定、位址設定、連線追蹤與失敗收集器建立根節點。
+  /// 以裝配好的依賴、語言設定、位址設定、連線追蹤、會話控制與失敗收集器建立根節點。
   const EvernightApp({
     super.key,
     required this.dependencies,
     required this.language,
     required this.addresses,
     required this.connection,
+    required this.session,
     required this.diagnostics,
   });
 
@@ -51,6 +54,9 @@ class EvernightApp extends StatefulWidget {
 
   /// 連線探測狀態；由組裝點建立並負責其生命週期。
   final ConnectionTracker connection;
+
+  /// 會話状态；由組裝點建立並負責其生命週期，頁面經 [SessionScope] 讀取。
+  final SessionController session;
 
   /// 未處理錯誤的收集器：安全畫面讀它，啟動護欄寫它。
   final DiagnosticsHub diagnostics;
@@ -141,50 +147,53 @@ class _EvernightAppState extends State<EvernightApp> {
         settings: widget.addresses,
         child: ConnectionScope(
           tracker: widget.connection,
-          child: LanguageScope(
-            settings: widget.language,
-            child: MaterialApp(
-              // 視窗與瀏覽器分頁的品牌名由各平台元資料與原生標題承擔，
-              // 這裡不重複保存一份介面文字。
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.light(fontFamily: _fontFamily),
-              darkTheme: AppTheme.dark(fontFamily: _fontFamily),
-              themeMode: ThemeMode.system,
-              locale: widget.language.effectiveLocale,
-              localeResolutionCallback:
-                  (Locale? locale, Iterable<Locale> supported) {
-                    return resolveAppLocale(
-                      locale ?? widget.language.effectiveLocale,
-                    ).locale;
-                  },
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              supportedLocales: AppLocalizations.supportedLocales,
-              navigatorKey: AppRouter.navigatorKey,
-              initialRoute: AppRouter.initialRoute,
-              routes: AppRouter.routes,
-              onUnknownRoute: AppRouter.onUnknownRoute,
-              builder: (BuildContext context, Widget? child) {
-                if (_waitingForFont) {
-                  // 字體就緒前只有指示器：沒有任何文字，因此不會觸發線上取字。
-                  // 此時也不放安全畫面——它全是文字，字型還沒到位。
-                  return const Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Material(
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
+          child: SessionScope(
+            controller: widget.session,
+            child: LanguageScope(
+              settings: widget.language,
+              child: MaterialApp(
+                // 視窗與瀏覽器分頁的品牌名由各平台元資料與原生標題承擔，
+                // 這裡不重複保存一份介面文字。
+                debugShowCheckedModeBanner: false,
+                theme: AppTheme.light(fontFamily: _fontFamily),
+                darkTheme: AppTheme.dark(fontFamily: _fontFamily),
+                themeMode: ThemeMode.system,
+                locale: widget.language.effectiveLocale,
+                localeResolutionCallback:
+                    (Locale? locale, Iterable<Locale> supported) {
+                      return resolveAppLocale(
+                        locale ?? widget.language.effectiveLocale,
+                      ).locale;
+                    },
+                localizationsDelegates: const [
+                  AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                supportedLocales: AppLocalizations.supportedLocales,
+                navigatorKey: AppRouter.navigatorKey,
+                initialRoute: AppRouter.initialRoute,
+                routes: AppRouter.routes,
+                onUnknownRoute: AppRouter.onUnknownRoute,
+                builder: (BuildContext context, Widget? child) {
+                  if (_waitingForFont) {
+                    // 字體就緒前只有指示器：沒有任何文字，因此不會觸發線上取字。
+                    // 此時也不放安全畫面——它全是文字，字型還沒到位。
+                    return const Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Material(
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  }
+                  return ErrorBoundary(
+                    diagnostics: widget.diagnostics,
+                    navigatorKey: AppRouter.navigatorKey,
+                    child: child ?? const SizedBox.shrink(),
                   );
-                }
-                return ErrorBoundary(
-                  diagnostics: widget.diagnostics,
-                  navigatorKey: AppRouter.navigatorKey,
-                  child: child ?? const SizedBox.shrink(),
-                );
-              },
+                },
+              ),
             ),
           ),
         ),

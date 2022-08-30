@@ -5,10 +5,12 @@ import 'package:flutter/widgets.dart';
 
 import 'package:evernightrealm/app/app_dependencies.dart';
 import 'package:evernightrealm/app/evernight_app.dart';
+import 'package:evernightrealm/core/api/api_client.dart';
 import 'package:evernightrealm/core/api/connection_tracker.dart';
 import 'package:evernightrealm/core/api/server_address_settings.dart';
 import 'package:evernightrealm/core/diagnostics/diagnostics_hub.dart';
 import 'package:evernightrealm/core/language_settings.dart';
+import 'package:evernightrealm/core/session/session_controller.dart';
 
 import 'test_address.dart';
 
@@ -77,6 +79,13 @@ Future<Widget> buildTestApp({
     addresses: addressSettings,
     connection:
         connection ?? ConnectionTracker(deps.api, addresses: addressSettings),
+    // 元件測試預設走瀏覽器形态的會話控制器：不建立安全儲存、不注入憑據，
+    // 讓「會話适配」的存在不干扰這些只关心文字／佈局的測試。
+    session: SessionController(
+      api: deps.api,
+      addresses: addressSettings,
+      mode: SessionTransportMode.web,
+    ),
     diagnostics: diagnostics ?? DiagnosticsHub(sink: (String _) {}),
   );
 }

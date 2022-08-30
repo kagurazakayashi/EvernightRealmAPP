@@ -45,6 +45,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.6.0
 
+  # 原生客戶端會話秘密的系統級安全儲存（Android Keystore／Apple Keychain／
+  # Linux libsecret／Windows DPAPI）。僅原生端使用；Web 路徑由 HttpOnly Cookie
+  # 代管，這套件的 Web 實作不在本應用初始化，秘密一律不入 LocalStorage。
+  flutter_secure_storage: ^11.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

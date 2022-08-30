@@ -24,15 +24,19 @@ import 'server_address.dart';
 /// 位址以 [ServerAddressSource] 即時取用而非保存一段文字：位址可在執行期間被
 /// 使用者改動並本地保存，若組態複制了一份，就會出現「畫面已改、請求仍打舊位址」。
 class ServerApiConfig {
-  /// 以位址來源與期限建立組態。
+  /// 以位址來源、傳輸平臺形态、會話憑據來源與期限建立組態。
   const ServerApiConfig({
     this.source = const InjectedServerAddressSource(),
+    this.transportMode = SessionTransportMode.native,
+    this.credentials,
     this.requestTimeout = defaultRequestTimeout,
   });
 
   /// 以固定位址文字建立組態：測試、工具腳本，以及驗證尚未保存的候選位址。
   ServerApiConfig.fixed(
     String? url, {
+    this.transportMode = SessionTransportMode.native,
+    this.credentials,
     this.requestTimeout = defaultRequestTimeout,
   }) : source = StaticServerAddressSource(url);
 
@@ -42,6 +46,16 @@ class ServerApiConfig {
 
   /// 基準位址的即時來源。
   final ServerAddressSource source;
+
+  /// 本次存取所處的客戶端形态：決定會話憑據走 Cookie（瀏覽器）還是 Bearer（原生）。
+  final SessionTransportMode transportMode;
+
+  /// 原生會話憑據的來源；`null` 時不注入任何 `Authorization`。
+  ///
+  /// 只在 [transportMode] 為 [SessionTransportMode.native] 時被 consulting，且每次
+  /// 都以「本筆請求實際要打去的正規化伺服器身份」為鍵取值——這正是「甲伺服器的
+  /// 憑據不可能被送到乙伺服器」的結構性保證：來源若對不上請求身份就不回秘密。
+  final SessionCredentialResolver? credentials;
 
   /// 單一請求的期限。
   final Duration requestTimeout;
@@ -55,6 +69,28 @@ class ServerApiConfig {
   /// 是否具備可用的基準位址。
   bool get hasAddress => address != null;
 }
+
+/// 客戶端的傳輸平臺形态，決定了會話憑據的唯一合法承載方式。
+///
+/// 這個分支必須由裝配點顯式決定、可被測試注入，而不是在各處散讀 `kIsWeb`：
+/// 只有這樣「瀏覽器不帶 Bearer、原生不讀 Cookie」才是一條可被驗證的規則，
+/// 而不是各頁面各自判斷 `kIsWeb` 時隨時可能判錯的口號。
+enum SessionTransportMode {
+  /// 瀏覽器（Flutter Web）：會話由 HttpOnly Cookie 代管。客戶端既不讀取也不
+  /// 注入任何令牌，跨源憑据一律交給瀏覽器按同源規則自決。
+  web,
+
+  /// 原生（桌面／行動）：沒有瀏覽器代管 Cookie，會話秘密由會話層保存並在
+  /// 每次對「同一台伺服器」的請求上以 `Authorization: Bearer` 注入。
+  native,
+}
+
+/// 會話憑據來源：以正規化伺服器身份為鍵回傳該伺服器的會話秘密；無則 `null`。
+///
+/// 實作（會話控制器）必須遵守一條硬規則：只回傳與傳入身份逐字相符的秘密，
+/// 對不上就回 `null`。傳輸層把「本筆請求要打去哪裡」交給他，據此從源頭杜絕
+/// 把甲伺服器的憑據帶去乙伺服器。
+typedef SessionCredentialResolver = String? Function(String serverIdentity);
 
 /// 回應解碼器：把已確認為 JSON 物件的回應轉成模型，不合合同時拋出
 /// [ApiResponseShapeException]。
@@ -155,9 +191,18 @@ class ApiClient {
       if (acceptLanguage != null && acceptLanguage.isNotEmpty)
         'accept-language': acceptLanguage,
       if (jsonBody != null) 'content-type': 'application/json',
-      if (bearerToken != null && bearerToken.isNotEmpty)
-        'authorization': 'Bearer $bearerToken',
     };
+
+    // 會話憑據的取用順序：呼叫端顯式交出的 Bearer 優先（登入換發、測試直接取證）；
+    // 沒有顯式憑據時，只有原生形态才向來源按「本筆請求的伺服器身份」索取。
+    // 瀏覽器形态一律不注入——HttpOnly Cookie 由瀏覽器代管，指令碼改不了也不該改。
+    final String? bearer = _effectiveBearer(
+      address: address,
+      explicit: bearerToken,
+    );
+    if (bearer != null && bearer.isNotEmpty) {
+      headers['authorization'] = 'Bearer $bearer';
+    }
 
     final http.Request request = http.Request(method, uri)
       ..headers.addAll(headers);
@@ -301,6 +346,29 @@ class ApiClient {
     } on FormatException {
       return null;
     }
+  }
+
+  /// 依傳輸形态與請求身份決定本筆請求要帶的 Bearer 秘密。
+  ///
+  /// 三條規則缺一不可，全部為「憑據不可能被誤用」服務：
+  /// 1. 呼叫端顯式交出的秘密直接採用——登入換發與合同測試走這條，不經來源。
+  /// 2. 瀏覽器形态永不注入：會話秘密由 HttpOnly Cookie 代管，指令碼讀不到也不該讀；
+  ///    後端對帶 Origin 的 Bearer 一律回 2004，在這裡擋掉才不会把正常請求打成錯誤。
+  /// 3. 原生形态向來源取證時，一律以「本筆請求實際要打去的正規化伺服器身份」為鍵，
+  ///    來源對不上就回 `null`——這是甲伺服器憑據不會被發往乙伺服器的結構性保證。
+  String? _effectiveBearer({
+    required ServerAddress address,
+    required String? explicit,
+  }) {
+    if (explicit != null && explicit.isNotEmpty) {
+      return explicit;
+    }
+    final SessionCredentialResolver? resolver = config.credentials;
+    if (config.transportMode != SessionTransportMode.native ||
+        resolver == null) {
+      return null;
+    }
+    return resolver(address.displayText);
   }
 
   /// 大小寫不敏感地讀取標頭（Go 會把 `X-Request-ID` 正規化為 `X-Request-Id`）。
