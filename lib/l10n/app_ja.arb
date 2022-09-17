@@ -205,9 +205,9 @@
   "@rootInitInitializedTitle": {
     "description": "伺服器回報已有 Root 憑據時的狀態結論。"
   },
-  "rootInitInitializedNote": "サーバーの設定ファイルには既に Root 認証情報があるため、一度きりの初期化の扉は閉じられました。init-root を再実行すると常に拒否されますが、これは障害ではなく設計です。Root ログインの API はサーバー側で利用できますが、このアプリにはまだログイン画面が無いので、ここに入力欄は置きません。",
+  "rootInitInitializedNote": "\u30b5\u30fc\u30d0\u30fc\u306e\u8a2d\u5b9a\u30d5\u30a1\u30a4\u30eb\u306b\u306f\u65e2\u306b Root \u8a8d\u8a3c\u60c5\u5831\u304c\u3042\u308b\u305f\u3081\u3001\u4e00\u5ea6\u304d\u308a\u306e\u521d\u671f\u5316\u306e\u6249\u306f\u9589\u3058\u3089\u308c\u307e\u3057\u305f\u3002init-root \u3092\u518d\u5b9f\u884c\u3059\u308b\u3068\u5e38\u306b\u62d2\u5426\u3055\u308c\u307e\u3059\u304c\u3001\u3053\u308c\u306f\u969c\u5bb3\u3067\u306f\u306a\u304f\u8a2d\u8a08\u3067\u3059\u3002Root \u30ed\u30b0\u30a4\u30f3\u306e API \u306f\u30b5\u30fc\u30d0\u30fc\u5074\u3067\u5229\u7528\u3067\u304d\u3001\u30ed\u30b0\u30a4\u30f3\u306e\u5165\u53e3\u306f\u4e0b\u306e\u300c\u30ed\u30b0\u30a4\u30f3\u3068\u30bb\u30c3\u30b7\u30e7\u30f3\u300d\u30ab\u30fc\u30c9\u306b\u3042\u308a\u307e\u3059\u3002\u3053\u306e\u30ab\u30fc\u30c9\u306f\u8aad\u307f\u53d6\u308a\u5c02\u7528\u306e\u307e\u307e\u3067\u3059\u3002",
   "@rootInitInitializedNote": {
-    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、但本應用的登入畫面尚未開發，因此本步不提供任何表單。"
+    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、登入入口在下方會話卡；本卡仍然唯讀。"
   },
   "rootInitUnreachableTitle": "サーバーに接続できないため、初期化状態は不明です",
   "@rootInitUnreachableTitle": {
@@ -384,5 +384,153 @@
   "addressIssueQueryOrFragment": "アドレスにクエリパラメータや # の断片を含めません。",
   "@addressIssueQueryOrFragment": {
     "description": "格式判定：位址內含查詢字串或片段標記。"
+  },
+  "sessionCardTitle": "ログインとセッション",
+  "@sessionCardTitle": {
+    "description": "入口層會話卡的標題：本卡陳述「此刻這台伺服器上的我」。"
+  },
+  "sessionNotConfiguredHint": "有効なサーバーアドレスが未設定のため、ログインできません。まず上のサーバーアドレスカードで到達可能なアドレスを入力し保存してください。",
+  "@sessionNotConfiguredHint": {
+    "description": "沒有生效位址時如實說明無從登入，並指出該先做什麼。"
+  },
+  "sessionSignedOutHint": "ログインしていません。",
+  "@sessionSignedOutHint": {
+    "description": "確定未登入那一句。"
+  },
+  "sessionGoLoginAction": "ログインへ",
+  "@sessionGoLoginAction": {
+    "description": "前往登入頁的按鈕文字。"
+  },
+  "sessionVerifyingHint": "前回のセッションをサーバーから復元し、検証しています…",
+  "@sessionVerifyingHint": {
+    "description": "啟動恢復進行中的提示：不沿用舊身分、不宣稱任何狀態。"
+  },
+  "sessionUnknownHint": "セッション状態を確定できません：サーバーが今回の問いに答えませんでした。ログアウトを示すものではありません。",
+  "@sessionUnknownHint": {
+    "description": "查不了那一句：明說這不等於已登出。"
+  },
+  "sessionRevalidateAction": "セッションを再検証",
+  "@sessionRevalidateAction": {
+    "description": "重新問一次伺服器的按鈕文字。"
+  },
+  "sessionExpiredNotice": "サーバーが前回のセッションを無効と判定しました（期限切れまたは失効）。再度ログインしてください。",
+  "@sessionExpiredNotice": {
+    "description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"
+  },
+  "sessionStorageFailureNote": "この端末のログイン状態を読み書きできません：検証を中断したか、このセッションは再起動後に保持されません。安全のため、認証情報を平文で保存することはありません。",
+  "@sessionStorageFailureNote": {
+    "description": "本機安全儲存讀寫失敗的說明：不等同未登入，也絕不降明文。"
+  },
+  "sessionIdentityTitle": "現在の身分（サーバーが確認）",
+  "@sessionIdentityTitle": {
+    "description": "已登入時身分卡的標題，強調「經伺服器確認」。"
+  },
+  "sessionSubjectLabel": "主体",
+  "@sessionSubjectLabel": {
+    "description": "主體類別欄位標籤。"
+  },
+  "sessionSubjectRoot": "Root（サーバーレベル）",
+  "@sessionSubjectRoot": {
+    "description": "Root 主體的顯示文字（取自伺服器回應）。"
+  },
+  "sessionSubjectAccount": "アカウント",
+  "@sessionSubjectAccount": {
+    "description": "帳戶主體的顯示文字（取自伺服器回應）。"
+  },
+  "sessionAccountIdLabel": "アカウント ID",
+  "@sessionAccountIdLabel": {
+    "description": "帳戶標識欄位標籤。"
+  },
+  "sessionDeviceLabel": "デバイス識別子",
+  "@sessionDeviceLabel": {
+    "description": "裝置標識欄位標籤。"
+  },
+  "sessionExpiresLabel": "セッション失効（UTC）",
+  "@sessionExpiresLabel": {
+    "description": "會話到期欄位標籤：值一律標註 UTC，不做本機時區換算。"
+  },
+  "sessionRootConsoleAction": "Root コンソールを開く",
+  "@sessionRootConsoleAction": {
+    "description": "Root 身分可用的主頁入口按鈕：按下後仍由 SessionGate 依伺服器身分判定。"
+  },
+  "sessionChangedDuringLoginHint": "ログイン要求の処理中にサーバーアドレスが変更されたため、この結果は破棄されました：応答は別のサーバーを説明しています。再度ログインしてください。",
+  "@sessionChangedDuringLoginHint": {
+    "description": "登入請求飛行中位址被換掉：結果如實丟棄的那一句。"
+  },
+  "loginTitle": "サーバーにログイン",
+  "@loginTitle": {
+    "description": "登入頁標題（應用殼 AppBar）。"
+  },
+  "loginSummary": "ここに入力した認証情報は、下に表示されている有効なサーバーアドレスへのみ送信され、セッションの取得にのみ使われます。パスワードは伏せられ、この端末に保存されることはありません。",
+  "@loginSummary": {
+    "description": "登入頁的憑據去向聲明：只發往顯示的那台、不落盤口令。"
+  },
+  "loginModeLabel": "ログイン方式",
+  "@loginModeLabel": {
+    "description": "登入方式選擇的欄位標籤。"
+  },
+  "loginModeRoot": "Root ログイン",
+  "@loginModeRoot": {
+    "description": "Root 登入方式選項：只送口令到 /auth/root/login。"
+  },
+  "loginModeAccount": "アカウント ログイン",
+  "@loginModeAccount": {
+    "description": "帳戶登入方式選項：送登入名與口令到 /auth/login。"
+  },
+  "loginAccountNote": "このアプリにアカウント作成や自己登録の入口はありません：アカウントログインはサーバー上に既に存在するアカウントでのみ利用できます。",
+  "@loginAccountNote": {
+    "description": "如實聲明本應用沒有建號／註冊入口，帳戶登入只對已存在帳戶有效。"
+  },
+  "loginLoginNameLabel": "ログイン名",
+  "@loginLoginNameLabel": {
+    "description": "登入名輸入框標籤。"
+  },
+  "loginPasswordLabel": "パスワード",
+  "@loginPasswordLabel": {
+    "description": "口令輸入框標籤。"
+  },
+  "loginSubmitAction": "ログイン",
+  "@loginSubmitAction": {
+    "description": "提交登入的按鈕文字。"
+  },
+  "loginSubmitting": "ログイン中…",
+  "@loginSubmitting": {
+    "description": "提交進行中的按鈕文字（此時按鈕停用，防連點重複請求）。"
+  },
+  "loginPasswordRequired": "パスワードを入力してから送信してください。",
+  "@loginPasswordRequired": {
+    "description": "本地攔截：口令為空時不發請求的那一句。"
+  },
+  "loginLoginNameRequired": "ログイン名を入力してから送信してください。",
+  "@loginLoginNameRequired": {
+    "description": "本地攔截：帳戶模式登入名為空時不發請求的那一句。"
+  },
+  "loginMissingCredentialNote": "サーバーはこのログインを受け入れましたが、この端末は返送できるセッション資格情報を得られませんでした：状態は「確認不能」のままとし、ログイン成功とは報告しません。端末の環境を確認して再度ログインしてください。",
+  "@loginMissingCredentialNote": {
+    "description": "原生端取不到可回傳憑據：狀態停在無法確定，不謊報已登入。"
+  },
+  "loginServerInfoTitle": "ログイン先",
+  "@loginServerInfoTitle": {
+    "description": "登入目標資訊卡標題：先看清連的是哪台再輸口令。"
+  },
+  "sessionBackHomeAction": "入口ページへ戻る",
+  "@sessionBackHomeAction": {
+    "description": "閘擋回時唯一出口按鈕。"
+  },
+  "sessionGateCheckingHint": "まずログイン身分を確認します：サーバーの回答前にこのページの内容は何も表示されません。",
+  "@sessionGateCheckingHint": {
+    "description": "受保護頁在伺服器回答前的中性提示：一個受保護字都不畫。"
+  },
+  "sessionGateBlockedTitle": "現在の身分ではこのコンテキストを開けません",
+  "@sessionGateBlockedTitle": {
+    "description": "身分不合被擋的結論行。"
+  },
+  "sessionGateBlockedHint": "入れるかどうかはサーバーが確認した身分で決まり、アドレス欄では決められません。入口に戻り、該当する機能を持つアカウントで再ログインしてください。",
+  "@sessionGateBlockedHint": {
+    "description": "擋的依據是伺服器確認的身分，不是網址欄。"
+  },
+  "sessionGateRootRequiredHint": "Root コンソールにはサーバーが確認した Root 主体が必要です。現在のセッションは Root ではないため、このページは閉じたままです。",
+  "@sessionGateRootRequiredHint": {
+    "description": "Root 控制台要求 Root 主體：非 Root 會話保持關閉。"
   }
 }

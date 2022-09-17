@@ -41,7 +41,17 @@ The server entry page offers a server connectivity check: it reads the health an
 
 A brand-new server has no Root yet, so the entry page carries a read-only "Root initialization" card. It asks the server for its initialization state and shows exactly one of five honest results: not initialized, already initialized, server unreachable, server refuses to report, or this check produced no reliable answer. (With no saved address it says that first and sends no request at all.) The steps to run on the server's own machine — stop the service, create the schema first if the data directory is brand new, run `evernight-server init-root --password-stdin`, start the service again, then check again here — appear only when the server actually answered "no Root yet". A failed check is never phrased as a state, and "Check initialization" only asks again: every call is read-only and cannot create, change or overwrite a credential.
 
-The card collects no password. It has no password field and sends no credential anywhere, because initializing Root remains reachable only through a command run on the server host. Once a credential exists the card stops listing steps and simply reports initialization is complete; the Root login screen has not been built yet, so no login form appears here either.
+The card collects no password. It has no password field and sends no credential anywhere, because initializing Root remains reachable only through a command run on the server host. Once a credential exists the card stops listing steps and simply reports initialization is complete; signing in is now available through the "Login and session" card below, while this card itself stays read-only and collects no credentials.
+
+## Sign-in and identity restoration
+
+Once the server has a Root, the entry page's "Login and session" card is the way in:
+
+- The sign-in page first shows which server you are about to sign in to (the effective address, plus service name and version when a probe succeeded), then asks for credentials. Two paths exist: Root sign-in (password only) and account sign-in (login name plus password). The account path reuses the existing server endpoint; this app offers no sign-up or account-creation entry.
+- Every failure says its own honest piece: refused credentials map to one uniform sentence (the server does not distinguish "no such account" from "wrong password", and neither does the interface), throttling says to try again later, unreachable and local-storage failures each say their own. No message ever echoes your password, the server's own text is never displayed verbatim, and nothing is saved or auto-filled on this device.
+- After signing in, the identity shown is the one the server confirmed — never whatever the form guessed. Protected pages sit behind a session gate that shows nothing protected before the server answers, and the "return to" target kept when you are bounced to the sign-in page can only be a route registered in this app; anything else (including external URLs) lands you back on the entry page.
+- Reopening the app restores and verifies the previous session first: while checking, only a neutral hint appears; if the session is still valid the card lists the real subject, device and server-side expiry (UTC); if the server deems it invalid you are returned to sign-in and the stored credential is cleared.
+- The Root management modules are still under development: the signed-in home shows only the true identity and entries that actually work today, and the Root console page states plainly that its backend is not built yet. Session credentials are kept by the browser's HttpOnly cookie on web, and by system-level secure storage on native clients — never in plain local files.
 
 ## Server address
 

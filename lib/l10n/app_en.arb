@@ -293,9 +293,9 @@
   "@rootInitInitializedTitle": {
     "description": "伺服器回報已有 Root 憑據時的狀態結論。"
   },
-  "rootInitInitializedNote": "The server's config file already holds a Root credential, so the one-time initialization door is closed: running init-root again is always refused, and that is the design rather than a fault. The Root login endpoint is live on the server, but this app does not have a login screen yet, so there is nothing to fill in here.",
+  "rootInitInitializedNote": "The server's config file already holds a Root credential, so the one-time initialization door is closed: running init-root again is always refused, and that is the design rather than a fault. The Root login endpoint is live on the server, and the sign-in entry now sits in the \"Login and session\" card below; this card stays read-only and collects no credentials.",
   "@rootInitInitializedNote": {
-    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、但本應用的登入畫面尚未開發，因此本步不提供任何表單。"
+    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、登入入口在下方會話卡；本卡仍然唯讀。"
   },
   "rootInitUnreachableTitle": "Cannot reach the server, so the initialization status is unknown",
   "@rootInitUnreachableTitle": {
@@ -472,5 +472,153 @@
   "addressIssueQueryOrFragment": "The address cannot contain query parameters or a # fragment.",
   "@addressIssueQueryOrFragment": {
     "description": "格式判定：位址內含查詢字串或片段標記。"
+  },
+  "sessionCardTitle": "Login and session",
+  "@sessionCardTitle": {
+    "description": "入口層會話卡的標題：本卡陳述「此刻這台伺服器上的我」。"
+  },
+  "sessionNotConfiguredHint": "No server address is in effect, so there is nothing to sign in to yet. Enter and save a reachable address in the server address card above first.",
+  "@sessionNotConfiguredHint": {
+    "description": "沒有生效位址時如實說明無從登入，並指出該先做什麼。"
+  },
+  "sessionSignedOutHint": "Not signed in.",
+  "@sessionSignedOutHint": {
+    "description": "確定未登入那一句。"
+  },
+  "sessionGoLoginAction": "Go to sign in",
+  "@sessionGoLoginAction": {
+    "description": "前往登入頁的按鈕文字。"
+  },
+  "sessionVerifyingHint": "Restoring and verifying the previous session with the server…",
+  "@sessionVerifyingHint": {
+    "description": "啟動恢復進行中的提示：不沿用舊身分、不宣稱任何狀態。"
+  },
+  "sessionUnknownHint": "The session state cannot be determined right now: the server did not answer that question. This is not a sign that you were signed out.",
+  "@sessionUnknownHint": {
+    "description": "查不了那一句：明說這不等於已登出。"
+  },
+  "sessionRevalidateAction": "Re-check session",
+  "@sessionRevalidateAction": {
+    "description": "重新問一次伺服器的按鈕文字。"
+  },
+  "sessionExpiredNotice": "The server has determined that the previous session is no longer valid (expired or revoked). Please sign in again.",
+  "@sessionExpiredNotice": {
+    "description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"
+  },
+  "sessionStorageFailureNote": "The local login state could not be read or written: verification is paused, or this session will not survive a restart. For safety the credential is never kept in plaintext.",
+  "@sessionStorageFailureNote": {
+    "description": "本機安全儲存讀寫失敗的說明：不等同未登入，也絕不降明文。"
+  },
+  "sessionIdentityTitle": "Current identity (confirmed by the server)",
+  "@sessionIdentityTitle": {
+    "description": "已登入時身分卡的標題，強調「經伺服器確認」。"
+  },
+  "sessionSubjectLabel": "Subject",
+  "@sessionSubjectLabel": {
+    "description": "主體類別欄位標籤。"
+  },
+  "sessionSubjectRoot": "Root (server level)",
+  "@sessionSubjectRoot": {
+    "description": "Root 主體的顯示文字（取自伺服器回應）。"
+  },
+  "sessionSubjectAccount": "Account",
+  "@sessionSubjectAccount": {
+    "description": "帳戶主體的顯示文字（取自伺服器回應）。"
+  },
+  "sessionAccountIdLabel": "Account ID",
+  "@sessionAccountIdLabel": {
+    "description": "帳戶標識欄位標籤。"
+  },
+  "sessionDeviceLabel": "Device",
+  "@sessionDeviceLabel": {
+    "description": "裝置標識欄位標籤。"
+  },
+  "sessionExpiresLabel": "Session expires (UTC)",
+  "@sessionExpiresLabel": {
+    "description": "會話到期欄位標籤：值一律標註 UTC，不做本機時區換算。"
+  },
+  "sessionRootConsoleAction": "Open Root console",
+  "@sessionRootConsoleAction": {
+    "description": "Root 身分可用的主頁入口按鈕：按下後仍由 SessionGate 依伺服器身分判定。"
+  },
+  "sessionChangedDuringLoginHint": "The server address changed while this sign-in was in flight, so its result was discarded: that reply describes a different server. Please sign in again.",
+  "@sessionChangedDuringLoginHint": {
+    "description": "登入請求飛行中位址被換掉：結果如實丟棄的那一句。"
+  },
+  "loginTitle": "Sign in to the server",
+  "@loginTitle": {
+    "description": "登入頁標題（應用殼 AppBar）。"
+  },
+  "loginSummary": "Credentials typed here are sent only to the effective server address shown above and are used solely to obtain a session. The password stays hidden and is never stored on this device.",
+  "@loginSummary": {
+    "description": "登入頁的憑據去向聲明：只發往顯示的那台、不落盤口令。"
+  },
+  "loginModeLabel": "Sign in as",
+  "@loginModeLabel": {
+    "description": "登入方式選擇的欄位標籤。"
+  },
+  "loginModeRoot": "Root",
+  "@loginModeRoot": {
+    "description": "Root 登入方式選項：只送口令到 /auth/root/login。"
+  },
+  "loginModeAccount": "Account",
+  "@loginModeAccount": {
+    "description": "帳戶登入方式選項：送登入名與口令到 /auth/login。"
+  },
+  "loginAccountNote": "This app offers no sign-up or account-creation entry: account sign-in only works for an account the server has already created.",
+  "@loginAccountNote": {
+    "description": "如實聲明本應用沒有建號／註冊入口，帳戶登入只對已存在帳戶有效。"
+  },
+  "loginLoginNameLabel": "Login name",
+  "@loginLoginNameLabel": {
+    "description": "登入名輸入框標籤。"
+  },
+  "loginPasswordLabel": "Password",
+  "@loginPasswordLabel": {
+    "description": "口令輸入框標籤。"
+  },
+  "loginSubmitAction": "Sign in",
+  "@loginSubmitAction": {
+    "description": "提交登入的按鈕文字。"
+  },
+  "loginSubmitting": "Signing in…",
+  "@loginSubmitting": {
+    "description": "提交進行中的按鈕文字（此時按鈕停用，防連點重複請求）。"
+  },
+  "loginPasswordRequired": "Enter the password before submitting.",
+  "@loginPasswordRequired": {
+    "description": "本地攔截：口令為空時不發請求的那一句。"
+  },
+  "loginLoginNameRequired": "Enter the login name before submitting.",
+  "@loginLoginNameRequired": {
+    "description": "本地攔截：帳戶模式登入名為空時不發請求的那一句。"
+  },
+  "loginMissingCredentialNote": "The server accepted this sign-in, but this client could not obtain a session credential to send back, so the state stays undetermined instead of claiming success. Check the device environment and sign in again.",
+  "@loginMissingCredentialNote": {
+    "description": "原生端取不到可回傳憑據：狀態停在無法確定，不謊報已登入。"
+  },
+  "loginServerInfoTitle": "Sign-in target",
+  "@loginServerInfoTitle": {
+    "description": "登入目標資訊卡標題：先看清連的是哪台再輸口令。"
+  },
+  "sessionBackHomeAction": "Back to the entry page",
+  "@sessionBackHomeAction": {
+    "description": "閘擋回時唯一出口按鈕。"
+  },
+  "sessionGateCheckingHint": "Confirming the sign-in identity first: nothing on this page is shown before the server answers.",
+  "@sessionGateCheckingHint": {
+    "description": "受保護頁在伺服器回答前的中性提示：一個受保護字都不畫。"
+  },
+  "sessionGateBlockedTitle": "This identity cannot open this context",
+  "@sessionGateBlockedTitle": {
+    "description": "身分不合被擋的結論行。"
+  },
+  "sessionGateBlockedHint": "Access is decided by the identity the server confirmed, not by the address you typed. Go back to the entry page and sign in again with an account that actually has this capability.",
+  "@sessionGateBlockedHint": {
+    "description": "擋的依據是伺服器確認的身分，不是網址欄。"
+  },
+  "sessionGateRootRequiredHint": "The Root console requires the Root subject as confirmed by the server. The current session is not Root, so this page stays closed.",
+  "@sessionGateRootRequiredHint": {
+    "description": "Root 控制台要求 Root 主體：非 Root 會話保持關閉。"
   }
 }

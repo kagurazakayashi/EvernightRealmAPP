@@ -54,6 +54,11 @@ Future<LanguageSettings> buildLanguageSettings({
 /// 只關心文字與佈局，不需要真假設探測。未給 [diagnostics] 時同樣給一組全新的
 /// 收集器，避免測試之間共用狀態。[addresses] 未給定時一律以「本機未保存位址」
 /// 起算，讓位址輸入卡在多數測試裡保持中立狀態。
+///
+/// [session] 未給定时使用瀏覽器形态的空會話控制器（不讀寫任何本地秘密）。
+/// [restoreOnLaunch] 刻意預設為偽：正式啟動會自動恢復會話，但大多數元件測試
+/// 不該平白多發一個 `/auth/session` 請求而干擾「恰好問了 N 次」的斷言；
+/// 需要演練啟動恢復的測試自己傳真，或直接調控制器的 `restore()`。
 Future<Widget> buildTestApp({
   AppDependencies? dependencies,
   Locale systemLocale = const Locale('en'),
@@ -62,6 +67,8 @@ Future<Widget> buildTestApp({
   ServerAddressSettings? addresses,
   ConnectionTracker? connection,
   DiagnosticsHub? diagnostics,
+  SessionController? session,
+  bool restoreOnLaunch = false,
 }) async {
   final LanguageSettings settings =
       language ??
@@ -81,11 +88,14 @@ Future<Widget> buildTestApp({
         connection ?? ConnectionTracker(deps.api, addresses: addressSettings),
     // 元件測試預設走瀏覽器形态的會話控制器：不建立安全儲存、不注入憑據，
     // 讓「會話适配」的存在不干扰這些只关心文字／佈局的測試。
-    session: SessionController(
-      api: deps.api,
-      addresses: addressSettings,
-      mode: SessionTransportMode.web,
-    ),
+    session:
+        session ??
+        SessionController(
+          api: deps.api,
+          addresses: addressSettings,
+          mode: SessionTransportMode.web,
+        ),
     diagnostics: diagnostics ?? DiagnosticsHub(sink: (String _) {}),
+    restoreOnLaunch: restoreOnLaunch,
   );
 }

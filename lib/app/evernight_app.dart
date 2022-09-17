@@ -32,7 +32,11 @@ import 'session_scope.dart';
 
 /// 長夜幻境使用者端的應用根節點。
 class EvernightApp extends StatefulWidget {
-  /// 以裝配好的依賴、語言設定、位址設定、連線追蹤、會話控制與失敗收集器建立根節點。
+  /// 以既定依賴、語言、位址、連線、會話與診斷組裝根節點。
+  ///
+  /// [restoreOnLaunch] 決定啟動時是否立即排一次會話恢復（先問伺服器「我還是不是
+  /// 我」，再讓界面呈現）：正式啟動要，元件測試多半不要——那些測試只關心文字與
+  /// 佈局，不該平白多發一個驗證請求。
   const EvernightApp({
     super.key,
     required this.dependencies,
@@ -41,6 +45,7 @@ class EvernightApp extends StatefulWidget {
     required this.connection,
     required this.session,
     required this.diagnostics,
+    this.restoreOnLaunch = true,
   });
 
   /// 啟動時裝配的依賴集合。
@@ -57,6 +62,9 @@ class EvernightApp extends StatefulWidget {
 
   /// 會話状态；由組裝點建立並負責其生命週期，頁面經 [SessionScope] 讀取。
   final SessionController session;
+
+  /// 啟動時是否自動恢復並驗證既存會話。
+  final bool restoreOnLaunch;
 
   /// 未處理錯誤的收集器：安全畫面讀它，啟動護欄寫它。
   final DiagnosticsHub diagnostics;
@@ -80,6 +88,14 @@ class _EvernightAppState extends State<EvernightApp> {
     super.initState();
     widget.language.addListener(_onLanguageChanged);
     _loadFontForCurrentLanguage();
+    if (widget.restoreOnLaunch) {
+      // 「重開應用先恢復並驗證會話」的排程點。刻意在 initState 同步呼叫而不是
+      // 排到幀尾：restore 的同步段會先把狀態推進「驗證中」，第一幀就是恢復中的
+      // 中性提示，不會先閃一下「無法確定」再改口。此時 SessionScope 還沒建立、
+      // 控制器尚無訂閱者，同步通知不會撞上建置期斷言。
+      // 受保護內容在結果回來之前一律不會被畫出（見 SessionGate）。
+      widget.session.restore();
+    }
   }
 
   @override

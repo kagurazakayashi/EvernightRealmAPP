@@ -205,9 +205,9 @@
   "@rootInitInitializedTitle": {
     "description": "伺服器回報已有 Root 憑據時的狀態結論。"
   },
-  "rootInitInitializedNote": "服务器的配置文件里已经有 Root 凭据，那扇一次性的初始化门因此已经关上：再跑一次 init-root 一律会被拒绝，这是设计而不是故障。Root 登录接口在服务器上已经开放，但本应用还没有登录界面，所以这里不提供任何表单。",
+  "rootInitInitializedNote": "\u670d\u52a1\u5668\u7684\u914d\u7f6e\u6587\u4ef6\u91cc\u5df2\u7ecf\u6709 Root \u51ed\u636e\uff0c\u90a3\u6247\u4e00\u6b21\u6027\u7684\u521d\u59cb\u5316\u95e8\u56e0\u6b64\u5df2\u7ecf\u5173\u4e0a\uff1a\u518d\u8dd1\u4e00\u6b21 init-root \u4e00\u5f8b\u4f1a\u88ab\u62d2\u7edd\uff0c\u8fd9\u662f\u8bbe\u8ba1\u800c\u4e0d\u662f\u6545\u969c\u3002Root \u767b\u5f55\u63a5\u53e3\u5728\u670d\u52a1\u5668\u4e0a\u5df2\u7ecf\u5f00\u653e\uff0c\u767b\u5f55\u5165\u53e3\u5c31\u5728\u4e0b\u65b9\u201c\u767b\u5f55\u4e0e\u4f1a\u8bdd\u201d\u5361\u91cc\uff1b\u672c\u5361\u4f9d\u65e7\u53ea\u8bfb\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u53e3\u4ee4\u3002",
   "@rootInitInitializedNote": {
-    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、但本應用的登入畫面尚未開發，因此本步不提供任何表單。"
+    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、登入入口在下方會話卡；本卡仍然唯讀。"
   },
   "rootInitUnreachableTitle": "连不上服务器，初始化状态无从得知",
   "@rootInitUnreachableTitle": {
@@ -384,5 +384,153 @@
   "addressIssueQueryOrFragment": "地址中不能包含查询参数或 # 片段。",
   "@addressIssueQueryOrFragment": {
     "description": "格式判定：位址內含查詢字串或片段標記。"
+  },
+  "sessionCardTitle": "登录与会话",
+  "@sessionCardTitle": {
+    "description": "入口層會話卡的標題：本卡陳述「此刻這台伺服器上的我」。"
+  },
+  "sessionNotConfiguredHint": "还没有生效的服务器地址，谈不上登录：请先在上方服务器地址卡填入并保存一个连得通的地址。",
+  "@sessionNotConfiguredHint": {
+    "description": "沒有生效位址時如實說明無從登入，並指出該先做什麼。"
+  },
+  "sessionSignedOutHint": "尚未登录。",
+  "@sessionSignedOutHint": {
+    "description": "確定未登入那一句。"
+  },
+  "sessionGoLoginAction": "前往登录",
+  "@sessionGoLoginAction": {
+    "description": "前往登入頁的按鈕文字。"
+  },
+  "sessionVerifyingHint": "正在从服务器恢复并验证上一次会话…",
+  "@sessionVerifyingHint": {
+    "description": "啟動恢復進行中的提示：不沿用舊身分、不宣稱任何狀態。"
+  },
+  "sessionUnknownHint": "当前无法确定会话状态：服务器这一次没有答上来。这不代表你已退出登录。",
+  "@sessionUnknownHint": {
+    "description": "查不了那一句：明說這不等於已登出。"
+  },
+  "sessionRevalidateAction": "重新验证会话",
+  "@sessionRevalidateAction": {
+    "description": "重新問一次伺服器的按鈕文字。"
+  },
+  "sessionExpiredNotice": "服务器已判定上一次会话不再有效（过期或被撤销）。请重新登录。",
+  "@sessionExpiredNotice": {
+    "description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"
+  },
+  "sessionStorageFailureNote": "本机登录状态读取或写入失败：会话验证已暂停，或本次会话在重启后不会被记住。出于安全，凭据绝不明文保存。",
+  "@sessionStorageFailureNote": {
+    "description": "本機安全儲存讀寫失敗的說明：不等同未登入，也絕不降明文。"
+  },
+  "sessionIdentityTitle": "当前身份（经服务器确认）",
+  "@sessionIdentityTitle": {
+    "description": "已登入時身分卡的標題，強調「經伺服器確認」。"
+  },
+  "sessionSubjectLabel": "主体",
+  "@sessionSubjectLabel": {
+    "description": "主體類別欄位標籤。"
+  },
+  "sessionSubjectRoot": "Root（服务器级）",
+  "@sessionSubjectRoot": {
+    "description": "Root 主體的顯示文字（取自伺服器回應）。"
+  },
+  "sessionSubjectAccount": "账户",
+  "@sessionSubjectAccount": {
+    "description": "帳戶主體的顯示文字（取自伺服器回應）。"
+  },
+  "sessionAccountIdLabel": "账户 ID",
+  "@sessionAccountIdLabel": {
+    "description": "帳戶標識欄位標籤。"
+  },
+  "sessionDeviceLabel": "设备标识",
+  "@sessionDeviceLabel": {
+    "description": "裝置標識欄位標籤。"
+  },
+  "sessionExpiresLabel": "会话到期（UTC）",
+  "@sessionExpiresLabel": {
+    "description": "會話到期欄位標籤：值一律標註 UTC，不做本機時區換算。"
+  },
+  "sessionRootConsoleAction": "进入 Root 控制台",
+  "@sessionRootConsoleAction": {
+    "description": "Root 身分可用的主頁入口按鈕：按下後仍由 SessionGate 依伺服器身分判定。"
+  },
+  "sessionChangedDuringLoginHint": "登录请求还在路上时服务器地址被换掉了，这次结果已如实丢弃：它描述的是另一台服务器。请重新登录。",
+  "@sessionChangedDuringLoginHint": {
+    "description": "登入請求飛行中位址被換掉：結果如實丟棄的那一句。"
+  },
+  "loginTitle": "登录到服务器",
+  "@loginTitle": {
+    "description": "登入頁標題（應用殼 AppBar）。"
+  },
+  "loginSummary": "这里输入的凭据只发往下方显示的生效服务器地址，仅用于换取会话。密码不明文显示，也不会保存在本机。",
+  "@loginSummary": {
+    "description": "登入頁的憑據去向聲明：只發往顯示的那台、不落盤口令。"
+  },
+  "loginModeLabel": "登录方式",
+  "@loginModeLabel": {
+    "description": "登入方式選擇的欄位標籤。"
+  },
+  "loginModeRoot": "Root 登录",
+  "@loginModeRoot": {
+    "description": "Root 登入方式選項：只送口令到 /auth/root/login。"
+  },
+  "loginModeAccount": "账户登录",
+  "@loginModeAccount": {
+    "description": "帳戶登入方式選項：送登入名與口令到 /auth/login。"
+  },
+  "loginAccountNote": "本应用不提供建号或自助注册入口：账户登录只对服务器上已存在的账户有效。",
+  "@loginAccountNote": {
+    "description": "如實聲明本應用沒有建號／註冊入口，帳戶登入只對已存在帳戶有效。"
+  },
+  "loginLoginNameLabel": "登录名",
+  "@loginLoginNameLabel": {
+    "description": "登入名輸入框標籤。"
+  },
+  "loginPasswordLabel": "密码",
+  "@loginPasswordLabel": {
+    "description": "口令輸入框標籤。"
+  },
+  "loginSubmitAction": "登录",
+  "@loginSubmitAction": {
+    "description": "提交登入的按鈕文字。"
+  },
+  "loginSubmitting": "正在登录…",
+  "@loginSubmitting": {
+    "description": "提交進行中的按鈕文字（此時按鈕停用，防連點重複請求）。"
+  },
+  "loginPasswordRequired": "请先输入密码再提交。",
+  "@loginPasswordRequired": {
+    "description": "本地攔截：口令為空時不發請求的那一句。"
+  },
+  "loginLoginNameRequired": "请先输入登录名再提交。",
+  "@loginLoginNameRequired": {
+    "description": "本地攔截：帳戶模式登入名為空時不發請求的那一句。"
+  },
+  "loginMissingCredentialNote": "服务器接受了这次登录，但本端没能拿到可回传的会话凭据：状态如实停在“无法确定”，不谎报已登录。请检查设备环境后重新登录。",
+  "@loginMissingCredentialNote": {
+    "description": "原生端取不到可回傳憑據：狀態停在無法確定，不謊報已登入。"
+  },
+  "loginServerInfoTitle": "登录目标",
+  "@loginServerInfoTitle": {
+    "description": "登入目標資訊卡標題：先看清連的是哪台再輸口令。"
+  },
+  "sessionBackHomeAction": "返回入口页",
+  "@sessionBackHomeAction": {
+    "description": "閘擋回時唯一出口按鈕。"
+  },
+  "sessionGateCheckingHint": "先确认登录身份：服务器回答之前，这一页不显示任何内容。",
+  "@sessionGateCheckingHint": {
+    "description": "受保護頁在伺服器回答前的中性提示：一個受保護字都不畫。"
+  },
+  "sessionGateBlockedTitle": "当前身份打不开这个上下文",
+  "@sessionGateBlockedTitle": {
+    "description": "身分不合被擋的結論行。"
+  },
+  "sessionGateBlockedHint": "能否进入以服务器确认的身份为准，不由地址栏决定。请返回入口，改用确实具备该能力的账户重新登录。",
+  "@sessionGateBlockedHint": {
+    "description": "擋的依據是伺服器確認的身分，不是網址欄。"
+  },
+  "sessionGateRootRequiredHint": "Root 控制台要求经服务器确认的 Root 主体。当前会话不是 Root，这一页保持关闭。",
+  "@sessionGateRootRequiredHint": {
+    "description": "Root 控制台要求 Root 主體：非 Root 會話保持關閉。"
   }
 }

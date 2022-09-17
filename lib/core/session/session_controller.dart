@@ -199,6 +199,11 @@ class SessionController extends ChangeNotifier {
     }
 
     final SessionPersistence persistence = _persistence!;
+    // 先把狀態推進「驗證中」再去讀儲存：讀取本身也是一次 await，狀態不提前
+    // 落位的話，啟動的第一幀會先閃一下「無法確定」才改口「驗證中」，
+    // 讓人在最該穩定呈現的瞬間看到一句多餘的話。
+    _status = SessionStatus.verifying;
+    notifyListeners();
     String? secret;
     try {
       secret = await persistence.readSecret(address.displayText);
