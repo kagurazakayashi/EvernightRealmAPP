@@ -541,6 +541,22 @@
   "@sessionRootConsoleAction": {
     "description": "Root 身分可用的主頁入口按鈕：按下後仍由 SessionGate 依伺服器身分判定。"
   },
+  "sessionLogoutAction": "Sign out",
+  "@sessionLogoutAction": {
+    "description": "已登入態的登出按鈕文字：讓本請求憑據指向的那一枚伺服器會話失效。"
+  },
+  "sessionLoggingOutAction": "Signing out…",
+  "@sessionLoggingOutAction": {
+    "description": "登出進行中的按鈕文字（此時停用，防連點產生第二趟撤銷請求）。"
+  },
+  "sessionSignOutSuccessNotice": "Signed out. This device no longer holds an active session on this server.",
+  "@sessionSignOutSuccessNotice": {
+    "description": "伺服器確認撤銷後的提示：只描述這一台裝置的這一次會話已失效，不外推到其他裝置。"
+  },
+  "sessionSignOutUnconfirmedNotice": "This device cleared its sign-in state, but the server could not confirm that the session was revoked, so it may still count as valid there until it expires. This only affects the current session on this device; other devices were not signed out.",
+  "@sessionSignOutUnconfirmedNotice": {
+    "description": "連不上／逾時／伺服器未確認時的提示：把「本機已清理」與「伺服器撤銷未確認」分開講，明確不聲稱所有設備已下線。"
+  },
   "sessionChangedDuringLoginHint": "The server address changed while this sign-in was in flight, so its result was discarded: that reply describes a different server. Please sign in again.",
   "@sessionChangedDuringLoginHint": {
     "description": "登入請求飛行中位址被換掉：結果如實丟棄的那一句。"

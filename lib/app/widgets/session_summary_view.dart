@@ -16,6 +16,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../core/api/server_address.dart';
+import '../../core/app_locale.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/session/session_status.dart';
 import '../../l10n/app_localizations.dart';
@@ -44,6 +45,9 @@ class SessionSummaryView extends StatefulWidget {
   /// 「進入 Root 控制台」按鈕的測試識別鍵。
   static const Key rootConsoleKey = ValueKey<String>('session-root-console');
 
+  /// 「登出」按鈕的測試識別鍵。
+  static const Key logoutKey = ValueKey<String>('session-logout');
+
   /// 本機儲存異常說明的測試識別鍵。
   static const Key storageNoteKey = ValueKey<String>('session-storage-note');
 
@@ -54,6 +58,9 @@ class SessionSummaryView extends StatefulWidget {
 class _SessionSummaryViewState extends State<SessionSummaryView> {
   /// 進行中的重新驗證；同一時間只准有一趟，連點沿用同一個結果。
   Future<void>? _inFlight;
+
+  /// 登出進行中标記：進行中按鈕停用，防連點產生第二趟登出請求。
+  bool _signingOut = false;
 
   Future<void> _revalidate(SessionController session) {
     final Future<void>? running = _inFlight;
@@ -68,6 +75,34 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
     });
     _inFlight = task;
     return task;
+  }
+
+  /// 一次登出：先讓控制器向伺服器請求撤銷，再依結果分檔提示。
+  ///
+  /// 界線全部交給 [SessionController.signOut] 承擔；這一層只做三件事：
+  /// * 進行中停用（連點不會產生第二趟撤銷，也不會在冪等端點上刷出多筆審計）；
+  /// * 依 [SessionSignOutOutcome] 決定提示那一句——撤銷確認與「本機已清理但
+  ///   伺服器未確認」兩句分開，後者絕不能滑向「所有設備已下線」；
+  /// * 提示經 [ScaffoldMessenger] 送達：登出後卡片本身會被換成未登入態，
+  ///   SnackBar 才能講完那半句「本機已清理、伺服器未確認」的話。
+  Future<void> _signOut(SessionController session) async {
+    if (_signingOut) {
+      return;
+    }
+    setState(() => _signingOut = true);
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final AppLocale locale = resolveAppLocale(Localizations.localeOf(context));
+    final SessionSignOutOutcome outcome = await session.signOut(
+      acceptLanguage: locale.tag,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _signingOut = false);
+    final String notice = outcome == SessionSignOutOutcome.revoked
+        ? l10n.sessionSignOutSuccessNotice
+        : l10n.sessionSignOutUnconfirmedNotice;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
   }
 
   @override
@@ -286,6 +321,38 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
         ),
       );
     }
+
+    // 登出按鈕：已登入態一律呈現，不區分 Root／帳戶——只要有一份綁定的會話，
+    // 就需要一個「讓這一份失效」的出口。進行中停用：連點不會產生第二趟撤銷，
+    // 也不會把冪等端點刷成多筆審計寫入。
+    // 這一層不寫任何「已登出」的假象：`signOut` 完成前狀態仍是 signedIn，
+    // 完成後控制器 notify 讓卡片換成 signedOut 態並由 SnackBar 補上結果那一句。
+    rows.add(
+      Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: SizedBox(
+          height: 40,
+          child: OutlinedButton(
+            key: SessionSummaryView.logoutKey,
+            onPressed: _signingOut ? null : () => _signOut(session),
+            child: _signingOut
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(child: Text(l10n.sessionLoggingOutAction)),
+                    ],
+                  )
+                : Text(l10n.sessionLogoutAction),
+          ),
+        ),
+      ),
+    );
     return rows;
   }
 

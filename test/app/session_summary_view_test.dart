@@ -70,6 +70,7 @@ void main() {
   ServerApi apiFor(
     ServerAddressSettings settings, {
     Future<http.Response> Function(http.Request request)? onSession,
+    Future<http.Response> Function(http.Request request)? onLogout,
     void Function(http.Request request)? onAny,
   }) {
     return ServerApi(
@@ -85,6 +86,8 @@ void main() {
             return onSession == null
                 ? jsonError(401, 2002, 'r-anon')
                 : await onSession(request);
+          case kAuthLogoutPath:
+            return onLogout == null ? jsonOk('{}') : await onLogout(request);
           default:
             return jsonError(404, 1001, 'r-404');
         }
@@ -449,6 +452,121 @@ void main() {
       expect(find.byKey(SessionSummaryView.identityKey), findsOneWidget);
       expect(find.byKey(SessionSummaryView.storageNoteKey), findsOneWidget);
       expect(store.secrets, isEmpty);
+    });
+  });
+
+  group('已登入態的登出', () {
+    testWidgets('登出按鈕一律呈現（Root 與帳戶身分都有）', (WidgetTester tester) async {
+      final ServerAddressSettings settings = await addressesFor();
+      final ServerApi api = apiFor(settings);
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: InMemorySessionPersistence(),
+        exchange: rootExchange(),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+
+      await tester.ensureVisible(find.byKey(SessionSummaryView.logoutKey));
+      expect(find.byKey(SessionSummaryView.logoutKey), findsOneWidget);
+      expect(find.text(l10n.sessionLogoutAction), findsOneWidget);
+    });
+
+    testWidgets('按登出：发一趟撤销请求、回到未登入、提示已登出', (WidgetTester tester) async {
+      final ServerAddressSettings settings = await addressesFor();
+      int logoutHits = 0;
+      // Bearer 注入闭环由 session_controller_test 承担（那张假装配没接
+      // credentials resolver，此处不重复断言标头）。
+      final ServerApi api = apiFor(
+        settings,
+        onLogout: (http.Request request) async {
+          logoutHits++;
+          expect(request.url.path, kAuthLogoutPath);
+          return jsonOk('{}');
+        },
+      );
+      final InMemorySessionPersistence store = InMemorySessionPersistence();
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: store,
+        exchange: rootExchange(),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+
+      await tester.ensureVisible(find.byKey(SessionSummaryView.logoutKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(SessionSummaryView.logoutKey));
+      await tester.pumpAndSettle();
+
+      expect(logoutHits, 1);
+      expect(session.status, SessionStatus.signedOut);
+      expect(store.secrets, isEmpty, reason: '登出要删掉本机那枚秘密');
+      expect(find.byKey(SessionSummaryView.identityKey), findsNothing);
+      expect(find.text(l10n.sessionSignedOutHint), findsOneWidget);
+      // 服务器确认撤销→提示成功那一句。
+      expect(find.text(l10n.sessionSignOutSuccessNotice), findsOneWidget);
+    });
+
+    testWidgets('服务器失联：本机已清理但提示未确认，且绝不称所有设备已下线', (WidgetTester tester) async {
+      final ServerAddressSettings settings = await addressesFor();
+      final ServerApi api = apiFor(
+        settings,
+        onLogout: (http.Request request) async =>
+            throw http.ClientException('offline'),
+      );
+      final InMemorySessionPersistence store = InMemorySessionPersistence();
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: store,
+        exchange: rootExchange(),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+
+      await tester.ensureVisible(find.byKey(SessionSummaryView.logoutKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(SessionSummaryView.logoutKey));
+      await tester.pumpAndSettle();
+
+      expect(session.status, SessionStatus.signedOut);
+      expect(store.secrets, isEmpty, reason: '失联时本机秘密照样清');
+      // 关键区分：不能谎称已在服务器登出。
+      expect(find.text(l10n.sessionSignOutSuccessNotice), findsNothing);
+      expect(find.text(l10n.sessionSignOutUnconfirmedNotice), findsOneWidget);
+    });
+
+    testWidgets('登出进行中的连点只产生一趟请求', (WidgetTester tester) async {
+      final ServerAddressSettings settings = await addressesFor();
+      int logoutHits = 0;
+      final Completer<http.Response> gate = Completer<http.Response>();
+      final ServerApi api = apiFor(
+        settings,
+        onLogout: (http.Request request) async {
+          logoutHits++;
+          return gate.future;
+        },
+      );
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: InMemorySessionPersistence(),
+        exchange: rootExchange(),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+
+      await tester.ensureVisible(find.byKey(SessionSummaryView.logoutKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(SessionSummaryView.logoutKey));
+      // 让 _signingOut=true 的重建落地（此时按钮已停用）。
+      await tester.pump();
+      await tester.tap(find.byKey(SessionSummaryView.logoutKey));
+      await tester.pump();
+      expect(logoutHits, 1, reason: '进行中连点不产生第二趟撤销');
+
+      gate.complete(jsonOk('{}'));
+      await tester.pumpAndSettle();
+      expect(session.status, SessionStatus.signedOut);
     });
   });
 

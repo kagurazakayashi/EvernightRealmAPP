@@ -6,6 +6,8 @@
 /// 不是平台绑定（后者见 `keyed_session_persistence_test.dart` 与实机未实测的说明）。
 library;
 
+import 'dart:async';
+
 import 'package:evernightrealm/core/api/api_client.dart';
 import 'package:evernightrealm/core/api/server_address.dart';
 import 'package:evernightrealm/core/api/server_address_settings.dart';
@@ -86,6 +88,7 @@ class Harness {
     required this.persistence,
     required this.identity,
     required this.authHeaders,
+    required this.requestPaths,
   });
 
   final SessionController controller;
@@ -94,6 +97,9 @@ class Harness {
   final FakePersistence persistence;
   final String identity;
   final List<String?> authHeaders;
+
+  /// 本組裝實際發出的請求路徑（依序），用來斷言「登出沒憑據時根本不发请求」。
+  final List<String> requestPaths;
 }
 
 /// 用给定位址、形态与 `/auth/session` 响应器组一个控制器；凭据闭包按真实装配接到
@@ -102,6 +108,7 @@ Future<Harness> wire({
   required SessionTransportMode mode,
   String? storedUrl = 'http://server.invalid:5206',
   Future<http.Response> Function(http.Request)? sessionResponder,
+  Future<http.Response> Function(http.Request)? logoutResponder,
   FakePersistence? persistence,
 }) async {
   final FakePersistence store = persistence ?? FakePersistence();
@@ -114,8 +121,13 @@ Future<Harness> wire({
   await settings.restore();
 
   final List<String?> authHeaders = <String?>[];
+  final List<String> requestPaths = <String>[];
   final http.Client client = MockClient((http.Request request) async {
     authHeaders.add(request.headers['authorization']);
+    requestPaths.add(request.url.path);
+    if (request.url.path == kAuthLogoutPath && logoutResponder != null) {
+      return logoutResponder(request);
+    }
     final Future<http.Response> Function(http.Request)? responder =
         sessionResponder;
     if (responder == null) {
@@ -151,6 +163,7 @@ Future<Harness> wire({
     persistence: store,
     identity: identity,
     authHeaders: authHeaders,
+    requestPaths: requestPaths,
   );
 }
 
@@ -375,7 +388,7 @@ void main() {
     });
   });
 
-  group('登出', () {
+  group('登出（服务端撤销）', () {
     test('原生：清除内存与已存秘密并标为未登入', () async {
       final Harness h = await wire(mode: SessionTransportMode.native);
       await h.controller.completeLogin(
@@ -383,11 +396,118 @@ void main() {
         exchange(secret: 'SECRET-A'),
       );
 
-      await h.controller.signOut();
+      final SessionSignOutOutcome outcome = await h.controller.signOut();
 
+      expect(outcome, SessionSignOutOutcome.revoked);
       expect(h.controller.status, SessionStatus.signedOut);
       expect(h.persistence.store.containsKey(h.identity), isFalse);
       expect(h.controller.bearerFor(h.identity), isNull);
+    });
+
+    test('原生：登出请求确实带着该服务器的 Bearer（撤销打到活会话）', () async {
+      final Harness h = await wire(mode: SessionTransportMode.native);
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+      h.authHeaders.clear();
+
+      await h.controller.signOut();
+
+      // 只有 /auth/logout 一趟，且带着当前秘密——先撤销再清本地的顺序在此钉死。
+      expect(h.requestPaths, <String>[kAuthLogoutPath]);
+      expect(h.authHeaders, <String>['Bearer SECRET-A']);
+    });
+
+    test('原生：登出只删本机这台的秘密，不碰其他服务器的存储', () async {
+      final Harness h = await wire(mode: SessionTransportMode.native);
+      const String other = 'http://b.invalid:5206';
+      h.persistence.store[other] = 'OTHER-SECRET';
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      await h.controller.signOut();
+
+      expect(h.persistence.store.containsKey(h.identity), isFalse);
+      expect(h.persistence.store[other], 'OTHER-SECRET', reason: '别的服务器数据不动');
+    });
+
+    test('浏览器：登出走 Cookie 路径、请求不带 Bearer，回报已撤销', () async {
+      final Harness h = await wire(mode: SessionTransportMode.web);
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'IGNORED-BY-BROWSER'),
+      );
+      h.authHeaders.clear();
+
+      final SessionSignOutOutcome outcome = await h.controller.signOut();
+
+      expect(outcome, SessionSignOutOutcome.revoked);
+      expect(h.controller.status, SessionStatus.signedOut);
+      expect(h.requestPaths, <String>[kAuthLogoutPath]);
+      expect(
+        h.authHeaders.single,
+        isNull,
+        reason: 'Web 由浏览器附带 Cookie，不注入 Bearer',
+      );
+    });
+
+    test('失联退出：本机凭据已清理，但如实回报服务端撤销未确认', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        logoutResponder: (_) async => throw http.ClientException('offline'),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final SessionSignOutOutcome outcome = await h.controller.signOut();
+
+      // 关键区分：本机秘密照样清、状态照样 signedOut，但结果档是「未确认」。
+      expect(outcome, SessionSignOutOutcome.serverUnconfirmed);
+      expect(h.controller.status, SessionStatus.signedOut);
+      expect(h.persistence.store.containsKey(h.identity), isFalse);
+    });
+
+    test('幂等：未绑定任何服务器时登出不发任何请求，直接算作已达成', () async {
+      final Harness h = await wire(mode: SessionTransportMode.native);
+
+      final SessionSignOutOutcome outcome = await h.controller.signOut();
+
+      expect(outcome, SessionSignOutOutcome.revoked);
+      expect(h.controller.status, SessionStatus.signedOut);
+      expect(h.requestPaths, isEmpty, reason: '没有可撤销的目标就不该打服务端');
+    });
+
+    test('在途验证不能在登出后把界面拉回已登入', () async {
+      // restore 的验证请求还挂在 Completer 上时先登出，随后释放一个「有效」响应：
+      // 世代闸门必须把这笔过时结果丢掉，状态停在 signedOut。
+      final Completer<http.Response> verifyGate = Completer<http.Response>();
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        sessionResponder: (_) => verifyGate.future,
+        // 登出走另一条快速响应通路（否则 signOut 会等在同一把门上）。
+        logoutResponder: (_) async =>
+            http.Response(sessionJson, 200, headers: _jsonHeader),
+      );
+      h.persistence.store[h.identity] = 'SECRET-A';
+
+      final Future<void> restoring = h.controller.restore();
+      // 讓 restore 走到「已发出验证、尚未拿到回应」的中間態。
+      await Future<void>.delayed(Duration.zero);
+      expect(h.controller.status, SessionStatus.verifying);
+
+      await h.controller.signOut();
+      verifyGate.complete(
+        http.Response(sessionJson, 200, headers: _jsonHeader),
+      );
+      await restoring;
+
+      expect(h.controller.status, SessionStatus.signedOut);
+      expect(h.controller.activeSession, isNull);
     });
   });
 

@@ -13,8 +13,10 @@
 /// * 儲存／恢复失敗绝不静默当成「未登入」也不降级成明文：前者會把人誤踢，后者直接
 ///   洩密。读失败时状态停在 [SessionStatus.unknown] 並記下 [lastStorageFailure]，由後續
 ///   的界面据实提示，控制器不會替伺服器编造一个「你没登录」。
-/// * 本步只提供未来登录／退出／过期所需的接口，不做完整登录页面，也不接尚未實作的
-///   退出端点——见 [signOut] 的说明。
+/// * 退出（[signOut]）先向服务器请求撤销、再清本机：Web 端由后端下发删除指令清掉
+///   HttpOnly Cookie，原生端删除该服务器的安全储存。网络失败时如实回报
+///   [SessionSignOutOutcome.serverUnconfirmed]——本機已清理，但服务端撤销未确认，
+///   绝不谎称「已在服务器登出」，也不暗示「所有设备已下线」。
 library;
 
 import 'dart:async';
@@ -46,6 +48,22 @@ enum SessionLoginOutcome {
   /// 這属环境不符而非登入被拒：後端已签发會話，但本端拿不到可回傳的憑據，
   /// 只能如实標为「無法確定」，不谎报已登入。
   missingCredential,
+}
+
+/// 一次退出請求的處置結果，讓呼叫端知道「伺服器有沒有確認撤銷」。
+///
+/// 之所以把登出結果分成兩档而不是只回 void，是因为「本機清幹淨了」與「伺服器上那個
+/// 會話現在是不是還活著」是兩件不同的事：把前者当成後者，會讓界面在離線或 500 的時候
+/// 谎报「已登出」——這正是规格禁止的「把失败呈现为成功」。
+enum SessionSignOutOutcome {
+  /// 伺服器已確認撤銷：本次登出所綁定的那一枚會話在服务端已失效，且（Web）Cookie
+  /// 收到删除指令、（原生）本机保存的秘密也已清除。
+  revoked,
+
+  /// 本机凭据与状态已清理，但服务器撤销未确认：连不上、逾时、未就绪或伺服器
+  /// 回了非冪等成功以外的错误。此刻不能宣称已在服务器登出，也不能声称
+  /// 「所有设备已下线」——退出只针对本请求凭据指向的那一枚会话。
+  serverUnconfirmed,
 }
 
 /// 已登入會話的可展示事实（不含任何秘密）。
@@ -127,6 +145,12 @@ class SessionController extends ChangeNotifier {
   ActiveSession? _active;
   String? _activityScope;
   Object? _lastStorageFailure;
+
+  // 會話上下文的「世代」：登出與位址切換都讓它 +1，讓在途的驗證／登出請求在回來時
+  // 能認出自己描述的是「上一代」的憑據，從而不把已过时的结果盖回当前状态。
+  // 這是「退出時清理未完成請求」的落點：沒有了它，一次在途的 restore 完成時會把
+  // 已經登出的界面拉回 signedIn。
+  int _generation = 0;
 
   /// 目前會話狀態。
   SessionStatus get status => _status;
@@ -281,41 +305,98 @@ class SessionController extends ChangeNotifier {
     }
   }
 
-  /// 登出：清空本機會話状态与（原生端）保存的秘密。
+  /// 登出：先讓伺服器撤銷本次綁定的會話，再清本机状态与（原生端）保存的秘密。
   ///
-  /// 界線如实说清楚——本方法只負責「客户端这半」：
-  /// * 原生端：抹除記憶體秘密并删除安全儲存里该伺服器的那枚秘密。
-  /// * 浏览器端：HttpOnly Cookie 只能由伺服器撤销。退出端点（复用 resolveSession 的
-  ///   删除指令）尚未實作，故这里只清本地状态并标为未登入，不谎称已在伺服器登出；
-  ///   待退出端点落地时由该步骤补齐服务端撤销。
-  Future<void> signOut() async {
-    final ServerAddress? previous = _bound;
+  /// 界线与顺序都是刻意的：
+  /// * 顺序——「先向服务器发撤销请求、后清本地」。原生路径的 logout 走传输层自动
+  ///   注入的 Bearer，它需要 [_secret] 与 [_bound] 仍在原位才能被 [_effectiveBearer]
+  ///   命中；先清本地就等于让请求不带凭据地打到 logout 上，冪等地报 2xx 却没真的撤销
+  ///   任何东西。Web 路径同理：Cookie 由浏览器自动附带，[boundServerDisplay] 只是
+  ///   让 logout 请求知道该打哪台。
+  /// * 幂等：后端对「拿一枚早已失效的秘密来登出」回 2xx，不会变成 2003 的「请重新
+  ///     登入」；[SessionSignOutOutcome.revoked] 因此也覆盖「其实先前就登出过了」。
+  /// * 未确认：logout 请求抛出 [ApiError]（连不上、逾时、5xx、未就绪）时本机会話照清、
+  ///   原生储存照删，但回报 [SessionSignOutOutcome.serverUnconfirmed]——呼叫端要
+  ///   如实告知「本机已清理，服务器撤销未确认」，绝不宣称所有设备已下线。
+  /// * 世代：进入本方法就把 [_generation] 推进一次，任何先前发出的 [_verify] 完成時
+  ///   看到世代不同就会把自己的结果丢掉，不会把已登出的界面拉回 signedIn。
+  /// * 范围：只撤銷本請求憑據所指向的那一枚會話，不做全設備退出。
+  ///
+  /// 本方法不抛異常——服务端结果一律收进回传的 [SessionSignOutOutcome]，
+  /// 存储层失败经 [_clearPersisted] 收进 [lastStorageFailure]。
+  Future<SessionSignOutOutcome> signOut({String? acceptLanguage}) async {
+    final ServerAddress? server = _bound;
+    final bool canAttempt =
+        server != null &&
+        (_mode == SessionTransportMode.web || _secret != null);
+    // 先推进世代：此刻起任何在途的验证都不准再把结果盖回当前状态。
+    _generation++;
+
+    bool confirmed;
+    if (canAttempt) {
+      try {
+        await _api.logout(acceptLanguage: acceptLanguage);
+        confirmed = true;
+      } on ApiError {
+        // 任何 logout 失败都收为「未确认」：本机继续清理，界面如实分层告知。
+        confirmed = false;
+      }
+    } else {
+      // 没有可撤销的目标（未绑定，或原生端已无秘密）：直接算作幂等达成。
+      confirmed = true;
+    }
+
     _clearLocalSession();
     _status = SessionStatus.signedOut;
-    if (_mode == SessionTransportMode.native && previous != null) {
-      await _clearPersisted(previous.displayText);
+    if (_mode == SessionTransportMode.native && server != null) {
+      await _clearPersisted(server.displayText);
     }
     notifyListeners();
+    return confirmed
+        ? SessionSignOutOutcome.revoked
+        : SessionSignOutOutcome.serverUnconfirmed;
   }
 
   /// 向伺服器確認当前憑據是否仍有效，並据回應落状态。
+  ///
+  /// 完成時先看世代：若 [_generation] 已推进（期间发生过登出或位址切换），
+  /// 这笔回应描述的是上一代上下文，一律丢弃——不能把已经登出的界面
+  /// 拉回 signedIn，也不能把已经切换到另一台的状态又盖回这台。
   Future<void> _verify(ServerAddress address) async {
+    final int generation = _generation;
+    CurrentSessionReport? report;
+    ApiError? failure;
     try {
-      final CurrentSessionReport report = await _api.currentSession();
+      report = await _api.currentSession();
+    } on ApiError catch (error) {
+      failure = error;
+    }
+    if (generation != _generation) {
+      return;
+    }
+    if (report != null) {
       _bound = address;
       _active = ActiveSession.fromCurrentSession(report);
       _status = SessionStatus.signedIn;
       _lastStorageFailure = null;
-    } on ApiError catch (error) {
-      await _handleVerifyFailure(address, error);
+    } else {
+      await _handleVerifyFailure(address, failure!, generation);
+      if (generation != _generation) {
+        return;
+      }
     }
     notifyListeners();
   }
 
   /// 把验证失败按機器码分成「确定未登入／已失效／查不了」三类，绝不含混。
+  ///
+  /// [generation] 是从 [_verify] 传入的世代快照：`sessionInvalid` 分支要 await 删除
+  /// 已存秘密，那一段 await 期间若登出或位址切换发生，本方法后续的同步写入必须整块
+  /// 跳过，否则会把已定的 signedOut／新位址状态覆写成 expired。
   Future<void> _handleVerifyFailure(
     ServerAddress address,
     ApiError error,
+    int generation,
   ) async {
     switch (error.knownCode) {
       case ApiMachineCode.notAuthenticated:
@@ -325,6 +406,10 @@ class SessionController extends ChangeNotifier {
       case ApiMachineCode.sessionInvalid:
         // 憑據已過期／被撤銷：清掉本地與保存的秘密，標為失效，處置是重新登入。
         await _clearPersisted(address.displayText);
+        if (generation != _generation) {
+          // await 期间发生了登出或位址切换：那一边已经把状态定好了，这里不再回写。
+          return;
+        }
         _clearLocalSession();
         _status = SessionStatus.expired;
       default:
@@ -342,6 +427,9 @@ class SessionController extends ChangeNotifier {
       return;
     }
     final ServerAddress? previous = _bound;
+    // 推進世代：在途的驗證回應屬於變址前的那台伺服器，回來時必須被丟棄，
+    // 否則會把新位址的狀態蓋回「已登入舊伺服器」。
+    _generation++;
     _clearLocalSession();
     if (_mode == SessionTransportMode.native && previous != null) {
       // 异步入队删除旧凭据；同步已清掉記憶體秘密，注入闸門当即关闭，不会误发。

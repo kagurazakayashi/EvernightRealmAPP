@@ -32,6 +32,9 @@ const String kAuthRootLoginPath = '/auth/root/login';
 /// 當前會話端點路徑。
 const String kAuthSessionPath = '/auth/session';
 
+/// 登出端點路徑（後端在此撤銷「本請求憑據所指向的那一枚」會話並回刪除指令）。
+const String kAuthLogoutPath = '/auth/logout';
+
 /// Root 初始化狀態端點路徑（唯讀：查一次不會改變伺服器任何狀態）。
 const String kRootInitStatusPath = '/root/init-status';
 
@@ -180,6 +183,26 @@ class ServerApi {
       decode: CurrentSessionReport.decode,
       acceptLanguage: acceptLanguage,
       bearerToken: bearerToken,
+    );
+  }
+
+  /// 登出：POST `/auth/logout`，讓伺服器撤銷「本請求憑據所指向的那一枚」會話。
+  ///
+  /// 憑據的攜帶與 [currentSession] 同一條路：瀏覽器形态由 HttpOnly Cookie 自動附帶、
+  /// 指令碼不讀也不注入令牌；原生形态由傳輸層按「本筆請求的伺服器身份」注入 Bearer。
+  /// 因此本方法沒有任何 `bearerToken` 參數——它只需要「打到那台伺服器」，憑據由装配決定。
+  ///
+  /// 回傳：本方法成功即代表「伺服器確認撤銷」；任何非 2xx 或連不上、逾時都以
+  /// [ApiError] 拋出，由呼叫端據 [SessionController.signOut] 區分「本机已清理」
+  /// 與「服务端撤销未确认」。後端對登出刻意做成冪等——重複登出同一枚已失效的
+  /// 憑據也回 2xx，因此這裡不會把「其實早就登出了」誤報成失敗。
+  /// 回應本體只有 request_id，合同上沒有可展示的身分欄位，故解碼直接忽略內容。
+  Future<void> logout({String? acceptLanguage}) async {
+    await apiClient.post<bool>(
+      kAuthLogoutPath,
+      jsonBody: const <String, Object?>{},
+      decode: (Map<String, Object?> json) => true,
+      acceptLanguage: acceptLanguage,
     );
   }
 
