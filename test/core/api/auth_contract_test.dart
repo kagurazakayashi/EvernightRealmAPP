@@ -31,6 +31,7 @@ const String loginRootBody =
 const String sessionBody =
     '{"subject_kind":"account","account_id":"01a0e000-0000-7000-8000-0000000000aa",'
     '"device_id":"01a0e000-0000-7000-8000-0000000000bb",'
+    '"rotation_seq":0,'
     '"created_at":"2026-09-29T12:00:00.000Z","last_active_at":"2026-09-29T12:30:00.000Z",'
     '"expires_at":"2026-09-29T13:00:00.000Z","request_id":"01a00000-0000-7000-8000-000000000001"}';
 
@@ -95,17 +96,33 @@ void main() {
       expect(report.deviceId, isNotEmpty);
     });
 
-    test('當前會話報告要求建立與最近活動時刻', () {
+    test('當前會話報告要求建立、最近活動與輪換世代欄位', () {
       final CurrentSessionReport report = CurrentSessionReport.decode(
         jsonMapOf(sessionBody),
       );
       expect(report.lastActiveAt, DateTime.utc(2026, 9, 29, 12, 30));
+      expect(report.rotationSeq, 0);
+      // 缺 last_active_at：形狀不合。
+      expect(
+        () => CurrentSessionReport.decode(<String, Object?>{
+          'subject_kind': 'account',
+          'account_id': 'a',
+          'device_id': 'd',
+          'rotation_seq': 0,
+          'created_at': '2026-09-29T12:00:00.000Z',
+          'expires_at': '2026-09-29T13:00:00.000Z',
+          'request_id': 'r',
+        }),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+      // 缺 rotation_seq：同樣不合——世代號是對帳的基準，不能猜 0。
       expect(
         () => CurrentSessionReport.decode(<String, Object?>{
           'subject_kind': 'account',
           'account_id': 'a',
           'device_id': 'd',
           'created_at': '2026-09-29T12:00:00.000Z',
+          'last_active_at': '2026-09-29T12:30:00.000Z',
           'expires_at': '2026-09-29T13:00:00.000Z',
           'request_id': 'r',
         }),

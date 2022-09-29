@@ -25,9 +25,34 @@ import '../../support/test_address.dart';
 /// 一份合法「當前會話」回應本體（帳戶主體）。
 const String sessionJson =
     '{"subject_kind":"account","account_id":"acc-1","device_id":"dev-1",'
+    '"rotation_seq":0,'
     '"created_at":"2026-09-30T00:00:00.000Z",'
     '"last_active_at":"2026-09-30T00:00:00.000Z",'
     '"expires_at":"2026-10-01T00:00:00.000Z","request_id":"r"}';
+
+/// 一份指定世代號的「當前會話」回應本體（用於驗證「驗證成功時對齊世代號」）。
+String sessionJsonWithSeq(int seq) =>
+    '{"subject_kind":"account","account_id":"acc-1","device_id":"dev-1",'
+    '"rotation_seq":$seq,'
+    '"created_at":"2026-09-30T00:00:00.000Z",'
+    '"last_active_at":"2026-09-30T00:00:00.000Z",'
+    '"expires_at":"2026-10-01T00:00:00.000Z","request_id":"r"}';
+
+/// 一份合法的輪換回應本體：同一裝置、同到期時刻，只把世代號推進一步。
+String rotationJson(int seq) =>
+    '{"subject_kind":"account","account_id":"acc-1","device_id":"dev-1",'
+    '"rotation_seq":$seq,'
+    '"expires_at":"2026-10-01T00:00:00.000Z","request_id":"r-rot"}';
+
+/// 一則輪換成功回應，帶著換發出的新秘密（原生端從 `Set-Cookie` 讀取）。
+http.Response rotationOk(int seq, String secret) => http.Response(
+  rotationJson(seq),
+  200,
+  headers: <String, String>{
+    'content-type': 'application/json; charset=utf-8',
+    'set-cookie': 'evernight_session=$secret; Path=/; HttpOnly',
+  },
+);
 
 const Map<String, String> _jsonHeader = <String, String>{
   'content-type': 'application/json; charset=utf-8',
@@ -42,7 +67,12 @@ http.Response sessionFailure(int code) => http.Response(
 
 /// 可控成败的内存持久化替身，记录每个被触碰的伺服器身份。
 class FakePersistence implements SessionPersistence {
+  /// 各伺服器身份已儲存的秘密明文。
   final Map<String, String> store = <String, String>{};
+
+  /// 各伺服器身份已儲存的世代號；未寫過時視為第 0 代。
+  final Map<String, int> seqs = <String, int>{};
+
   final List<String> readKeys = <String>[];
   final List<String> writeKeys = <String>[];
   final List<String> clearKeys = <String>[];
@@ -52,30 +82,42 @@ class FakePersistence implements SessionPersistence {
   Object? failClear;
 
   @override
-  Future<String?> readSecret(String serverIdentity) async {
+  Future<SessionCredential?> readCredential(String serverIdentity) async {
     if (failRead != null) {
       throw failRead!;
     }
     readKeys.add(serverIdentity);
-    return store[serverIdentity];
+    final String? secret = store[serverIdentity];
+    if (secret == null) {
+      return null;
+    }
+    return SessionCredential(
+      secret: secret,
+      rotationSeq: seqs[serverIdentity] ?? 0,
+    );
   }
 
   @override
-  Future<void> writeSecret(String serverIdentity, String secret) async {
+  Future<void> writeCredential(
+    String serverIdentity,
+    SessionCredential credential,
+  ) async {
     if (failWrite != null) {
       throw failWrite!;
     }
     writeKeys.add(serverIdentity);
-    store[serverIdentity] = secret;
+    store[serverIdentity] = credential.secret;
+    seqs[serverIdentity] = credential.rotationSeq;
   }
 
   @override
-  Future<void> clearSecret(String serverIdentity) async {
+  Future<void> clearCredential(String serverIdentity) async {
     if (failClear != null) {
       throw failClear!;
     }
     clearKeys.add(serverIdentity);
     store.remove(serverIdentity);
+    seqs.remove(serverIdentity);
   }
 }
 
@@ -109,6 +151,7 @@ Future<Harness> wire({
   String? storedUrl = 'http://server.invalid:5206',
   Future<http.Response> Function(http.Request)? sessionResponder,
   Future<http.Response> Function(http.Request)? logoutResponder,
+  Future<http.Response> Function(http.Request)? rotateResponder,
   FakePersistence? persistence,
 }) async {
   final FakePersistence store = persistence ?? FakePersistence();
@@ -127,6 +170,9 @@ Future<Harness> wire({
     requestPaths.add(request.url.path);
     if (request.url.path == kAuthLogoutPath && logoutResponder != null) {
       return logoutResponder(request);
+    }
+    if (request.url.path == kAuthSessionRotatePath && rotateResponder != null) {
+      return rotateResponder(request);
     }
     final Future<http.Response> Function(http.Request)? responder =
         sessionResponder;
@@ -546,6 +592,291 @@ void main() {
 
       expect(h.controller.status, SessionStatus.signedOut);
       expect(h.persistence.clearKeys, contains(h.identity));
+    });
+  });
+
+  group('會話秘密輪換', () {
+    test('原生：輪換成功寫回新憑據與世代號，設備與到期時刻不變', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async => rotationOk(1, 'SECRET-B'),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+      h.requestPaths.clear();
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.rotated);
+      expect(h.controller.status, SessionStatus.signedIn);
+      expect(h.controller.bearerFor(h.identity), 'SECRET-B');
+      expect(h.persistence.store[h.identity], 'SECRET-B');
+      expect(h.persistence.seqs[h.identity], 1);
+      expect(h.controller.rotationSeq, 1);
+      final ActiveSession? active = h.controller.activeSession;
+      expect(active?.deviceId, 'dev-1', reason: '輪換不是新增設備');
+      expect(active?.expiresAt, DateTime.utc(2026, 10, 1), reason: '輪換不是續期');
+      expect(h.requestPaths, <String>[kAuthSessionRotatePath]);
+    });
+
+    test('瀏覽器：輪換不讀不寫本地憑據，只更新世代號與事實', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.web,
+        rotateResponder: (_) async => rotationOk(2, 'IGNORED-BY-BROWSER'),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: null),
+      );
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.rotated);
+      expect(h.controller.status, SessionStatus.signedIn);
+      expect(h.controller.rotationSeq, 2);
+      expect(h.controller.bearerFor(h.identity), isNull);
+      expect(h.persistence.writeKeys, isEmpty);
+      expect(h.persistence.clearKeys, isEmpty);
+      expect(h.persistence.store, isEmpty);
+    });
+
+    test('倒序回應被丟棄：不覆寫記憶體與安全儲存', () async {
+      int calls = 0;
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async {
+          calls++;
+          return calls == 1
+              ? rotationOk(2, 'SECRET-B')
+              : rotationOk(1, 'SECRET-OLD');
+        },
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+      expect(await h.controller.rotate(), SessionRotationOutcome.rotated);
+      expect(h.controller.rotationSeq, 2);
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.superseded);
+      expect(h.controller.rotationSeq, 2, reason: '舊世代不得推回');
+      expect(h.controller.bearerFor(h.identity), 'SECRET-B');
+      expect(h.persistence.store[h.identity], 'SECRET-B');
+      expect(h.persistence.seqs[h.identity], 2);
+    });
+
+    test('原生：新秘密寫不進安全儲存時如實回報，本次執行仍可用', () async {
+      final FakePersistence store = FakePersistence()
+        ..failWrite = StateError('keystore down');
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        persistence: store,
+        rotateResponder: (_) async => rotationOk(1, 'SECRET-B'),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+      expect(store.store, isEmpty, reason: '登入那一寫本來就失敗了');
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.persistenceFailed);
+      expect(h.controller.status, SessionStatus.signedIn);
+      expect(h.controller.bearerFor(h.identity), 'SECRET-B');
+      expect(h.controller.lastStorageFailure, isA<StateError>());
+      expect(store.store, isEmpty, reason: '寫失敗時底層不得留下任何明文');
+    });
+
+    test('原生：讀不到新秘密時清本地並判為失效', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async =>
+            http.Response(rotationJson(1), 200, headers: _jsonHeader),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.missingCredential);
+      expect(h.controller.status, SessionStatus.expired);
+      expect(h.controller.bearerFor(h.identity), isNull);
+      expect(h.persistence.store.containsKey(h.identity), isFalse);
+    });
+
+    test('輪換回 2007：直接拒絕、清憑據、判為失效', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async => sessionFailure(2007),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.rejected);
+      expect(h.controller.status, SessionStatus.expired);
+      expect(h.controller.bearerFor(h.identity), isNull);
+      expect(h.persistence.store.containsKey(h.identity), isFalse);
+    });
+
+    test('輪換回 2003：同一處置', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async => sessionFailure(2003),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.rejected);
+      expect(h.controller.status, SessionStatus.expired);
+      expect(h.persistence.store.containsKey(h.identity), isFalse);
+    });
+
+    test('未登入時不發任何請求', () async {
+      final Harness h = await wire(mode: SessionTransportMode.native);
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.notSignedIn);
+      expect(h.requestPaths, isEmpty);
+    });
+
+    test('併發呼叫合併到同一趟請求，共用同一個結果', () async {
+      int hits = 0;
+      final Completer<http.Response> gate = Completer<http.Response>();
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) {
+          hits++;
+          return gate.future;
+        },
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final Future<SessionRotationOutcome> first = h.controller.rotate();
+      final Future<SessionRotationOutcome> second = h.controller.rotate();
+      expect(identical(first, second), isTrue);
+
+      gate.complete(rotationOk(1, 'SECRET-B'));
+      expect(await first, SessionRotationOutcome.rotated);
+      expect(await second, SessionRotationOutcome.rotated);
+      expect(hits, 1);
+    });
+
+    test('驗證成功時把本地世代號對齊伺服器事實', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        sessionResponder: (_) async =>
+            http.Response(sessionJsonWithSeq(3), 200, headers: _jsonHeader),
+      );
+      h.persistence.store[h.identity] = 'SECRET-A';
+
+      await h.controller.restore();
+
+      expect(h.controller.status, SessionStatus.signedIn);
+      expect(h.controller.rotationSeq, 3);
+    });
+
+    test('輪換在途時交錯的 2007 不刪憑據，等輪換結果落地', () async {
+      final Completer<http.Response> rotateGate = Completer<http.Response>();
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) => rotateGate.future,
+        sessionResponder: (_) async => sessionFailure(2007),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final Future<SessionRotationOutcome> rotating = h.controller.rotate();
+      await Future<void>.delayed(Duration.zero);
+
+      // 與輪換交錯的那次驗證拿到 2007：只標未知，不動任何憑據。
+      await h.controller.restore();
+      expect(h.controller.status, SessionStatus.unknown);
+      expect(h.controller.bearerFor(h.identity), 'SECRET-A');
+      expect(h.persistence.store[h.identity], 'SECRET-A');
+
+      rotateGate.complete(rotationOk(1, 'SECRET-B'));
+      expect(await rotating, SessionRotationOutcome.rotated);
+      expect(h.controller.status, SessionStatus.signedIn);
+      expect(h.persistence.store[h.identity], 'SECRET-B');
+    });
+
+    test('網路結果不明：對帳成功說明輪換沒發生（保留憑據、仍已登入）', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async => throw http.ClientException('offline'),
+        sessionResponder: (_) async =>
+            http.Response(sessionJson, 200, headers: _jsonHeader),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.noEffect);
+      expect(h.controller.status, SessionStatus.signedIn);
+      expect(h.controller.bearerFor(h.identity), 'SECRET-A');
+      expect(h.persistence.store[h.identity], 'SECRET-A');
+    });
+
+    test('網路結果不明：對帳回 2007 說明新秘密已丟（拒絕＋清空＋失效）', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async => throw http.ClientException('offline'),
+        sessionResponder: (_) async => sessionFailure(2007),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.rejected);
+      expect(h.controller.status, SessionStatus.expired);
+      expect(h.controller.bearerFor(h.identity), isNull);
+      expect(h.persistence.store.containsKey(h.identity), isFalse);
+    });
+
+    test('網路結果不明：對帳也不可達時停在未知，保留憑據與綁定', () async {
+      final Harness h = await wire(
+        mode: SessionTransportMode.native,
+        rotateResponder: (_) async => throw http.ClientException('offline'),
+        sessionResponder: (_) async => throw http.ClientException('offline'),
+      );
+      await h.controller.completeLogin(
+        ServerAddress.tryParse(h.identity)!,
+        exchange(secret: 'SECRET-A'),
+      );
+
+      final SessionRotationOutcome outcome = await h.controller.rotate();
+
+      expect(outcome, SessionRotationOutcome.unconfirmed);
+      expect(h.controller.status, SessionStatus.unknown);
+      expect(h.controller.bearerFor(h.identity), 'SECRET-A');
+      expect(h.persistence.store[h.identity], 'SECRET-A');
     });
   });
 }

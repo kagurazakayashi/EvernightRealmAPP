@@ -109,6 +109,10 @@
   "@errorCodeSessionInvalid": {
     "description": "机器错误码 2003：携带的会话已过期、被撤销或主体状态不可用。"
   },
+  "errorCodeSessionStale": "このリクエストのセッション資格情報は新しいものに置き換えられました。この操作をもう一度実行してください。",
+  "@errorCodeSessionStale": {
+    "description": "機器錯誤碼 2007：請求攜帶的是上一代會話憑據，已被更新的憑據取代；處置是重試，不是重新登入。"
+  },
   "errorCodeAuthMethodConflict": "リクエストが複数の認証方式を混在しているか、ブラウザークエストが許可されない方式を使用しています。",
   "@errorCodeAuthMethodConflict": {
     "description": "机器错误码 2004：认证方式混用（Cookie 与 Bearer 并存，或浏览器请求使用 Bearer）。"
@@ -413,9 +417,41 @@
   "@sessionRevalidateAction": {
     "description": "重新問一次伺服器的按鈕文字。"
   },
-  "sessionExpiredNotice": "サーバーが前回のセッションを無効と判定しました（期限切れまたは失効）。再度ログインしてください。",
+  "sessionExpiredNotice": "サーバーが前回のセッションを無効と判定しました（期限切れ、失効、またはローテーションされた新しい資格情報への置き換え）。再度ログインしてください。",
   "@sessionExpiredNotice": {
     "description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"
+  },
+  "sessionRotateAction": "セッション秘密をローテーション",
+  "@sessionRotateAction": {
+    "description": "已登入態的「輪換會話秘密」按鈕文字。"
+  },
+  "sessionRotatingAction": "ローテーション中…",
+  "@sessionRotatingAction": {
+    "description": "輪換進行中的按鈕文字（此時停用，防連點產生第二趟輪換請求）。"
+  },
+  "sessionRotateSuccessNotice": "セッション秘密をローテーションしました。同じ端末・同じ有効期限のままで、資格情報だけが新しくなっています。",
+  "@sessionRotateSuccessNotice": {
+    "description": "輪換成功的提示：同一會話、同一設備、同一到期時刻，只換憑據。"
+  },
+  "sessionRotateSupersededNotice": "より新しいローテーションが既に適用されていたため、この応答は破棄しました。現在の資格情報は変わっていません。",
+  "@sessionRotateSupersededNotice": {
+    "description": "倒序送達的輪換回應被丟棄時的提示：記憶體與安全儲存都未被覆寫。"
+  },
+  "sessionRotatePersistenceFailedNotice": "秘密はローテーションされ、今回の実行では引き続き使用できますが、安全なストレージに保存できませんでした。再起動後は再度サインインが必要です。",
+  "@sessionRotatePersistenceFailedNotice": {
+    "description": "輪換成功但新秘密寫不進安全儲存時的提示：本次可用，重啟需重登，絕不降級明文。"
+  },
+  "sessionRotateRejectedNotice": "サーバーがローテーションを拒否し、セッションは無効になりました。再度サインインしてください。",
+  "@sessionRotateRejectedNotice": {
+    "description": "輪換被拒（2007／2003）或原生端拿不到新秘密時的提示：處置是重新登入。"
+  },
+  "sessionRotateNoEffectNotice": "ローテーション要求はサーバーに届かず、何も変わりませんでした。現在の資格情報はそのまま有効です。",
+  "@sessionRotateNoEffectNotice": {
+    "description": "對帳後確認輪換其實沒發生時的提示：憑據保留、仍為已登入。"
+  },
+  "sessionRotateUnconfirmedNotice": "ローテーションの結果を確認できませんでした。サーバーに到達できず、セッションの状態は不明です。現在の資格情報は保持しています。到達できたときに再試行してください。",
+  "@sessionRotateUnconfirmedNotice": {
+    "description": "網路結果不明且對帳也不通時的提示：保留憑據、停在未知，不謊報成功也不謊報登出。"
   },
   "sessionStorageFailureNote": "この端末のログイン状態を読み書きできません：検証を中断したか、このセッションは再起動後に保持されません。安全のため、認証情報を平文で保存することはありません。",
   "@sessionStorageFailureNote": {

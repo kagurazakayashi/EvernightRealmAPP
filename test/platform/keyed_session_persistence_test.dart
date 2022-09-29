@@ -6,6 +6,7 @@
 /// 故本测试只把 [KeyedSessionPersistence] 的鍵名映射与错误透传钉住，实机路径标为未实测。
 library;
 
+import 'package:evernightrealm/core/session/session_persistence.dart';
 import 'package:evernightrealm/platform/keyed_session_persistence.dart';
 import 'package:evernightrealm/platform/secure_key_value_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -74,24 +75,28 @@ void main() {
     });
   });
 
-  group('读写删除透传', () {
-    test('写入后再读回同一身份的秘密', () async {
+  group('讀寫刪除透傳', () {
+    test('寫入後再讀回同一身份的憑據', () async {
       final _FakeStore store = _FakeStore();
       final persistence = KeyedSessionPersistence(store);
       const String id = 'http://a.invalid:5206';
 
-      await persistence.writeSecret(id, 'S3CRET');
-      final String? read = await persistence.readSecret(id);
+      await persistence.writeCredential(
+        id,
+        const SessionCredential(secret: 'S3CRET', rotationSeq: 3),
+      );
+      final SessionCredential? read = await persistence.readCredential(id);
 
-      expect(read, 'S3CRET');
-      expect(store.backing[KeyedSessionPersistence.keyFor(id)], 'S3CRET');
+      expect(read?.secret, 'S3CRET');
+      expect(read?.rotationSeq, 3);
+      expect(store.backing[KeyedSessionPersistence.keyFor(id)], '3:S3CRET');
     });
 
-    test('读未写过的身份回 null（确实是“没有值”，不是出错）', () async {
+    test('讀未寫過的身份回 null（確實是“沒有值”，不是出錯）', () async {
       final _FakeStore store = _FakeStore();
       final persistence = KeyedSessionPersistence(store);
 
-      expect(await persistence.readSecret('http://none.invalid'), isNull);
+      expect(await persistence.readCredential('http://none.invalid'), isNull);
     });
 
     test('清除只删除该身份，其他身份不受牵连', () async {
@@ -99,46 +104,102 @@ void main() {
       final persistence = KeyedSessionPersistence(store);
       const String a = 'http://a.invalid:5206';
       const String b = 'http://b.invalid:5206';
-      await persistence.writeSecret(a, 'SA');
-      await persistence.writeSecret(b, 'SB');
+      await persistence.writeCredential(
+        a,
+        const SessionCredential(secret: 'SA', rotationSeq: 0),
+      );
+      await persistence.writeCredential(
+        b,
+        const SessionCredential(secret: 'SB', rotationSeq: 0),
+      );
 
-      await persistence.clearSecret(a);
+      await persistence.clearCredential(a);
 
-      expect(await persistence.readSecret(a), isNull);
-      expect(await persistence.readSecret(b), 'SB');
+      expect(await persistence.readCredential(a), isNull);
+      expect((await persistence.readCredential(b))?.secret, 'SB');
     });
   });
 
-  group('失败一律上抛，绝不静默降级', () {
-    test('写入失败不留下任何明文', () async {
+  group('值編碼形狀', () {
+    test('世代號在前、秘密在後，以第一個冒號分隔', () {
+      expect(
+        KeyedSessionPersistence.encode(
+          const SessionCredential(secret: 'abc-DEF_123', rotationSeq: 12),
+        ),
+        '12:abc-DEF_123',
+      );
+    });
+
+    test('完整的複合字串可解回憑據（秘密以 base64url 字元集為主）', () {
+      final SessionCredential? decoded = KeyedSessionPersistence.decode(
+        '7:xYz-._~',
+      );
+      expect(decoded?.rotationSeq, 7);
+      expect(decoded?.secret, 'xYz-._~');
+    });
+
+    test('更早版本的裸秘密一律回 null（不猜它是第幾代）', () {
+      // 升級前存的是沒有世代號的裸秘密；猜它屬於第幾代會讓一個倒序送達的
+      // 舊輪換結果有機會蓋掉新憑據。代價是原生端要重登一次，比猜錯安全。
+      expect(KeyedSessionPersistence.decode('S3CRETWITHOUTSEQ'), isNull);
+      expect(KeyedSessionPersistence.decode(''), isNull);
+      expect(KeyedSessionPersistence.decode(null), isNull);
+    });
+
+    test('形狀不合格一律回 null（缺分隔、缺秘密、世代號不是整數）', () {
+      expect(KeyedSessionPersistence.decode('0:'), isNull, reason: '分隔號後沒有秘密');
+      expect(
+        KeyedSessionPersistence.decode(':secret'),
+        isNull,
+        reason: '分隔號前沒有世代號',
+      );
+      expect(KeyedSessionPersistence.decode('x:secret'), isNull);
+      expect(KeyedSessionPersistence.decode('-1:secret'), isNull);
+    });
+
+    test('儲存裡是裸秘密時，讀取回 null（當成沒有值）', () async {
+      final _FakeStore store = _FakeStore();
+      final persistence = KeyedSessionPersistence(store);
+      const String id = 'http://a.invalid:5206';
+      store.backing[KeyedSessionPersistence.keyFor(id)] = 'LEGACY-RAW-SECRET';
+
+      expect(await persistence.readCredential(id), isNull);
+    });
+  });
+
+  group('失敗一律上拋，絕不靜默降級', () {
+    test('寫入失敗不留下任何明文', () async {
       final _FakeStore store = _FakeStore()
         ..failWrite = StateError('keystore down');
       final persistence = KeyedSessionPersistence(store);
 
       expect(
-        () => persistence.writeSecret('http://a.invalid:5206', 'S'),
+        () => persistence.writeCredential(
+          'http://a.invalid:5206',
+          const SessionCredential(secret: 'S', rotationSeq: 0),
+        ),
         throwsA(isA<StateError>()),
       );
-      expect(store.backing, isEmpty, reason: '失败时底层不得落盘任何值');
+      expect(store.backing, isEmpty, reason: '失敗時底層不得落盤任何值');
     });
 
-    test('读取失败上抛而非回 null（null 的语意是“确实没有”）', () async {
+    test('讀取失敗上拋而非回 null（null 的語意是“確實沒有”）', () async {
       final _FakeStore store = _FakeStore()
         ..failRead = StateError('no keyring');
       final persistence = KeyedSessionPersistence(store);
 
       expect(
-        () => persistence.readSecret('http://a.invalid:5206'),
+        () => persistence.readCredential('http://a.invalid:5206'),
         throwsA(isA<StateError>()),
       );
     });
 
-    test('删除失败上抛，交由上层记录而非谎报已清除', () async {
+    test('刪除失敗上拋，交由上層記錄而非謊報已清除', () async {
       final _FakeStore store = _FakeStore()..failDelete = StateError('locked');
       final persistence = KeyedSessionPersistence(store);
 
       expect(
-        () => persistence.clearSecret('http://a.invalid:5206'),
+        () => persistence.clearCredential('http://a.invalid:5206'),
         throwsA(isA<StateError>()),
       );
     });

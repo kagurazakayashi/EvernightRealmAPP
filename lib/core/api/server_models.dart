@@ -338,6 +338,7 @@ class CurrentSessionReport {
     required this.subjectKind,
     required this.accountId,
     required this.deviceId,
+    required this.rotationSeq,
     required this.createdAt,
     required this.lastActiveAt,
     required this.expiresAt,
@@ -351,6 +352,7 @@ class CurrentSessionReport {
       subjectKind: kind,
       accountId: _optionalAccountId(json, kind),
       deviceId: _requireText(json, 'device_id'),
+      rotationSeq: _requireInt(json, 'rotation_seq'),
       createdAt: _requireUtcTime(json, 'created_at'),
       lastActiveAt: _requireUtcTime(json, 'last_active_at'),
       expiresAt: _requireUtcTime(json, 'expires_at'),
@@ -367,6 +369,13 @@ class CurrentSessionReport {
   /// 用戶可見的設備標識。
   final String deviceId;
 
+  /// 會話秘密的世代號：每次輪換加一，登入簽發的新會話從 0 起算。
+  ///
+  /// 它是計數器不是秘密，可以展示與儲存。用途只有一個：讓客戶端能把「手上這一枚
+  /// 是第幾代」與伺服器的權威事實對上，於是一次倒序送達的輪換回應不會蓋掉更新的
+  /// 憑據，一次丟失的輪換回應也能被查出來。
+  final int rotationSeq;
+
   /// 會話建立時刻（UTC）。
   final DateTime createdAt;
 
@@ -374,6 +383,56 @@ class CurrentSessionReport {
   final DateTime lastActiveAt;
 
   /// 會話到期時刻（UTC）。
+  final DateTime expiresAt;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 是否為 Root 主體的會話。
+  bool get isRoot => subjectKind == AuthSubjectKind.root;
+}
+
+/// `POST /auth/session/rotate` 的成功回應：換發後那一代的事實。
+///
+/// 合同與登入回應同一套缺席規則——新秘密不在本體裡（只在 `Set-Cookie`），
+/// 會話內部標識也不在；這裡能拿到的只有可展示事實與世代號。
+class RotationReport {
+  /// 以已驗證的欄位建立輪換結果。
+  const RotationReport({
+    required this.subjectKind,
+    required this.accountId,
+    required this.deviceId,
+    required this.rotationSeq,
+    required this.expiresAt,
+    required this.requestId,
+  });
+
+  /// 從輪換回應的 JSON 建立結果。
+  static RotationReport decode(Map<String, Object?> json) {
+    final AuthSubjectKind kind = _requireSubjectKind(json);
+    return RotationReport(
+      subjectKind: kind,
+      accountId: _optionalAccountId(json, kind),
+      deviceId: _requireText(json, 'device_id'),
+      rotationSeq: _requireInt(json, 'rotation_seq'),
+      expiresAt: _requireUtcTime(json, 'expires_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 主體類別。
+  final AuthSubjectKind subjectKind;
+
+  /// 帳戶標識；Root 主體為 `null`。
+  final String? accountId;
+
+  /// 使用者可見的裝置標識：輪換前後必須是同一個（同一臺裝置換密不是新增裝置）。
+  final String deviceId;
+
+  /// 換發後的世代號。
+  final int rotationSeq;
+
+  /// 會話到期時刻（UTC）：輪換不延長它，這裡回的是原本那一個。
   final DateTime expiresAt;
 
   /// 本次請求的關聯 ID。

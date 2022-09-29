@@ -17,12 +17,29 @@ import 'test_server.dart';
 
 /// 以記憶體欄位模擬「按伺服器身份保存秘密」的安全儲存，可安排讀寫刪失敗。
 class InMemorySessionPersistence implements SessionPersistence {
-  /// 以既有內容建立假件。
+  /// 以既有內容建立假件；種入的值一律視為第 0 代（登入簽發的世代）。
+  ///
+  /// 保留 `Map<String, String>`（身份→秘密）的入口，是為了讓各介面測試只需給
+  /// 「這臺伺服器有一枚什麼秘密」，不必為了世代號把每個呼叫端改成一長串。
   InMemorySessionPersistence([Map<String, String>? seeded])
-    : secrets = <String, String>{...?seeded};
+    : _credentials = <String, SessionCredential>{
+        for (final MapEntry<String, String> entry
+            in (seeded ?? const <String, String>{}).entries)
+          entry.key: SessionCredential(secret: entry.value, rotationSeq: 0),
+      };
 
-  /// 各伺服器身份已保存的秘密。
-  final Map<String, String> secrets;
+  /// 各伺服器身份已儲存的完整憑據（秘密＋世代號）。
+  final Map<String, SessionCredential> _credentials;
+
+  /// 各伺服器身份已儲存的秘密明文；每次取值重建，供斷言與憑據注入使用。
+  Map<String, String> get secrets => <String, String>{
+    for (final MapEntry<String, SessionCredential> entry
+        in _credentials.entries)
+      entry.key: entry.value.secret,
+  };
+
+  /// 各伺服器身份已儲存的憑據（可直接斷言世代號）。
+  Map<String, SessionCredential> get credentials => _credentials;
 
   /// 不為 `null` 時，讀取一律拋出該物件。
   Object? failReadWith;
@@ -37,32 +54,35 @@ class InMemorySessionPersistence implements SessionPersistence {
   final Map<String, int> readCounts = <String, int>{};
 
   @override
-  Future<String?> readSecret(String serverIdentity) {
+  Future<SessionCredential?> readCredential(String serverIdentity) {
     final Object? failure = failReadWith;
     if (failure != null) {
       throw failure;
     }
     readCounts.update(serverIdentity, (int n) => n + 1, ifAbsent: () => 1);
-    return Future<String?>.value(secrets[serverIdentity]);
+    return Future<SessionCredential?>.value(_credentials[serverIdentity]);
   }
 
   @override
-  Future<void> writeSecret(String serverIdentity, String secret) {
+  Future<void> writeCredential(
+    String serverIdentity,
+    SessionCredential credential,
+  ) {
     final Object? failure = failWriteWith;
     if (failure != null) {
       throw failure;
     }
-    secrets[serverIdentity] = secret;
+    _credentials[serverIdentity] = credential;
     return Future<void>.value();
   }
 
   @override
-  Future<void> clearSecret(String serverIdentity) {
+  Future<void> clearCredential(String serverIdentity) {
     final Object? failure = failClearWith;
     if (failure != null) {
       throw failure;
     }
-    secrets.remove(serverIdentity);
+    _credentials.remove(serverIdentity);
     return Future<void>.value();
   }
 }

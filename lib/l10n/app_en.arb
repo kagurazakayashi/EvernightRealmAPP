@@ -197,6 +197,10 @@
   "@errorCodeSessionInvalid": {
     "description": "机器错误码 2003：携带的会话已过期、被撤销或主体状态不可用。"
   },
+  "errorCodeSessionStale": "The session credential in this request has been superseded by a newer one. Please retry this operation.",
+  "@errorCodeSessionStale": {
+    "description": "機器錯誤碼 2007：請求攜帶的是上一代會話憑據，已被更新的憑據取代；處置是重試，不是重新登入。"
+  },
   "errorCodeAuthMethodConflict": "The request mixes authentication methods, or a browser request used a disallowed method.",
   "@errorCodeAuthMethodConflict": {
     "description": "机器错误码 2004：认证方式混用（Cookie 与 Bearer 并存，或浏览器请求使用 Bearer）。"
@@ -501,9 +505,41 @@
   "@sessionRevalidateAction": {
     "description": "重新問一次伺服器的按鈕文字。"
   },
-  "sessionExpiredNotice": "The server has determined that the previous session is no longer valid (expired or revoked). Please sign in again.",
+  "sessionExpiredNotice": "The server has determined that the previous session is no longer valid (expired, revoked, or superseded by a newer rotated credential). Please sign in again.",
   "@sessionExpiredNotice": {
     "description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"
+  },
+  "sessionRotateAction": "Rotate session secret",
+  "@sessionRotateAction": {
+    "description": "已登入態的「輪換會話秘密」按鈕文字。"
+  },
+  "sessionRotatingAction": "Rotating…",
+  "@sessionRotatingAction": {
+    "description": "輪換進行中的按鈕文字（此時停用，防連點產生第二趟輪換請求）。"
+  },
+  "sessionRotateSuccessNotice": "The session secret has been rotated. This stays the same device and the same expiry; only the credential was renewed.",
+  "@sessionRotateSuccessNotice": {
+    "description": "輪換成功的提示：同一會話、同一設備、同一到期時刻，只換憑據。"
+  },
+  "sessionRotateSupersededNotice": "A newer rotation had already been applied, so this response was ignored. The current credential is unchanged.",
+  "@sessionRotateSupersededNotice": {
+    "description": "倒序送達的輪換回應被丟棄時的提示：記憶體與安全儲存都未被覆寫。"
+  },
+  "sessionRotatePersistenceFailedNotice": "The secret was rotated and works for this run, but it could not be saved to secure storage. You will need to sign in again after a restart.",
+  "@sessionRotatePersistenceFailedNotice": {
+    "description": "輪換成功但新秘密寫不進安全儲存時的提示：本次可用，重啟需重登，絕不降級明文。"
+  },
+  "sessionRotateRejectedNotice": "The server refused the rotation and the session is no longer valid. Please sign in again.",
+  "@sessionRotateRejectedNotice": {
+    "description": "輪換被拒（2007／2003）或原生端拿不到新秘密時的提示：處置是重新登入。"
+  },
+  "sessionRotateNoEffectNotice": "The rotation request did not reach the server, so nothing changed. The current credential still works.",
+  "@sessionRotateNoEffectNotice": {
+    "description": "對帳後確認輪換其實沒發生時的提示：憑據保留、仍為已登入。"
+  },
+  "sessionRotateUnconfirmedNotice": "The result of the rotation could not be confirmed: the server is unreachable and the session state is unknown. The current credential is kept; retry when the server is reachable.",
+  "@sessionRotateUnconfirmedNotice": {
+    "description": "網路結果不明且對帳也不通時的提示：保留憑據、停在未知，不謊報成功也不謊報登出。"
   },
   "sessionStorageFailureNote": "The local login state could not be read or written: verification is paused, or this session will not survive a restart. For safety the credential is never kept in plaintext.",
   "@sessionStorageFailureNote": {

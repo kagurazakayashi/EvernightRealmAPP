@@ -36,6 +36,7 @@ const Locale _locale = Locale('zh', 'TW');
 /// `/auth/session` 的 Root 主體回應。
 const String sessionRootBody =
     '{"subject_kind":"root","device_id":"device-77",'
+    '"rotation_seq":0,'
     '"created_at":"2026-09-30T03:04:05.000Z",'
     '"last_active_at":"2026-09-30T03:05:05.000Z",'
     '"expires_at":"2026-10-02T03:04:05.000Z","request_id":"r-sess-root"}';
@@ -43,6 +44,7 @@ const String sessionRootBody =
 /// `/auth/session` 的帳戶主體回應。
 const String sessionAccountBody =
     '{"subject_kind":"account","account_id":"acct-01","device_id":"device-88",'
+    '"rotation_seq":0,'
     '"created_at":"2026-09-30T03:04:05.000Z",'
     '"last_active_at":"2026-09-30T03:05:05.000Z",'
     '"expires_at":"2026-10-02T03:04:05.000Z","request_id":"r-sess-acct"}';
@@ -59,6 +61,19 @@ http.Response jsonError(int status, int code, String requestId) =>
       },
     );
 
+/// 一則輪換成功回應：同一裝置、同一到期時刻，另攜換發出的新秘密。
+///
+/// 原生端從 `Set-Cookie` 讀取新秘密（瀏覽器由 HttpOnly Cookie 代管，讀不到也不必讀）。
+http.Response rotationOk(int seq, String secret) => http.Response(
+  '{"subject_kind":"root","device_id":"device-77","rotation_seq":$seq,'
+  '"expires_at":"2026-10-02T03:04:05.000Z","request_id":"r-rot"}',
+  200,
+  headers: <String, String>{
+    'content-type': 'application/json; charset=utf-8',
+    'set-cookie': 'evernight_session=$secret; Path=/; HttpOnly',
+  },
+);
+
 void main() {
   late AppLocalizations l10n;
 
@@ -71,6 +86,7 @@ void main() {
     ServerAddressSettings settings, {
     Future<http.Response> Function(http.Request request)? onSession,
     Future<http.Response> Function(http.Request request)? onLogout,
+    Future<http.Response> Function(http.Request request)? onRotate,
     void Function(http.Request request)? onAny,
   }) {
     return ServerApi(
@@ -86,6 +102,10 @@ void main() {
             return onSession == null
                 ? jsonError(401, 2002, 'r-anon')
                 : await onSession(request);
+          case kAuthSessionRotatePath:
+            return onRotate == null
+                ? jsonError(500, 1000, 'r-rot')
+                : await onRotate(request);
           case kAuthLogoutPath:
             return onLogout == null ? jsonOk('{}') : await onLogout(request);
           default:
@@ -567,6 +587,92 @@ void main() {
       gate.complete(jsonOk('{}'));
       await tester.pumpAndSettle();
       expect(session.status, SessionStatus.signedOut);
+    });
+  });
+
+  group('已登入態的秘密輪換', () {
+    testWidgets('輪換按鈕在已登入態一律呈現', (WidgetTester tester) async {
+      final ServerAddressSettings settings = await addressesFor();
+      final ServerApi api = apiFor(settings);
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: InMemorySessionPersistence(),
+        exchange: rootExchange(),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+
+      await tester.ensureVisible(find.byKey(SessionSummaryView.rotateKey));
+      expect(find.byKey(SessionSummaryView.rotateKey), findsOneWidget);
+      expect(find.text(l10n.sessionRotateAction), findsOneWidget);
+    });
+
+    testWidgets('按輪換：發一趟請求、寫回新憑據與世代號、提示成功', (WidgetTester tester) async {
+      final ServerAddressSettings settings = await addressesFor();
+      int rotateHits = 0;
+      final ServerApi api = apiFor(
+        settings,
+        onRotate: (http.Request request) async {
+          rotateHits++;
+          expect(request.url.path, kAuthSessionRotatePath);
+          return rotationOk(1, 'tok-rotated');
+        },
+      );
+      final InMemorySessionPersistence store = InMemorySessionPersistence();
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: store,
+        exchange: rootExchange(),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+
+      await tester.ensureVisible(find.byKey(SessionSummaryView.rotateKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(SessionSummaryView.rotateKey));
+      await tester.pumpAndSettle();
+
+      expect(rotateHits, 1);
+      expect(session.status, SessionStatus.signedIn);
+      expect(store.credentials[reachableUrl]?.secret, 'tok-rotated');
+      expect(store.credentials[reachableUrl]?.rotationSeq, 1);
+      expect(find.text(l10n.sessionRotateSuccessNotice), findsOneWidget);
+    });
+
+    testWidgets('輪換進行中：按鈕停用並顯示進行中文案', (WidgetTester tester) async {
+      final ServerAddressSettings settings = await addressesFor();
+      final Completer<http.Response> gate = Completer<http.Response>();
+      final ServerApi api = apiFor(
+        settings,
+        onRotate: (http.Request request) => gate.future,
+      );
+      final InMemorySessionPersistence store = InMemorySessionPersistence();
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: store,
+        exchange: rootExchange(),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+
+      await tester.ensureVisible(find.byKey(SessionSummaryView.rotateKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(SessionSummaryView.rotateKey));
+      // 讓 _rotating=true 的重建落地（此時按鈕已停用）。
+      await tester.pump();
+
+      expect(find.text(l10n.sessionRotatingAction), findsOneWidget);
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(SessionSummaryView.rotateKey))
+            .onPressed,
+        isNull,
+        reason: '進行中停用，防連點',
+      );
+
+      gate.complete(rotationOk(1, 'tok-rotated'));
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.sessionRotateSuccessNotice), findsOneWidget);
     });
   });
 

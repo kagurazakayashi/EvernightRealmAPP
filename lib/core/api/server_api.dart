@@ -35,6 +35,9 @@ const String kAuthSessionPath = '/auth/session';
 /// 登出端點路徑（後端在此撤銷「本請求憑據所指向的那一枚」會話並回刪除指令）。
 const String kAuthLogoutPath = '/auth/logout';
 
+/// 會話秘密輪換端點路徑：用當代憑據換發一枚新秘密（同一會話、同一裝置、同一期限）。
+const String kAuthSessionRotatePath = '/auth/session/rotate';
+
 /// Root 初始化狀態端點路徑（唯讀：查一次不會改變伺服器任何狀態）。
 const String kRootInitStatusPath = '/root/init-status';
 
@@ -75,6 +78,21 @@ class LoginExchange {
   ///
   /// 不得寫入日誌、診斷輸出或任何介面文字；保存與回傳方式屬後續的
   /// 會話狀態管理步驟（批准的安全儲存）。
+  final String? sessionSecret;
+}
+
+/// 一次輪換的完整成果：已驗證的回應，與（僅原生可得）換發出的新秘密。
+class RotationExchange {
+  /// 以已驗證的回應建立成果。
+  const RotationExchange({required this.report, this.sessionSecret});
+
+  /// 輪換回應的事實欄位（主體類別、裝置標識、世代號、到期時刻）。
+  final RotationReport report;
+
+  /// 新秘密的一次性明文；瀏覽器環境恆為 `null`（HttpOnly 語意，由瀏覽器代管）。
+  ///
+  /// 與 [LoginExchange.sessionSecret] 同一套界線：不得寫入日誌、診斷輸出或任何
+  /// 介面文字，儲存只經批准的安全儲存抽象。
   final String? sessionSecret;
 }
 
@@ -203,6 +221,31 @@ class ServerApi {
       jsonBody: const <String, Object?>{},
       decode: (Map<String, Object?> json) => true,
       acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 輪換會話秘密：POST `/auth/session/rotate`，用當代憑據換發一枚新秘密。
+  ///
+  /// 憑據的攜帶與 [logout] 同一條路：瀏覽器形態由 HttpOnly Cookie 自動附帶，
+  /// 原生形態由傳輸層按「本筆請求的伺服器身份」注入 Bearer，因此本方法沒有
+  /// `bearerToken` 引數，也沒有任何可自報「要換哪一枚」的欄位。
+  ///
+  /// 回傳：成功即代表「伺服器已換發」，新秘密在原生環境從 `Set-Cookie` 取得
+  /// （瀏覽器環境恆為 `null`，那枚 Cookie 由瀏覽器自己收下）。失敗一律以
+  /// [ApiError] 丟擲，其中機器碼 2007 表示「本請求帶的是上一代憑據」——
+  /// 處置是重試而不是重新登入；2003 表示那枚會話已失效。
+  /// 回應本體不含任何秘密，只有可展示事實與世代號。
+  Future<RotationExchange> rotateSession({String? acceptLanguage}) async {
+    final ({RotationReport value, String? setCookie}) result = await apiClient
+        .postCapturingCookie(
+          kAuthSessionRotatePath,
+          jsonBody: const <String, Object?>{},
+          decode: RotationReport.decode,
+          acceptLanguage: acceptLanguage,
+        );
+    return RotationExchange(
+      report: result.value,
+      sessionSecret: extractSessionCookie(result.setCookie),
     );
   }
 

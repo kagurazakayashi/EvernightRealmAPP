@@ -48,6 +48,9 @@ class SessionSummaryView extends StatefulWidget {
   /// 「登出」按鈕的測試識別鍵。
   static const Key logoutKey = ValueKey<String>('session-logout');
 
+  /// 「輪換會話秘密」按鈕的測試識別鍵。
+  static const Key rotateKey = ValueKey<String>('session-rotate');
+
   /// 本機儲存異常說明的測試識別鍵。
   static const Key storageNoteKey = ValueKey<String>('session-storage-note');
 
@@ -61,6 +64,9 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
 
   /// 登出進行中标記：進行中按鈕停用，防連點產生第二趟登出請求。
   bool _signingOut = false;
+
+  /// 輪換進行中標記：進行中按鈕停用並改顯示進行中文案。
+  bool _rotating = false;
 
   Future<void> _revalidate(SessionController session) {
     final Future<void>? running = _inFlight;
@@ -77,7 +83,7 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
     return task;
   }
 
-  /// 一次登出：先讓控制器向伺服器請求撤銷，再依結果分檔提示。
+  /// 一次登出：先讓控制器向伺服器請求撤銷，再依結果分類提示。
   ///
   /// 界線全部交給 [SessionController.signOut] 承擔；這一層只做三件事：
   /// * 進行中停用（連點不會產生第二趟撤銷，也不會在冪等端點上刷出多筆審計）；
@@ -103,6 +109,56 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
         ? l10n.sessionSignOutSuccessNotice
         : l10n.sessionSignOutUnconfirmedNotice;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
+  }
+
+  /// 一次輪換：請控制器向伺服器換發新秘密，再依結果分類提示。
+  ///
+  /// 界線全部交給 [SessionController.rotate] 承擔；這一層只做三件事：
+  /// * 進行中停用並改顯示進行中文案（控制器本身也已把併發呼叫合併到同一趟）；
+  /// * 依 [SessionRotationOutcome] 決定彈哪一句——成功、倒序丟棄、存不住、被拒、
+  ///   沒發生、結果不明各有自己的話，不把它們一律說成失敗或成功；
+  /// * 提示經 [ScaffoldMessenger] 送達：被拒時卡片會換成失效態，SnackBar 才能
+  ///   把那句「請重新登入」講完。
+  Future<void> _rotate(SessionController session) async {
+    if (_rotating) {
+      return;
+    }
+    setState(() => _rotating = true);
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final AppLocale locale = resolveAppLocale(Localizations.localeOf(context));
+    final SessionRotationOutcome outcome = await session.rotate(
+      acceptLanguage: locale.tag,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _rotating = false);
+    final String? notice = _rotationNotice(l10n, outcome);
+    if (notice != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(notice)));
+    }
+  }
+
+  /// 把輪換結果對應到一句提示；沒有話可講時回 `null`（不彈空 SnackBar）。
+  String? _rotationNotice(
+    AppLocalizations l10n,
+    SessionRotationOutcome outcome,
+  ) {
+    return switch (outcome) {
+      SessionRotationOutcome.rotated => l10n.sessionRotateSuccessNotice,
+      SessionRotationOutcome.superseded => l10n.sessionRotateSupersededNotice,
+      SessionRotationOutcome.persistenceFailed =>
+        l10n.sessionRotatePersistenceFailedNotice,
+      // 「拿不到新秘密」與「被伺服器拒絕」對使用者的處置同一個：重新登入。
+      SessionRotationOutcome.rejected ||
+      SessionRotationOutcome.missingCredential =>
+        l10n.sessionRotateRejectedNotice,
+      SessionRotationOutcome.noEffect => l10n.sessionRotateNoEffectNotice,
+      SessionRotationOutcome.unconfirmed => l10n.sessionRotateUnconfirmedNotice,
+      // 未登入根本看不到這顆按鈕；真的走到這裡也沒有可以說給人聽的話。
+      SessionRotationOutcome.notSignedIn => null,
+    };
   }
 
   @override
@@ -322,34 +378,64 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
       );
     }
 
-    // 登出按鈕：已登入態一律呈現，不區分 Root／帳戶——只要有一份綁定的會話，
+    // 登出入口：已登入態一律呈現，不區分 Root／帳戶——只要有一份綁定的會話，
     // 就需要一個「讓這一份失效」的出口。進行中停用：連點不會產生第二趟撤銷，
     // 也不會把冪等端點刷成多筆審計寫入。
     // 這一層不寫任何「已登出」的假象：`signOut` 完成前狀態仍是 signedIn，
     // 完成後控制器 notify 讓卡片換成 signedOut 態並由 SnackBar 補上結果那一句。
+    //
+    // 輪換按鈕緊鄰登出：它只換憑據，不換裝置也不延期，因此放在同一個「管理這一
+    // 枚會話」的動作區裡；進行中停用並改顯示進行中文案。
     rows.add(
       Padding(
         padding: const EdgeInsets.only(top: 10),
-        child: SizedBox(
-          height: 40,
-          child: OutlinedButton(
-            key: SessionSummaryView.logoutKey,
-            onPressed: _signingOut ? null : () => _signOut(session),
-            child: _signingOut
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(child: Text(l10n.sessionLoggingOutAction)),
-                    ],
-                  )
-                : Text(l10n.sessionLogoutAction),
-          ),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            SizedBox(
+              height: 40,
+              child: OutlinedButton(
+                key: SessionSummaryView.rotateKey,
+                onPressed: _rotating ? null : () => _rotate(session),
+                child: _rotating
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(child: Text(l10n.sessionRotatingAction)),
+                        ],
+                      )
+                    : Text(l10n.sessionRotateAction),
+              ),
+            ),
+            SizedBox(
+              height: 40,
+              child: OutlinedButton(
+                key: SessionSummaryView.logoutKey,
+                onPressed: _signingOut ? null : () => _signOut(session),
+                child: _signingOut
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(child: Text(l10n.sessionLoggingOutAction)),
+                        ],
+                      )
+                    : Text(l10n.sessionLogoutAction),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -35,6 +35,7 @@ const Locale _locale = Locale('zh', 'TW');
 /// `/auth/session` 的 Root 主體回應（演練啟動恢復成功的路徑）。
 const String sessionRootBody =
     '{"subject_kind":"root","device_id":"device-77",'
+    '"rotation_seq":0,'
     '"created_at":"2026-09-30T03:04:05.000Z",'
     '"last_active_at":"2026-09-30T03:05:05.000Z",'
     '"expires_at":"2026-10-02T03:04:05.000Z","request_id":"r-sess-root"}';

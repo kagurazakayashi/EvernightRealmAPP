@@ -22,6 +22,7 @@ const String minimalHealth =
 /// 合法的「當前會話」回應本體，供 `currentSession` 成功解码。
 const String sessionBody =
     '{"subject_kind":"account","account_id":"acc-1","device_id":"dev-1",'
+    '"rotation_seq":0,'
     '"created_at":"2026-09-30T00:00:00.000Z",'
     '"last_active_at":"2026-09-30T00:00:00.000Z",'
     '"expires_at":"2026-10-01T00:00:00.000Z","request_id":"r"}';

@@ -77,7 +77,15 @@ enum ApiMachineCode {
 
   /// 2006：登入嘗試過於頻繁，已被伺服器冷卻。處置是依 Retry-After 稍後再試；
   /// 後端對「哪個帳戶被打滿」完全同形，介面據此也只能顯示通用的稍後再試。
-  loginThrottled(2006);
+  loginThrottled(2006),
+
+  /// 2007：帶來的會話憑據是「上一代」的——那枚會話還在，但已換發過新秘密。
+  ///
+  /// 與 [sessionInvalid] 分開只為一件事：這一句失敗的處置是「重試」，不是
+  /// 「重新登入」。把一次正常的秘密輪換說成會話失效，會把與輪換交錯的那條請求
+  /// 變成使用者的意外掉線。它不代表舊憑據還有訪問能力：後端對它一律拒絕，
+  /// 也不會回傳任何新秘密。
+  sessionStale(2007);
 
   /// 以對外發布的數值建立錯誤碼。
   const ApiMachineCode(this.value);
@@ -155,6 +163,8 @@ class ApiError implements Exception {
       ApiMachineCode.notReady ||
       ApiMachineCode.requestTimeout ||
       ApiMachineCode.loginThrottled => true,
+      // 落後一代：等更新的憑據就位後重試同一次操作即可，不需要重新登入。
+      ApiMachineCode.sessionStale => true,
       ApiMachineCode.internalError => true,
       _ => (httpStatus ?? 0) >= 500,
     },

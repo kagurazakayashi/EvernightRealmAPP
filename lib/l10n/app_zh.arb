@@ -109,6 +109,10 @@
   "@errorCodeSessionInvalid": {
     "description": "机器错误码 2003：携带的会话已过期、被撤销或主体状态不可用。"
   },
+  "errorCodeSessionStale": "本次请求携带的会话凭据已被更新的凭据取代，请重试这一次操作。",
+  "@errorCodeSessionStale": {
+    "description": "機器錯誤碼 2007：請求攜帶的是上一代會話憑據，已被更新的憑據取代；處置是重試，不是重新登入。"
+  },
   "errorCodeAuthMethodConflict": "请求混用了多种认证方式，或浏览器请求使用了不允许的认证方式。",
   "@errorCodeAuthMethodConflict": {
     "description": "机器错误码 2004：认证方式混用（Cookie 与 Bearer 并存，或浏览器请求使用 Bearer）。"
@@ -413,9 +417,41 @@
   "@sessionRevalidateAction": {
     "description": "重新問一次伺服器的按鈕文字。"
   },
-  "sessionExpiredNotice": "服务器已判定上一次会话不再有效（过期或被撤销）。请重新登录。",
+  "sessionExpiredNotice": "服务器已判定上一次会话不再有效（过期、被撤销，或已被轮换出的新凭据取代）。请重新登录。",
   "@sessionExpiredNotice": {
     "description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"
+  },
+  "sessionRotateAction": "轮换会话秘密",
+  "@sessionRotateAction": {
+    "description": "已登入態的「輪換會話秘密」按鈕文字。"
+  },
+  "sessionRotatingAction": "轮换中…",
+  "@sessionRotatingAction": {
+    "description": "輪換進行中的按鈕文字（此時停用，防連點產生第二趟輪換請求）。"
+  },
+  "sessionRotateSuccessNotice": "会话秘密已轮换。本次会话仍是同一台设备、同一到期时刻，只是凭据换成了新的。",
+  "@sessionRotateSuccessNotice": {
+    "description": "輪換成功的提示：同一會話、同一設備、同一到期時刻，只換憑據。"
+  },
+  "sessionRotateSupersededNotice": "已有更新的轮换生效在先，这次的响应被丢弃了。当前凭据没有变化。",
+  "@sessionRotateSupersededNotice": {
+    "description": "倒序送達的輪換回應被丟棄時的提示：記憶體與安全儲存都未被覆寫。"
+  },
+  "sessionRotatePersistenceFailedNotice": "秘密已轮换，本次运行可以继续使用，但未能写入安全储存；重启后需要重新登录。",
+  "@sessionRotatePersistenceFailedNotice": {
+    "description": "輪換成功但新秘密寫不進安全儲存時的提示：本次可用，重啟需重登，絕不降級明文。"
+  },
+  "sessionRotateRejectedNotice": "服务器拒绝了这次轮换，会话已不再有效。请重新登录。",
+  "@sessionRotateRejectedNotice": {
+    "description": "輪換被拒（2007／2003）或原生端拿不到新秘密時的提示：處置是重新登入。"
+  },
+  "sessionRotateNoEffectNotice": "这次轮换请求没有送达服务器，什么也没有改变。当前凭据仍然有效。",
+  "@sessionRotateNoEffectNotice": {
+    "description": "對帳後確認輪換其實沒發生時的提示：憑據保留、仍為已登入。"
+  },
+  "sessionRotateUnconfirmedNotice": "无法确认这次轮换的结果：服务器不可达，会话状态未知。当前凭据被保留，请在服务器可达时重试。",
+  "@sessionRotateUnconfirmedNotice": {
+    "description": "網路結果不明且對帳也不通時的提示：保留憑據、停在未知，不謊報成功也不謊報登出。"
   },
   "sessionStorageFailureNote": "本机登录状态读取或写入失败：会话验证已暂停，或本次会话在重启后不会被记住。出于安全，凭据绝不明文保存。",
   "@sessionStorageFailureNote": {
