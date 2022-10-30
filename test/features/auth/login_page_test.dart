@@ -376,6 +376,33 @@ void main() {
       expect(errorLine(tester), isNot(l10n.errorCodeInvalidCredentials));
     });
 
+    testWidgets('裝置名額已滿：顯示 2008 的專屬說明，不說成口令錯誤', (WidgetTester tester) async {
+      // 這一句的價值全在「不誤導」：把名額已滿報成憑據無效，使用者會對著
+      // 一個正確的口令反覆重打，而真正要做的是去另一臺裝置登出。
+      final _Fixture fixture = _Fixture(
+        reply: _Fixture.ok(<String, StubResponse>{
+          kAuthRootLoginPath: (
+            status: 403,
+            body: envelope(2008, 'r-403'),
+            headers: <String, String>{},
+          ),
+        }),
+      );
+      await pump(tester, fixture);
+      await gotoLogin(tester);
+      await typePassword(tester, 'sekret');
+      await tapSubmit(tester);
+      await tester.pumpAndSettle();
+
+      expect(errorLine(tester), l10n.errorCodeDeviceLimitReached);
+      expect(errorLine(tester), isNot(l10n.errorCodeInvalidCredentials));
+      expect(errorLine(tester), isNot(l10n.errorCodeLoginThrottled));
+      // 回應不帶數字（後端刻意不放上限），介面也就不能憑空造出一個數字。
+      expect(errorLine(tester), isNot(contains('server text')));
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(fixture.session.status, isNot(SessionStatus.signedIn));
+    });
+
     testWidgets('連不上：說無法與伺服器確認，不是「口令不對」', (WidgetTester tester) async {
       final _Fixture fixture = _Fixture(
         reply: (http.Request request) async {

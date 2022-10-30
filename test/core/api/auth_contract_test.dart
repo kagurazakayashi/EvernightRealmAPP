@@ -222,6 +222,27 @@ void main() {
       expect(error.knownCode, ApiMachineCode.invalidCredentials);
       expect(error.retryable, isFalse);
     });
+
+    test('裝置名額已滿的 2008 收斂為 deviceLimitReached，且不標為可重試', () async {
+      // 2008 的存在意義就是「跟口令無關」：它必須是可判別的第三種結論，
+      // 既不是 2001（重打口令也不會好），也不是 2006（重試現在沒有意義，
+      // 要等別的裝置登出或會話到期），所以 retryable 必須是 false。
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        return http.Response(
+          '{"code":2008,"message":"...","request_id":"r"}',
+          403,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+      final ApiError error = await captureApiError(
+        () => api.login(loginName: 'someone', password: 'pw'),
+      );
+      expect(error.knownCode, ApiMachineCode.deviceLimitReached);
+      expect(error.retryable, isFalse);
+      expect(error.machineCode, 2008);
+    });
   });
 
   group('Set-Cookie 提取', () {

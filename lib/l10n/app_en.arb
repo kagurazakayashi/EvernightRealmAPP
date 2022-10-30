@@ -213,6 +213,10 @@
   "@errorCodeLoginThrottled": {
     "description": "机器错误码 2006：登录尝试过于频繁，服务端冷却中；处置为稍后重试，不指出是哪个账户被限制。"
   },
+  "errorCodeDeviceLimitReached": "This account has reached the server's limit on signed-in devices, so this sign-in was not applied. Sign out on another device, or wait for an existing session to expire, then try again.",
+  "@errorCodeDeviceLimitReached": {
+    "description": "機器錯誤碼 2008：憑據正確，但該主體的有效會話名額已達伺服器的裝置登入上限，這次登入整個沒有發生；處置是在其他裝置登出或等待會話到期，不是重打口令。"
+  },
   "serverProbeTitle": "Server connectivity check",
   "@serverProbeTitle": {
     "description": "伺服器連通性探測區的標題。"
