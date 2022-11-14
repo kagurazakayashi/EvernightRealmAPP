@@ -41,6 +41,12 @@ const String kAuthSessionRotatePath = '/auth/session/rotate';
 /// Root 初始化狀態端點路徑（唯讀：查一次不會改變伺服器任何狀態）。
 const String kRootInitStatusPath = '/root/init-status';
 
+/// 「我的裝置」清單端點路徑（唯讀：只列當前主體名下的會話）。
+const String kAuthDevicesPath = '/auth/devices';
+
+/// 定向撤銷某一臺裝置的端點路徑（有副作用：撤的是當前主體名下、由 device_id 指向的會話）。
+const String kAuthDeviceRevokePath = '/auth/devices/revoke';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -246,6 +252,39 @@ class ServerApi {
     return RotationExchange(
       report: result.value,
       sessionSecret: extractSessionCookie(result.setCookie),
+    );
+  }
+
+  /// 讀取「我的裝置」清單：GET `/auth/devices`，只列當前主體名下的會話。
+  ///
+  /// 憑據的攜帶與 [currentSession] 同一條路：瀏覽器形態由 HttpOnly Cookie 自動附帶，
+  /// 原生形態由傳輸層按「本筆請求的伺服器身份」注入 Bearer。本方法沒有任何 device_id／
+  /// account_id 引數——查詢範圍由後端按解析出的受信主體決定，客戶端無從指定「列誰的裝置」。
+  /// 失敗一律以 [ApiError] 丟擲（未帶憑據 2002、失效 2003、上一代 2007、混用 2004），
+  /// 不存在「回了一份清單但其實沒登入」的形態。
+  Future<DeviceListReport> devices({String? acceptLanguage}) {
+    return apiClient.get(
+      kAuthDevicesPath,
+      decode: DeviceListReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 定向撤銷一臺裝置：POST `/auth/devices/revoke`，只准帶目標 device_id。
+  ///
+  /// 這裡傳的是「要撤哪一臺」的展示標識，不是憑據：撤銷的授權仍是本次請求帶來的會話憑據
+  /// （由傳輸層自動注入），後端會先重檢當前會話有效、再在當前主體範圍內撤銷目標。
+  /// 越權／不存在的 device_id 一律回 2009；被撤的是當前這臺時 [DeviceRevokeReport.current]
+  /// 為真，呼叫端據此進入退出態。任何非 2xx 都以 [ApiError] 丟擲。
+  Future<DeviceRevokeReport> revokeDevice({
+    required String deviceId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<DeviceRevokeReport>(
+      kAuthDeviceRevokePath,
+      jsonBody: <String, Object?>{'device_id': deviceId},
+      decode: DeviceRevokeReport.decode,
+      acceptLanguage: acceptLanguage,
     );
   }
 

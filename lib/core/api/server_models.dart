@@ -441,3 +441,124 @@ class RotationReport {
   /// 是否為 Root 主體的會話。
   bool get isRoot => subjectKind == AuthSubjectKind.root;
 }
+
+/// `/auth/devices` 清單裡的一枚裝置。
+///
+/// 只帶可展示事實（裝置標識、三個時刻、推導狀態、是否本請求所用這一臺）——合同裡
+/// 沒有任何憑據材料，因此這個模型也沒有任何欄位需要「記得不要顯示」。
+/// `device_id` 就是使用者可見的裝置展示名：它是隨機 UUIDv7、看到也換不來任何操作能力。
+///
+/// [status] 刻意保存伺服器給的原字串而不是硬列舉：合同對回應採「只增不刪」，
+/// 日後若多出一種狀態值，舊的硬列舉會讓整份清單解碼失敗，原字串加派生 getter
+/// 則只讓「這一行不認得」而不牽連其餘。
+class DeviceReport {
+  /// 以已驗證的欄位建立一筆裝置記錄。
+  const DeviceReport({
+    required this.deviceId,
+    required this.createdAt,
+    required this.lastActiveAt,
+    required this.expiresAt,
+    required this.status,
+    required this.current,
+  });
+
+  /// 從清單單項的 JSON 建立。
+  static DeviceReport decode(Map<String, Object?> json) {
+    return DeviceReport(
+      deviceId: _requireText(json, 'device_id'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      lastActiveAt: _requireUtcTime(json, 'last_active_at'),
+      expiresAt: _requireUtcTime(json, 'expires_at'),
+      status: _requireText(json, 'status'),
+      current: _requireBool(json, 'current'),
+    );
+  }
+
+  /// 使用者可見的裝置標識（展示名）。
+  final String deviceId;
+
+  /// 建立時刻（UTC）。
+  final DateTime createdAt;
+
+  /// 最近一次通過驗證的時刻（UTC）。
+  final DateTime lastActiveAt;
+
+  /// 到期時刻（UTC）。
+  final DateTime expiresAt;
+
+  /// 伺服器推導的狀態原字串：`active`／`expired`／`revoked`，或未來新增值。
+  final String status;
+
+  /// 是否為本請求所用這一臺（伺服器按當前會話判定，客戶端不自行比對）。
+  final bool current;
+
+  /// 是否仍處於有效狀態。
+  bool get isActive => status == 'active';
+}
+
+/// `GET /auth/devices` 的成功回應：當前主體名下的裝置清單。
+class DeviceListReport {
+  /// 以已驗證的欄位建立清單。
+  const DeviceListReport({required this.devices, required this.requestId});
+
+  /// 從 `/auth/devices` 的 JSON 回應建立清單。
+  static DeviceListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['devices'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('devices 不是清單');
+    }
+    final List<DeviceReport> devices = <DeviceReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('devices 項不是物件');
+      }
+      devices.add(DeviceReport.decode(item));
+    }
+    return DeviceListReport(
+      devices: devices,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 裝置清單（順序由伺服器決定，新建立的在前）。
+  final List<DeviceReport> devices;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `POST /auth/devices/revoke` 的成功回應：一次定向撤銷的結果。
+///
+/// 與登入／輪換回應同一套缺席規則——沒有任何憑據欄位。[current] 為真表示剛撤的是
+/// 本請求這一臺，呼叫端據此進入退出態；[revoked] 為假表示目標本就已是失效態（冪等 no-op）。
+class DeviceRevokeReport {
+  /// 以已驗證的欄位建立撤銷結果。
+  const DeviceRevokeReport({
+    required this.deviceId,
+    required this.revoked,
+    required this.current,
+    required this.requestId,
+  });
+
+  /// 從撤銷回應的 JSON 建立結果。
+  static DeviceRevokeReport decode(Map<String, Object?> json) {
+    return DeviceRevokeReport(
+      deviceId: _requireText(json, 'device_id'),
+      revoked: _requireBool(json, 'revoked'),
+      current: _requireBool(json, 'current'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 被指向的裝置標識。
+  final String deviceId;
+
+  /// 本次是否真的停掉了一枚原本有效的會話（false＝目標本就已是失效態）。
+  final bool revoked;
+
+  /// 撤銷的是否為本請求這一臺。
+  final bool current;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}

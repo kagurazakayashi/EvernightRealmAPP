@@ -676,5 +676,114 @@
   "sessionGateRootRequiredHint": "The Root console requires the Root subject as confirmed by the server. The current session is not Root, so this page stays closed.",
   "@sessionGateRootRequiredHint": {
     "description": "Root 控制台要求 Root 主體：非 Root 會話保持關閉。"
+  },
+  "errorCodeDeviceNotFound": "This device is no longer among your signed-in devices. It may have been removed, or your list is out of date. Please refresh and try again.",
+  "@errorCodeDeviceNotFound": {
+    "description": "機器碼 2009：定向撤銷的目標不在本人會話範圍內（不存在／已被清理／屬於他人，後端三者同形）。處置是重新整理清單。"
+  },
+  "sessionDevicesAction": "My devices",
+  "@sessionDevicesAction": {
+    "description": "已登入態的「我的裝置」按鈕文字：開啟僅管理本人會話的裝置清單。"
+  },
+  "devicesDialogTitle": "My devices",
+  "@devicesDialogTitle": {
+    "description": "裝置清單對話框標題。"
+  },
+  "devicesLoadingHint": "Loading your devices…",
+  "@devicesLoadingHint": {
+    "description": "清單載入中的中性提示。"
+  },
+  "devicesLoadFailedNotice": "The device list could not be loaded right now. Please check the connection and retry.",
+  "@devicesLoadFailedNotice": {
+    "description": "列舉裝置時「查不了」（連不上／逾時／未就緒）的提示：不謊報未登入。"
+  },
+  "devicesRetryAction": "Retry",
+  "@devicesRetryAction": {
+    "description": "載入失敗後的重試按鈕。"
+  },
+  "devicesEmptyNotice": "No other devices are signed in right now.",
+  "@devicesEmptyNotice": {
+    "description": "清單為空（理論上當前裝置總在列，這是防禦性的一句）。"
+  },
+  "devicesCurrentBadge": "This device",
+  "@devicesCurrentBadge": {
+    "description": "標記當前請求所用那一臺的徽章文字。"
+  },
+  "devicesCreatedLabel": "Signed in",
+  "@devicesCreatedLabel": {
+    "description": "裝置建立時刻欄位標籤。"
+  },
+  "devicesLastActiveLabel": "Last active",
+  "@devicesLastActiveLabel": {
+    "description": "裝置最近活動時刻欄位標籤。"
+  },
+  "deviceStatusLabel": "Status",
+  "@deviceStatusLabel": {
+    "description": "裝置狀態欄位標籤。"
+  },
+  "deviceStatusActive": "Active",
+  "@deviceStatusActive": {
+    "description": "狀態 active 的顯示文字。"
+  },
+  "deviceStatusExpired": "Expired",
+  "@deviceStatusExpired": {
+    "description": "狀態 expired 的顯示文字。"
+  },
+  "deviceStatusRevoked": "Revoked",
+  "@deviceStatusRevoked": {
+    "description": "狀態 revoked 的顯示文字。"
+  },
+  "devicesRevokeAction": "Revoke",
+  "@devicesRevokeAction": {
+    "description": "非當前裝置那一列的撤銷按鈕文字。"
+  },
+  "devicesRevokeCurrentAction": "Sign out this device",
+  "@devicesRevokeCurrentAction": {
+    "description": "當前裝置那一列的撤銷按鈕文字：撤它等同在本機登出。"
+  },
+  "devicesRevokeConfirmTitle": "Revoke device",
+  "@devicesRevokeConfirmTitle": {
+    "description": "撤銷確認對話框標題。"
+  },
+  "devicesRevokeConfirmBody": "Revoke device {device}? Its session will stop working on the server immediately and cannot be restored.",
+  "@devicesRevokeConfirmBody": {
+    "description": "撤銷確認正文：點名目標裝置並說明立即失效、不可逆。",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesRevokeCurrentWarning": "This is the device you are using right now — revoking it signs you out here.",
+  "@devicesRevokeCurrentWarning": {
+    "description": "撤銷當前裝置時的額外警告行。"
+  },
+  "devicesRevokeConfirmAction": "Revoke",
+  "@devicesRevokeConfirmAction": {
+    "description": "確認撤銷按鈕。"
+  },
+  "devicesRevokeCancelAction": "Cancel",
+  "@devicesRevokeCancelAction": {
+    "description": "取消撤銷按鈕。"
+  },
+  "devicesRevokeSuccessNotice": "The device was revoked and its session is no longer valid.",
+  "@devicesRevokeSuccessNotice": {
+    "description": "撤銷別臺成功的提示。"
+  },
+  "devicesRevokeCurrentSuccessNotice": "You have signed out of this device.",
+  "@devicesRevokeCurrentSuccessNotice": {
+    "description": "撤銷當前裝置（即本機登出）後的提示。"
+  },
+  "devicesRevokeAlreadyInactiveNotice": "That device was already inactive.",
+  "@devicesRevokeAlreadyInactiveNotice": {
+    "description": "冪等撤銷（目標早已失效）的提示：不是錯誤。"
+  },
+  "devicesRevokeStaleNotice": "That device is no longer in your list, so it was refreshed.",
+  "@devicesRevokeStaleNotice": {
+    "description": "目標不在本人範圍（2009／列表陳舊）的提示：已刷新清單。"
+  },
+  "devicesRevokeUnavailableNotice": "The revocation could not be confirmed: the server is unreachable. The device was not signed out.",
+  "@devicesRevokeUnavailableNotice": {
+    "description": "撤銷因連不上／逾時而未確認：不謊報已撤銷。"
   }
 }

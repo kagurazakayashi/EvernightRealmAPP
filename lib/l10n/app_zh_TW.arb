@@ -588,5 +588,114 @@
   "sessionGateRootRequiredHint": "Root 控制台要求經伺服器確認的 Root 主體。目前會話不是 Root，這一頁保持關閉。",
   "@sessionGateRootRequiredHint": {
     "description": "Root 控制台要求 Root 主體：非 Root 會話保持關閉。"
+  },
+  "errorCodeDeviceNotFound": "該裝置已不在你的登入裝置中，可能已被移除，或清單在重新整理前已過期，請重新整理後重試。",
+  "@errorCodeDeviceNotFound": {
+    "description": "機器碼 2009：定向撤銷的目標不在本人會話範圍內（不存在／已被清理／屬於他人，後端三者同形）。處置是重新整理清單。"
+  },
+  "sessionDevicesAction": "我的裝置",
+  "@sessionDevicesAction": {
+    "description": "已登入態的「我的裝置」按鈕文字：開啟僅管理本人會話的裝置清單。"
+  },
+  "devicesDialogTitle": "我的裝置",
+  "@devicesDialogTitle": {
+    "description": "裝置清單對話框標題。"
+  },
+  "devicesLoadingHint": "正在載入你的裝置…",
+  "@devicesLoadingHint": {
+    "description": "清單載入中的中性提示。"
+  },
+  "devicesLoadFailedNotice": "暫時無法載入裝置清單，請檢查連線後重試。",
+  "@devicesLoadFailedNotice": {
+    "description": "列舉裝置時「查不了」（連不上／逾時／未就緒）的提示：不謊報未登入。"
+  },
+  "devicesRetryAction": "重試",
+  "@devicesRetryAction": {
+    "description": "載入失敗後的重試按鈕。"
+  },
+  "devicesEmptyNotice": "目前沒有其他裝置處於登入狀態。",
+  "@devicesEmptyNotice": {
+    "description": "清單為空（理論上當前裝置總在列，這是防禦性的一句）。"
+  },
+  "devicesCurrentBadge": "目前裝置",
+  "@devicesCurrentBadge": {
+    "description": "標記當前請求所用那一臺的徽章文字。"
+  },
+  "devicesCreatedLabel": "登入於",
+  "@devicesCreatedLabel": {
+    "description": "裝置建立時刻欄位標籤。"
+  },
+  "devicesLastActiveLabel": "最近活動",
+  "@devicesLastActiveLabel": {
+    "description": "裝置最近活動時刻欄位標籤。"
+  },
+  "deviceStatusLabel": "狀態",
+  "@deviceStatusLabel": {
+    "description": "裝置狀態欄位標籤。"
+  },
+  "deviceStatusActive": "線上",
+  "@deviceStatusActive": {
+    "description": "狀態 active 的顯示文字。"
+  },
+  "deviceStatusExpired": "已到期",
+  "@deviceStatusExpired": {
+    "description": "狀態 expired 的顯示文字。"
+  },
+  "deviceStatusRevoked": "已撤銷",
+  "@deviceStatusRevoked": {
+    "description": "狀態 revoked 的顯示文字。"
+  },
+  "devicesRevokeAction": "撤銷",
+  "@devicesRevokeAction": {
+    "description": "非當前裝置那一列的撤銷按鈕文字。"
+  },
+  "devicesRevokeCurrentAction": "登出此裝置",
+  "@devicesRevokeCurrentAction": {
+    "description": "當前裝置那一列的撤銷按鈕文字：撤它等同在本機登出。"
+  },
+  "devicesRevokeConfirmTitle": "撤銷裝置",
+  "@devicesRevokeConfirmTitle": {
+    "description": "撤銷確認對話框標題。"
+  },
+  "devicesRevokeConfirmBody": "確定撤銷裝置 {device} 嗎？它的會話會立即在伺服器端停止工作且無法復原。",
+  "@devicesRevokeConfirmBody": {
+    "description": "撤銷確認正文：點名目標裝置並說明立即失效、不可逆。",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesRevokeCurrentWarning": "這是你正在使用的裝置——撤銷它會在本機登出。",
+  "@devicesRevokeCurrentWarning": {
+    "description": "撤銷當前裝置時的額外警告行。"
+  },
+  "devicesRevokeConfirmAction": "撤銷",
+  "@devicesRevokeConfirmAction": {
+    "description": "確認撤銷按鈕。"
+  },
+  "devicesRevokeCancelAction": "取消",
+  "@devicesRevokeCancelAction": {
+    "description": "取消撤銷按鈕。"
+  },
+  "devicesRevokeSuccessNotice": "該裝置已撤銷，其會話不再有效。",
+  "@devicesRevokeSuccessNotice": {
+    "description": "撤銷別臺成功的提示。"
+  },
+  "devicesRevokeCurrentSuccessNotice": "你已在此裝置登出。",
+  "@devicesRevokeCurrentSuccessNotice": {
+    "description": "撤銷當前裝置（即本機登出）後的提示。"
+  },
+  "devicesRevokeAlreadyInactiveNotice": "該裝置此前已失效。",
+  "@devicesRevokeAlreadyInactiveNotice": {
+    "description": "冪等撤銷（目標早已失效）的提示：不是錯誤。"
+  },
+  "devicesRevokeStaleNotice": "該裝置已不在你的清單中，已重新整理。",
+  "@devicesRevokeStaleNotice": {
+    "description": "目標不在本人範圍（2009／列表陳舊）的提示：已刷新清單。"
+  },
+  "devicesRevokeUnavailableNotice": "撤銷未能確認：伺服器不可達，該裝置未被登出。",
+  "@devicesRevokeUnavailableNotice": {
+    "description": "撤銷因連不上／逾時而未確認：不謊報已撤銷。"
   }
 }

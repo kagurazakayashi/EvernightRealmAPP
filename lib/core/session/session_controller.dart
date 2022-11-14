@@ -103,6 +103,64 @@ enum SessionSignOutOutcome {
   serverUnconfirmed,
 }
 
+/// 一次「我的裝置」列舉的處置結果，讓界面決定畫清單還是畫那一句提示。
+enum SessionDeviceListOutcome {
+  /// 取回了清單（可能為空清單，空本身就是一個答案）。
+  loaded,
+
+  /// 當前憑據已失效（2003／2002）：本層已清理並改狀態，界面應引導重新登入。
+  expired,
+
+  /// 查不了（連不上、逾時、未就緒）：保留既有狀態，界面給「暫時無法載入」。
+  unavailable,
+
+  /// 根本沒有已登入的會話可列（未綁定，或原生端手上沒有憑據）：不發請求。
+  notSignedIn,
+}
+
+/// 一次「我的裝置」列舉的結果：處置結論加上（僅 loaded 時有意義的）清單。
+class SessionDeviceListResult {
+  /// 以處置結論與可選清單建立。
+  const SessionDeviceListResult(
+    this.outcome, {
+    this.devices = const <DeviceReport>[],
+  });
+
+  /// 處置結論。
+  final SessionDeviceListOutcome outcome;
+
+  /// 裝置清單；僅 [SessionDeviceListOutcome.loaded] 時為伺服器給的內容。
+  final List<DeviceReport> devices;
+}
+
+/// 一次定向撤銷裝置的處置結果。
+///
+/// 分成多種而不只回成功／失敗：「撤了別臺」「撤了自己這臺」「目標早已不在（列表陳舊）」
+/// 「自己這枚憑據已失效」「查不了」對使用者的下一步完全不同，混在一起就會出現
+/// 撤了自己卻停在登入態、或列表陳舊卻谎報已撤銷這類錯法。
+enum SessionDeviceRevokeOutcome {
+  /// 已撤銷別的一臺：目標原本有效、現已失效，本會話不受影響。
+  revoked,
+
+  /// 已撤銷自己這一臺：本層已進入退出態（等同登出）。
+  revokedCurrent,
+
+  /// 目標本就已是失效態：冪等 no-op，不是錯誤，但也沒有「新撤掉一臺」可報告。
+  alreadyInactive,
+
+  /// 目標不在本人範圍內（2009）：清單已陳舊，界面應提示重新整理。
+  staleList,
+
+  /// 當前憑據已失效（2003／2002）：本層已清理並改狀態，界面引導重新登入。
+  expired,
+
+  /// 查不了（連不上、逾時、未就緒）：不能宣稱撤銷成功，也不能宣稱已登出。
+  unavailable,
+
+  /// 沒有已登入的會話可撤：不發請求。
+  notSignedIn,
+}
+
 /// 已登入會話的可展示事实（不含任何秘密）。
 ///
 /// 欄位全部取自伺服器權威回應，與 [LoginReport]／[CurrentSessionReport] 的合同一致；
@@ -603,6 +661,145 @@ class SessionController extends ChangeNotifier {
         _status = SessionStatus.unknown;
         notifyListeners();
         return SessionRotationOutcome.unconfirmed;
+    }
+  }
+
+  /// 列舉「我的裝置」：只讀地取回當前主體名下的會話清單。
+  ///
+  /// 界線全部沿用既有那一份：查詢範圍由後端按解析出的受信主體決定，本層不傳任何
+  /// device_id／account_id——客戶端連「列誰的裝置」都說不了，更別說列別人的。
+  /// 終態的認證失敗（2003 已失效、2002 未登入）與 [_verify] 同一口徑收斂：清憑據、
+  /// 改狀態、並回報 [SessionDeviceListOutcome.expired]；連不上／逾時這類「查不了」則
+  /// 停在 [SessionDeviceListOutcome.unavailable]，不謊報未登入。
+  Future<SessionDeviceListResult> listMyDevices({
+    String? acceptLanguage,
+  }) async {
+    final ServerAddress? server = _bound;
+    final bool hasCredential =
+        _mode == SessionTransportMode.web || _secret != null;
+    if (!isSignedIn || server == null || !hasCredential) {
+      return const SessionDeviceListResult(
+        SessionDeviceListOutcome.notSignedIn,
+      );
+    }
+    final int generation = _generation;
+    try {
+      final DeviceListReport report = await _api.devices(
+        acceptLanguage: acceptLanguage,
+      );
+      if (generation != _generation) {
+        // 讀取期間發生登出／變址：這份清單描述的是上一代上下文，整份丟棄。
+        return const SessionDeviceListResult(
+          SessionDeviceListOutcome.notSignedIn,
+        );
+      }
+      return SessionDeviceListResult(
+        SessionDeviceListOutcome.loaded,
+        devices: report.devices,
+      );
+    } on ApiError catch (error) {
+      final bool terminal = await _applyDeviceAuthFailure(
+        server,
+        error,
+        generation,
+      );
+      return SessionDeviceListResult(
+        terminal
+            ? SessionDeviceListOutcome.expired
+            : SessionDeviceListOutcome.unavailable,
+      );
+    }
+  }
+
+  /// 撤銷「我的裝置」裡的某一個 device_id。
+  ///
+  /// 三條關鍵界線：
+  /// * 撤的是自己這臺（報告 current=true）：那枚會話已在伺服器端失效，本層按登出
+  ///   同一形態清理記憶體、（原生）刪除安全儲存、置為 [SessionStatus.signedOut]，
+  ///   並回 [SessionDeviceRevokeOutcome.revokedCurrent]——界面據此進入退出態。
+  /// * 目標不在本人範圍內（2009）：清單已陳舊，回 [SessionDeviceRevokeOutcome.staleList]，
+  ///   不動任何憑據，也不洩露「它是否存在於別人名下」。
+  /// * 當前會話自己在這一刻已失效（2003／2002）：與驗證失敗同一收斂，回 expired。
+  ///
+  /// 本方法不拋異常：伺服器與儲存層的結果一律收進回傳的 [SessionDeviceRevokeOutcome]。
+  Future<SessionDeviceRevokeOutcome> revokeMyDevice(
+    String deviceId, {
+    String? acceptLanguage,
+  }) async {
+    final ServerAddress? server = _bound;
+    final bool hasCredential =
+        _mode == SessionTransportMode.web || _secret != null;
+    if (!isSignedIn || server == null || !hasCredential) {
+      return SessionDeviceRevokeOutcome.notSignedIn;
+    }
+    final int generation = _generation;
+    DeviceRevokeReport report;
+    try {
+      report = await _api.revokeDevice(
+        deviceId: deviceId,
+        acceptLanguage: acceptLanguage,
+      );
+    } on ApiError catch (error) {
+      if (error.knownCode == ApiMachineCode.deviceNotFound) {
+        // 目標已不在本人的有效清單裡（列表陳舊）：不動憑據，只回一句真實提示。
+        return SessionDeviceRevokeOutcome.staleList;
+      }
+      final bool terminal = await _applyDeviceAuthFailure(
+        server,
+        error,
+        generation,
+      );
+      return terminal
+          ? SessionDeviceRevokeOutcome.expired
+          : SessionDeviceRevokeOutcome.unavailable;
+    }
+
+    if (report.current) {
+      // 撤的是自己這臺：與 signOut 同一形態落本地退出態（世代先推進，丟棄在途驗證）。
+      _generation++;
+      _clearLocalSession();
+      _status = SessionStatus.signedOut;
+      if (_mode == SessionTransportMode.native) {
+        await _clearPersisted(server.displayText);
+      }
+      notifyListeners();
+      return SessionDeviceRevokeOutcome.revokedCurrent;
+    }
+    return report.revoked
+        ? SessionDeviceRevokeOutcome.revoked
+        : SessionDeviceRevokeOutcome.alreadyInactive;
+  }
+
+  /// 把裝置端點遇到的認證失敗按 [_handleVerifyFailure] 同一口徑收斂；回報是否為終態。
+  ///
+  /// 只有 [ApiMachineCode.sessionInvalid]／[ApiMachineCode.notAuthenticated] 才是
+  /// 「這枚憑據換不出身份」的確定終態（清本地、改狀態）；其餘（連不上、逾時、
+  /// 未就緒……）一律「查不了」，回 false 讓呼叫端停在不可用，不把「查不了」當成「沒登入」。
+  Future<bool> _applyDeviceAuthFailure(
+    ServerAddress server,
+    ApiError error,
+    int generation,
+  ) async {
+    switch (error.knownCode) {
+      case ApiMachineCode.sessionInvalid:
+        await _clearPersisted(server.displayText);
+        if (generation != _generation) {
+          return true; // 已被更新的登出／變址接管，不再回寫。
+        }
+        _clearLocalSession();
+        _status = SessionStatus.expired;
+        notifyListeners();
+        return true;
+      case ApiMachineCode.notAuthenticated:
+        if (generation != _generation) {
+          return true;
+        }
+        _clearLocalSession();
+        _status = SessionStatus.signedOut;
+        notifyListeners();
+        return true;
+      default:
+        return false;
     }
   }
 

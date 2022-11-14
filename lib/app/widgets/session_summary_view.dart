@@ -24,6 +24,7 @@ import '../app_dependencies.dart';
 import '../app_router.dart';
 import '../nav_context.dart';
 import '../session_scope.dart';
+import 'device_manager_view.dart';
 
 /// 入口層的會話摘要卡。
 class SessionSummaryView extends StatefulWidget {
@@ -50,6 +51,9 @@ class SessionSummaryView extends StatefulWidget {
 
   /// 「輪換會話秘密」按鈕的測試識別鍵。
   static const Key rotateKey = ValueKey<String>('session-rotate');
+
+  /// 「我的裝置」按鈕的測試識別鍵。
+  static const Key deviceManagerKey = ValueKey<String>('session-devices');
 
   /// 本機儲存異常說明的測試識別鍵。
   static const Key storageNoteKey = ValueKey<String>('session-storage-note');
@@ -393,6 +397,17 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
           spacing: 10,
           runSpacing: 8,
           children: [
+            // 「我的裝置」：管理本人名下的會話清單。它是一个只對已登入主體開放的
+            // 入口（同 Root 控制台一樣，放行判定在後端與會話層，這裡只導航）；
+            // 面板內部再依伺服器給的 current 標記當前裝置，並把撤銷當前裝置導向退出態。
+            SizedBox(
+              height: 40,
+              child: OutlinedButton(
+                key: SessionSummaryView.deviceManagerKey,
+                onPressed: () => showMyDevicesDialog(context, session),
+                child: Text(l10n.sessionDevicesAction),
+              ),
+            ),
             SizedBox(
               height: 40,
               child: OutlinedButton(

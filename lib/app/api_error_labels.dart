@@ -31,6 +31,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.loginThrottled => l10n.errorCodeLoginThrottled,
       ApiMachineCode.sessionStale => l10n.errorCodeSessionStale,
       ApiMachineCode.deviceLimitReached => l10n.errorCodeDeviceLimitReached,
+      ApiMachineCode.deviceNotFound => l10n.errorCodeDeviceNotFound,
     };
   }
 
