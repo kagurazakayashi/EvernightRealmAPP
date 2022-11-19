@@ -103,7 +103,14 @@ enum ApiMachineCode {
   /// 它不屬於 [retryable]：對同一枚已不在的裝置再點一次撤銷不會讓它回來，正確的處置是
   /// 重新整理清單。它也刻意不洩露「這個 device_id 是否存在於別人名下」，因此介面只能
   /// 給一句「這臺已不在你的清單中，請重新整理」，不帶任何存在性暗示。
-  deviceNotFound(2009);
+  deviceNotFound(2009),
+
+  /// 2010：該帳戶帶有「首次登入必須改密」旗標，此端點不在改密必要入口之內。
+  ///
+  /// 處置是「先完成改密或登出」，與 [sessionInvalid]（該重新登入）、
+  /// [invalidBody]（該改表單）都不同：憑據有效、輸入也無辜，缺的是完成那項義務。
+  /// 它不屬於 [retryable]——對著同一個旗標重試不會讓它自己變好。
+  passwordChangeRequired(2010);
 
   /// 以對外發布的數值建立錯誤碼。
   const ApiMachineCode(this.value);

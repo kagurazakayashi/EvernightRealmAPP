@@ -46,6 +46,22 @@ bool _requireBool(Map<String, Object?> json, String field) {
   return value;
 }
 
+/// 讀取「只增不刪」合同後來補上的布林欄位：缺席視為 false，出現但型別不合仍判失敗。
+///
+/// 缺席與 false 對呼叫端意味著同一句話（「沒有這項義務／狀態」），所以缺欄不該把
+/// 一份 otherwise 合格的回應打成失敗——那是對舊服務器的不兼容；但帶了壞型別的值
+/// 就是合同違例，不能猜：猜錯的方向可能是把「必須改密」讀成「不用改」。
+bool _optionalBool(Map<String, Object?> json, String field) {
+  final Object? value = json[field];
+  if (value == null) {
+    return false;
+  }
+  if (value is! bool) {
+    throw ApiResponseShapeException('欄位 $field 不是布林');
+  }
+  return value;
+}
+
 /// 嚴格讀取 UTC 時間戳欄位。
 ///
 /// 只接受帶 `Z` 或明確偏移的 RFC3339 寫法，並正規化為 UTC。沒有時區標記的
@@ -298,6 +314,7 @@ class LoginReport {
     required this.deviceId,
     required this.expiresAt,
     required this.requestId,
+    this.mustChangePassword = false,
   });
 
   /// 從登入回應的 JSON 建立結果。
@@ -309,6 +326,7 @@ class LoginReport {
       deviceId: _requireText(json, 'device_id'),
       expiresAt: _requireUtcTime(json, 'expires_at'),
       requestId: _requireText(json, 'request_id'),
+      mustChangePassword: _optionalBool(json, 'must_change_password'),
     );
   }
 
@@ -323,6 +341,10 @@ class LoginReport {
 
   /// 會話到期時刻（UTC，取自伺服器）。
   final DateTime expiresAt;
+
+  /// 「首次登入必須改密」旗標：登入已被放行，但受保護功能在服務端被 2010 擋著，
+  /// 界面據此主動把人帶進改密流程。合同以只增不刪補上此欄，缺席即 false。
+  final bool mustChangePassword;
 
   /// 本次請求的關聯 ID。
   final String requestId;
@@ -343,6 +365,7 @@ class CurrentSessionReport {
     required this.lastActiveAt,
     required this.expiresAt,
     required this.requestId,
+    this.mustChangePassword = false,
   });
 
   /// 從 `/auth/session` 的 JSON 回應建立報告。
@@ -357,6 +380,7 @@ class CurrentSessionReport {
       lastActiveAt: _requireUtcTime(json, 'last_active_at'),
       expiresAt: _requireUtcTime(json, 'expires_at'),
       requestId: _requireText(json, 'request_id'),
+      mustChangePassword: _optionalBool(json, 'must_change_password'),
     );
   }
 
@@ -385,11 +409,42 @@ class CurrentSessionReport {
   /// 會話到期時刻（UTC）。
   final DateTime expiresAt;
 
+  /// 「首次登入必須改密」旗標的現讀值：本端點永遠可讀（它就是得知欠改的入口），
+  /// 改密成功後的下一次刷新即轉為 false，界面據此解除強制態。
+  final bool mustChangePassword;
+
   /// 本次請求的關聯 ID。
   final String requestId;
 
   /// 是否為 Root 主體的會話。
   bool get isRoot => subjectKind == AuthSubjectKind.root;
+}
+
+/// `POST /auth/password/change` 的成功回應：一次本人改密的結果。
+///
+/// 與登入／輪換回應同一套缺席規則——不含任何口令或憑據欄位。[revokedSessions]
+/// 是本人名下被撤銷的會話數（含發起這一次的裝置）：改密成功即全部退出，
+/// 呼叫端據此進入退出態並講出「已讓 N 臺裝置重新登入」。
+class PasswordChangeReport {
+  /// 以已驗證的欄位建立改密結果。
+  const PasswordChangeReport({
+    required this.revokedSessions,
+    required this.requestId,
+  });
+
+  /// 從改密回應的 JSON 建立結果。
+  static PasswordChangeReport decode(Map<String, Object?> json) {
+    return PasswordChangeReport(
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本次改密撤銷掉的會話數量（含發起這一次的裝置）。
+  final int revokedSessions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
 }
 
 /// `POST /auth/session/rotate` 的成功回應：換發後那一代的事實。

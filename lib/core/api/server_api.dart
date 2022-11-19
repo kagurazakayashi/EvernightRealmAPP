@@ -47,6 +47,10 @@ const String kAuthDevicesPath = '/auth/devices';
 /// 定向撤銷某一臺裝置的端點路徑（有副作用：撤的是當前主體名下、由 device_id 指向的會話）。
 const String kAuthDeviceRevokePath = '/auth/devices/revoke';
 
+/// 本人改密端點路徑（有副作用：更換自己的口令並讓名下全部會話退出；
+/// 請求本體只有現行口令與新口令，沒有任何欄位可以指定「改誰」）。
+const String kAuthPasswordChangePath = '/auth/password/change';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -284,6 +288,30 @@ class ServerApi {
       kAuthDeviceRevokePath,
       jsonBody: <String, Object?>{'device_id': deviceId},
       decode: DeviceRevokeReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 本人改密：POST `/auth/password/change`，只準帶現行口令與新口令。
+  ///
+  /// 憑據的攜帶與 [logout] 同一條路（Web 由 HttpOnly Cookie 自動附帶、原生由傳輸層
+  /// 按請求身份注入 Bearer），因此本方法沒有 `bearerToken` 引數；再認證靠的是
+  /// `currentPassword` 本身——「會話還活著」從來不是改密的授權，客戶端也沒辦法
+  /// 自報「已經驗證過」。現行口令不對回 2001（不撤任何東西、會話仍有效）；
+  /// 新口令等於現行或不合形狀回 1004；成功回 200＋被撤銷的會話數。
+  /// 兩個口令都只在這一次調用裡存在：呼叫端不得把它們存進任何狀態或緩存。
+  Future<PasswordChangeReport> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<PasswordChangeReport>(
+      kAuthPasswordChangePath,
+      jsonBody: <String, Object?>{
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      },
+      decode: PasswordChangeReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

@@ -698,4 +698,69 @@
   "@devicesRevokeUnavailableNotice": {
     "description": "撤銷因連不上／逾時而未確認：不謊報已撤銷。"
   }
+,
+  "sessionPasswordChangeAction": "更改密码",
+  "@sessionPasswordChangeAction": {
+    "description": "已登入卡片的改密入口按钮：本人与 Root 都走同一条改密通路。"
+  },
+  "passwordChangeRequiredNotice": "此账号尚未完成首次登录要求的密码修改：完成改密或退出登录之前，其他功能会被服务器拒绝。",
+  "@passwordChangeRequiredNotice": {
+    "description": "强制改密态的说明行：把「服务器端的门」讲成人话，不伪装成功能都还能用。"
+  },
+  "passwordChangeDialogTitle": "更改密码",
+  "@passwordChangeDialogTitle": {
+    "description": "改密对话框标题。"
+  },
+  "passwordChangeCurrentLabel": "当前密码",
+  "@passwordChangeCurrentLabel": {
+    "description": "再认证输入框：现行口令是改密的授权本身。"
+  },
+  "passwordChangeNewLabel": "新密码",
+  "@passwordChangeNewLabel": {
+    "description": "新口令输入框。"
+  },
+  "passwordChangeConfirmLabel": "确认新密码",
+  "@passwordChangeConfirmLabel": {
+    "description": "新口令确认输入框：本地比对，不一致不发请求。"
+  },
+  "passwordChangeSubmitAction": "确认更改",
+  "@passwordChangeSubmitAction": {
+    "description": "提交改密的按钮文字。"
+  },
+  "passwordChangeMismatchNotice": "两次输入的新密码不一致，未发送任何请求。",
+  "@passwordChangeMismatchNotice": {
+    "description": "本地确认不一致的提示：挡在发请求之前。"
+  },
+  "passwordChangeIncompleteNotice": "请把三个密码栏都填写完整。",
+  "@passwordChangeIncompleteNotice": {
+    "description": "本地空栏校验的提示。"
+  },
+  "passwordChangeSuccessSignedOutNotice": "密码已修改，你名下的全部会话（含这台设备）已退出，请用新密码重新登录。",
+  "@passwordChangeSuccessSignedOutNotice": {
+    "description": "改密成功后的真实交代：全部退出是已批准策略，不含混。"
+  },
+  "passwordChangeInvalidCurrentNotice": "当前密码不正确。什么都没改动，你仍处于登录状态。",
+  "@passwordChangeInvalidCurrentNotice": {
+    "description": "2001 的处置句：与「该重新登录」严格分开。"
+  },
+  "passwordChangeSameNotice": "新密码与当前密码相同，这次修改没有成立。请换一个。",
+  "@passwordChangeSameNotice": {
+    "description": "同口令拒绝的提示：换了等于没换不能被说成成功。"
+  },
+  "passwordChangeInvalidNewNotice": "新密码不满足形状要求（不能为空或过长）。",
+  "@passwordChangeInvalidNewNotice": {
+    "description": "新口令形状问题的提示：沿用后端凭据模块的界线。"
+  },
+  "passwordChangeExpiredNotice": "这次登录已失效，无法改密。请重新登录。",
+  "@passwordChangeExpiredNotice": {
+    "description": "尝试期间凭据失效（2003/2002）的提示。"
+  },
+  "passwordChangeUnavailableNotice": "连不上服务器，无法确认密码是否已修改；登录状态保持不变。",
+  "@passwordChangeUnavailableNotice": {
+    "description": "结果不明的一支：不谎报改密成功，也不谎报登出。"
+  },
+  "errorCodePasswordChangeRequired": "此账号必须先完成密码修改或退出登录，才能使用其他功能。",
+  "@errorCodePasswordChangeRequired": {
+    "description": "机器码 2010 的接口文案（与后端 locale.go 同一语义）。"
+  }
 }

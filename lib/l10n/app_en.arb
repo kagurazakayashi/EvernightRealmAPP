@@ -786,4 +786,69 @@
   "@devicesRevokeUnavailableNotice": {
     "description": "撤銷因連不上／逾時而未確認：不謊報已撤銷。"
   }
+,
+  "sessionPasswordChangeAction": "Change password",
+  "@sessionPasswordChangeAction": {
+    "description": "已登入卡片的改密入口按钮：本人与 Root 都走同一条改密通路。"
+  },
+  "passwordChangeRequiredNotice": "This account has not finished the password change required at first sign-in. Other features are refused by the server until you change it or sign out.",
+  "@passwordChangeRequiredNotice": {
+    "description": "强制改密态的说明行：把「服务器端的门」讲成人话，不伪装成功能都还能用。"
+  },
+  "passwordChangeDialogTitle": "Change password",
+  "@passwordChangeDialogTitle": {
+    "description": "改密对话框标题。"
+  },
+  "passwordChangeCurrentLabel": "Current password",
+  "@passwordChangeCurrentLabel": {
+    "description": "再认证输入框：现行口令是改密的授权本身。"
+  },
+  "passwordChangeNewLabel": "New password",
+  "@passwordChangeNewLabel": {
+    "description": "新口令输入框。"
+  },
+  "passwordChangeConfirmLabel": "Confirm new password",
+  "@passwordChangeConfirmLabel": {
+    "description": "新口令确认输入框：本地比对，不一致不发请求。"
+  },
+  "passwordChangeSubmitAction": "Change it",
+  "@passwordChangeSubmitAction": {
+    "description": "提交改密的按钮文字。"
+  },
+  "passwordChangeMismatchNotice": "The two new-password entries do not match; nothing was sent.",
+  "@passwordChangeMismatchNotice": {
+    "description": "本地确认不一致的提示：挡在发请求之前。"
+  },
+  "passwordChangeIncompleteNotice": "Please fill in all three password fields.",
+  "@passwordChangeIncompleteNotice": {
+    "description": "本地空栏校验的提示。"
+  },
+  "passwordChangeSuccessSignedOutNotice": "Password changed. All of your sessions, including this device, have signed out. Please sign in again with the new password.",
+  "@passwordChangeSuccessSignedOutNotice": {
+    "description": "改密成功后的真实交代：全部退出是已批准策略，不含混。"
+  },
+  "passwordChangeInvalidCurrentNotice": "Current password is incorrect. Nothing changed and you remain signed in.",
+  "@passwordChangeInvalidCurrentNotice": {
+    "description": "2001 的处置句：与「该重新登录」严格分开。"
+  },
+  "passwordChangeSameNotice": "The new password equals the current one, so this change did not go through. Please choose another.",
+  "@passwordChangeSameNotice": {
+    "description": "同口令拒绝的提示：换了等于没换不能被说成成功。"
+  },
+  "passwordChangeInvalidNewNotice": "The new password does not meet the shape limits (empty or too long).",
+  "@passwordChangeInvalidNewNotice": {
+    "description": "新口令形状问题的提示：沿用后端凭据模块的界线。"
+  },
+  "passwordChangeExpiredNotice": "This sign-in is no longer valid, so the password cannot be changed. Please sign in again.",
+  "@passwordChangeExpiredNotice": {
+    "description": "尝试期间凭据失效（2003/2002）的提示。"
+  },
+  "passwordChangeUnavailableNotice": "The server could not be reached, so it is unknown whether the password changed; your sign-in state is unchanged.",
+  "@passwordChangeUnavailableNotice": {
+    "description": "结果不明的一支：不谎报改密成功，也不谎报登出。"
+  },
+  "errorCodePasswordChangeRequired": "This account must change its password or sign out before other features are available.",
+  "@errorCodePasswordChangeRequired": {
+    "description": "机器码 2010 的接口文案（与后端 locale.go 同一语义）。"
+  }
 }

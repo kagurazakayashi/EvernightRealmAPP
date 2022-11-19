@@ -161,6 +161,36 @@ enum SessionDeviceRevokeOutcome {
   notSignedIn,
 }
 
+/// 一次本人改密的處置結果，讓界面決定彈哪一句。
+///
+/// 分成多種而不只回成功／失敗：「現行口令打錯」「新口令等於現行」「新口令不合形狀」
+/// 「自己這枚會話早已失效」「查不了」對使用者的下一步完全不同；尤其成功那一支，
+/// 按已批準策略名下全部會話（含這一臺）都已退出，界面必須進入退出態而不是停留在
+/// 「已登入但假裝什麼都沒發生」。
+enum SessionPasswordChangeOutcome {
+  /// 已改密：伺服器已換發憑據並撤銷本人全部會話，本層已進入退出態（等同登出）。
+  changed,
+
+  /// 現行口令不對（2001）：什麼都沒有發生，會話仍有效，處置是再想一次口令。
+  invalidCurrent,
+
+  /// 新口令與現行相同（1004＋same_as_current）：換了等於沒換，這次操作不成立。
+  samePassword,
+
+  /// 新口令不滿足形狀界線（1004）：空或過長，屬表單輸入問題。
+  invalidNew,
+
+  /// 當前憑據已失效（2003／2002）：本層已清理並改狀態，界面引導重新登入。
+  expired,
+
+  /// 查不了（連不上、逾時、未就緒、500）：不能宣稱改密成功，也不能宣稱已登出。
+  /// Root 部署形態不接受覆寫（後端 500）也落在這一支：那是要有人動部署，不是重試能好的事。
+  unavailable,
+
+  /// 沒有已登入的會話可改：不發請求。
+  notSignedIn,
+}
+
 /// 已登入會話的可展示事实（不含任何秘密）。
 ///
 /// 欄位全部取自伺服器權威回應，與 [LoginReport]／[CurrentSessionReport] 的合同一致；
@@ -172,6 +202,7 @@ class ActiveSession {
     required this.accountId,
     required this.deviceId,
     required this.expiresAt,
+    this.mustChangePassword = false,
   });
 
   /// 由登入回應建立。
@@ -181,6 +212,7 @@ class ActiveSession {
         accountId: report.accountId,
         deviceId: report.deviceId,
         expiresAt: report.expiresAt,
+        mustChangePassword: report.mustChangePassword,
       );
 
   /// 由「當前會話」回應建立。
@@ -190,12 +222,15 @@ class ActiveSession {
         accountId: report.accountId,
         deviceId: report.deviceId,
         expiresAt: report.expiresAt,
+        mustChangePassword: report.mustChangePassword,
       );
 
   /// 由「輪換」回應建立。
   ///
   /// 輪換不換裝置也不延期，因此這裡拿到的 [deviceId] 與 [expiresAt] 必須與輪換前
-  /// 一致；契約本身已保證這件事，本層只如實採用。
+  /// 一致；契約本身已保證這件事，本層只如實採用。輪換回應不帶旗標欄位，
+  /// 而且「還沒改密就輪換」在服務端本來就被 2010 擋下——能成功輪換的會話
+  /// 必然不欠改密義務，此處收斂為 false 不是猜測，是合同推論。
   ActiveSession.fromRotation(RotationReport report)
     : this(
         subjectKind: report.subjectKind,
@@ -215,6 +250,10 @@ class ActiveSession {
 
   /// 會話到期時刻（UTC，取自伺服器）。
   final DateTime expiresAt;
+
+  /// 「首次登入必須改密」旗標（伺服器現讀事實）：true 時受保護功能在服務端
+  /// 一律 2010，界面只該呈現改密與退出這組必要入口。Root 主體恆為 false。
+  final bool mustChangePassword;
 
   /// 是否為 Root 主體。
   bool get isRoot => subjectKind == AuthSubjectKind.root;
@@ -277,6 +316,12 @@ class SessionController extends ChangeNotifier {
 
   /// 已登入時的主體事实；未登入時為 `null`。
   ActiveSession? get activeSession => _active;
+
+  /// 當前主體是否還欠著「首次登入必須改密」這道義務。
+  ///
+  /// 值來自 `/auth/login` 或 `/auth/session` 的伺服器現讀回應，本層不自創判定；
+  /// 真正的把關在服務端（受保護端點回 2010），這個 getter 只負責讓界面呈現對的通話。
+  bool get mustChangePassword => _active?.mustChangePassword ?? false;
 
   /// 当前會話綁定的伺服器身份（正規化文字）；未綁定時為 `null`。
   String? get boundServerDisplay => _bound?.displayText;
@@ -768,6 +813,82 @@ class SessionController extends ChangeNotifier {
     return report.revoked
         ? SessionDeviceRevokeOutcome.revoked
         : SessionDeviceRevokeOutcome.alreadyInactive;
+  }
+
+  /// 本人改密：換掉自己的口令，並按已批準策略讓名下全部會話退出。
+  ///
+  /// 三條關鍵界線：
+  /// * 成功即退出——連發起這一次的裝置在內，所有會話都已在伺服器端失效；本層按
+  ///   登出同一形態清理記憶體、（原生）刪除安全儲存、置為 [SessionStatus.signedOut]，
+  ///   不存在「改了密還停在登入態」的半套。
+  /// * 失敗各說各句且都不動憑據——2001 是現行口令打錯（會話照舊有效），1004 是
+  ///   新口令本身的問題（等於現行／不合形狀），500／連不上是「查不了」；
+  ///   把任何一種講成「已改密」或「已登出」都是謊報。
+  /// * 兩個口令只經過這一次調用：不落任何狀態、緩存或日誌——控制器不留欄位，
+  ///   [ApiError.toString] 本來也不帶請求本體。
+  ///
+  /// 本方法不拋異常：伺服器結果一律收進回傳的 [SessionPasswordChangeOutcome]，
+  /// 儲存層結果收進 [lastStorageFailure]。
+  Future<SessionPasswordChangeOutcome> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    String? acceptLanguage,
+  }) async {
+    final ServerAddress? server = _bound;
+    final bool hasCredential =
+        _mode == SessionTransportMode.web || _secret != null;
+    if (!isSignedIn || server == null || !hasCredential) {
+      return SessionPasswordChangeOutcome.notSignedIn;
+    }
+    final int generation = _generation;
+    try {
+      await _api.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        acceptLanguage: acceptLanguage,
+      );
+    } on ApiError catch (error) {
+      return _handlePasswordChangeFailure(server, error, generation);
+    }
+
+    // 伺服器事實已成立：本人全部會話（含這一枚）失效。與 revokeMyDevice 撤到
+    // 自己這一臺同一形態落本地退出態（世代先推進，丟棄在途驗證）。
+    _generation++;
+    _clearLocalSession();
+    _status = SessionStatus.signedOut;
+    if (_mode == SessionTransportMode.native) {
+      await _clearPersisted(server.displayText);
+    }
+    notifyListeners();
+    return SessionPasswordChangeOutcome.changed;
+  }
+
+  /// 把一次改密失敗分類；除終態的認證失敗外都不動憑據。
+  Future<SessionPasswordChangeOutcome> _handlePasswordChangeFailure(
+    ServerAddress server,
+    ApiError error,
+    int generation,
+  ) async {
+    switch (error.knownCode) {
+      case ApiMachineCode.invalidCredentials:
+        // 現行口令不對：什麼都沒有發生，會話仍有效——這句必須與「該重新登入」分開講，
+        // 否則人會對著一個還活著的登入態去找登入頁。
+        return SessionPasswordChangeOutcome.invalidCurrent;
+      case ApiMachineCode.invalidBody:
+        // 1004 的兩種由來在這裡分岔：同口令帶 reason=same_as_current，形狀不合沒有。
+        final Object? reason = error.details?['reason'];
+        return reason == 'same_as_current'
+            ? SessionPasswordChangeOutcome.samePassword
+            : SessionPasswordChangeOutcome.invalidNew;
+      case ApiMachineCode.sessionInvalid:
+      case ApiMachineCode.notAuthenticated:
+        // 自己這枚憑據在嘗試期間已換不出身份：與裝置端點同一收斂（清本地、改狀態）。
+        await _applyDeviceAuthFailure(server, error, generation);
+        return SessionPasswordChangeOutcome.expired;
+      default:
+        // 連不上、逾時、500（含 Root 部署不接受覆寫）——結果不可宣稱，保留狀態。
+        return SessionPasswordChangeOutcome.unavailable;
+    }
   }
 
   /// 把裝置端點遇到的認證失敗按 [_handleVerifyFailure] 同一口徑收斂；回報是否為終態。

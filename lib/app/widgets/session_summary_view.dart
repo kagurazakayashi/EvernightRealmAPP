@@ -25,6 +25,7 @@ import '../app_router.dart';
 import '../nav_context.dart';
 import '../session_scope.dart';
 import 'device_manager_view.dart';
+import 'password_change_view.dart';
 
 /// 入口層的會話摘要卡。
 class SessionSummaryView extends StatefulWidget {
@@ -54,6 +55,14 @@ class SessionSummaryView extends StatefulWidget {
 
   /// 「我的裝置」按鈕的測試識別鍵。
   static const Key deviceManagerKey = ValueKey<String>('session-devices');
+
+  /// 「變更密碼」按鈕的測試識別鍵。
+  static const Key passwordChangeKey = ValueKey<String>('session-password');
+
+  /// 強制改密提示行的測試識別鍵。
+  static const Key passwordRequiredKey = ValueKey<String>(
+    'session-password-required',
+  );
 
   /// 本機儲存異常說明的測試識別鍵。
   static const Key storageNoteKey = ValueKey<String>('session-storage-note');
@@ -364,7 +373,10 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
     }
 
     // 入口只依「伺服器確認過的身分」出現；按下去仍要過 SessionGate 的判定。
-    if (AppRouter.identityAllows(NavContext.rootConsole.routeName, active)) {
+    // 欠改密的帳戶例外：受保護功能在服務端本來就被 2010 擋著，這裡不呈現
+    // 一個注定被拒的入口——門在後端，界面只負責不撒謊。
+    if (!session.mustChangePassword &&
+        AppRouter.identityAllows(NavContext.rootConsole.routeName, active)) {
       rows.add(
         Padding(
           padding: const EdgeInsets.only(top: 10),
@@ -382,14 +394,33 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
       );
     }
 
+    // 強制改密態：把伺服器現讀的旗標原樣呈現，並只留「變更密碼」與「登出」
+    // 兩組必要入口。真正的把關在後端（受保護端點回 2010），這裡不呈現
+    // 一個注定被拒的入口，也不把「還欠改密」說成一句可忽略的提示。
+    if (session.mustChangePassword) {
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            l10n.passwordChangeRequiredNotice,
+            key: SessionSummaryView.passwordRequiredKey,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ),
+      );
+    }
+
     // 登出入口：已登入態一律呈現，不區分 Root／帳戶——只要有一份綁定的會話，
     // 就需要一個「讓這一份失效」的出口。進行中停用：連點不會產生第二趟撤銷，
     // 也不會把冪等端點刷成多筆審計寫入。
     // 這一層不寫任何「已登出」的假象：`signOut` 完成前狀態仍是 signedIn，
     // 完成後控制器 notify 讓卡片換成 signedOut 態並由 SnackBar 補上結果那一句。
     //
-    // 輪換按鈕緊鄰登出：它只換憑據，不換裝置也不延期，因此放在同一個「管理這一
-    // 枚會話」的動作區裡；進行中停用並改顯示進行中文案。
+    // 「變更密碼」與輪換緊鄰：改密成功即名下全部會話退出（含這一臺），會話層
+    // 統一收斂為退出態；輪換按鈕只對已還清改密義務的主體呈現（強制態下它在
+    // 後端本來就被 2010 擋下）。進行中各自停用並改顯示進行中文案。
     rows.add(
       Padding(
         padding: const EdgeInsets.only(top: 10),
@@ -400,35 +431,46 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
             // 「我的裝置」：管理本人名下的會話清單。它是一个只對已登入主體開放的
             // 入口（同 Root 控制台一樣，放行判定在後端與會話層，這裡只導航）；
             // 面板內部再依伺服器給的 current 標記當前裝置，並把撤銷當前裝置導向退出態。
+            // 欠改密時不呈現：那條路在服務端會被 2010 擋下。
+            if (!session.mustChangePassword)
+              SizedBox(
+                height: 40,
+                child: OutlinedButton(
+                  key: SessionSummaryView.deviceManagerKey,
+                  onPressed: () => showMyDevicesDialog(context, session),
+                  child: Text(l10n.sessionDevicesAction),
+                ),
+              ),
             SizedBox(
               height: 40,
               child: OutlinedButton(
-                key: SessionSummaryView.deviceManagerKey,
-                onPressed: () => showMyDevicesDialog(context, session),
-                child: Text(l10n.sessionDevicesAction),
+                key: SessionSummaryView.passwordChangeKey,
+                onPressed: () => showChangePasswordDialog(context, session),
+                child: Text(l10n.sessionPasswordChangeAction),
               ),
             ),
-            SizedBox(
-              height: 40,
-              child: OutlinedButton(
-                key: SessionSummaryView.rotateKey,
-                onPressed: _rotating ? null : () => _rotate(session),
-                child: _rotating
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(child: Text(l10n.sessionRotatingAction)),
-                        ],
-                      )
-                    : Text(l10n.sessionRotateAction),
+            if (!session.mustChangePassword)
+              SizedBox(
+                height: 40,
+                child: OutlinedButton(
+                  key: SessionSummaryView.rotateKey,
+                  onPressed: _rotating ? null : () => _rotate(session),
+                  child: _rotating
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(child: Text(l10n.sessionRotatingAction)),
+                          ],
+                        )
+                      : Text(l10n.sessionRotateAction),
+                ),
               ),
-            ),
             SizedBox(
               height: 40,
               child: OutlinedButton(
