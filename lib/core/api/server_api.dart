@@ -51,6 +51,12 @@ const String kAuthDeviceRevokePath = '/auth/devices/revoke';
 /// 請求本體只有現行口令與新口令，沒有任何欄位可以指定「改誰」）。
 const String kAuthPasswordChangePath = '/auth/password/change';
 
+/// Root 開設／核實伺服器級管理員的端點路徑：GET 是最小確認清單，POST 是開設。
+///
+/// 方法由後端分流，路徑只有一條：這裡沒有任何引數可以指定「建成哪一種主體」——
+/// 「建的是管理員」由「打到哪個端點」決定，請求本體裡沒有 role 這個格子。
+const String kRootAdminsPath = '/root/admins';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -312,6 +318,44 @@ class ServerApi {
         'new_password': newPassword,
       },
       decode: PasswordChangeReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 開設一個伺服器級管理員帳戶：POST `/root/admins`。
+  ///
+  /// 只有 Root 的會話能成功：普通帳戶與普通管理員都拿到 2011（不是 2002／2003，
+  /// 也不是任何「再登入一次試試」能繞過的東西）。請求本體只有登入名、顯示名與
+  /// 一次性初始口令三個欄位，沒有任何角色／類型欄位可填，多帶會被後端打成 1004。
+  /// 重複的登入名回 2012，且後端不會因此多出一個帳戶，也不會回顯任何口令。
+  /// 回應本體只有可展示的身分事實——初始口令不進回應，因此呼叫端要把口令
+  /// 交給對方的那條路在應用之外，這裡也沒有保存它的格子。
+  Future<CreatedAdminReport> createAdmin({
+    required String loginName,
+    required String displayName,
+    required String password,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<CreatedAdminReport>(
+      kRootAdminsPath,
+      jsonBody: <String, Object?>{
+        'login_name': loginName,
+        'display_name': displayName,
+        'password': password,
+      },
+      decode: CreatedAdminReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取管理員確認清單：GET `/root/admins`（唯讀，只列後端認定持有角色的帳戶）。
+  ///
+  /// 憑據攜帶與 [currentSession] 同一條路，本方法沒有任何 account_id／搜尋引數：
+  /// 「列誰的清單」由後端按解析出的受信主體決定。失敗一律以 [ApiError] 丟擲。
+  Future<AdminListReport> admins({String? acceptLanguage}) {
+    return apiClient.get(
+      kRootAdminsPath,
+      decode: AdminListReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

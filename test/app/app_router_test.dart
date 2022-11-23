@@ -144,14 +144,39 @@ void main() {
       });
     }
 
-    testWidgets('各上下文如實標明後端尚未實作', (WidgetTester tester) async {
+    // 「如實標明尚未實作」這句話的對象隨 R2-001 縮小：Root 控制台已經接上
+    // 「開設伺服器級管理員」一項，所以它不再整頁佔位；其餘三個上下文仍是佔位頁。
+    // 兩個方向都要釘住——把 Root 控制台也寫成佔位是謊報落後，把管理員端寫成已實作
+    // 是謊報進度，而「不出現範例業務元件」對兩者都還成立。
+    for (final NavContext context in <NavContext>[
+      NavContext.adminConsole,
+      NavContext.npcConsole,
+      NavContext.playerSurface,
+    ]) {
+      testWidgets('${context.routeName} 如實標明後端尚未實作', (
+        WidgetTester tester,
+      ) async {
+        await pumpSignedIn(tester, exchange: accountExchange('acct-1'));
+        navigatorOf(tester).pushNamed(context.routeName);
+        await tester.pumpAndSettle();
+
+        expect(find.text(l10n.notWiredBody), findsOneWidget);
+        expect(find.text(l10n.notWiredHint), findsOneWidget);
+        expect(find.byIcon(Icons.add), findsNothing);
+        expect(find.byType(ListTile), findsNothing);
+      });
+    }
+
+    testWidgets('Root 控制台不再整頁佔位，但仍不擺範例業務元件', (WidgetTester tester) async {
       await pumpSignedIn(tester, exchange: rootExchange());
       navigatorOf(tester).pushNamed(NavContext.rootConsole.routeName);
       await tester.pumpAndSettle();
 
-      expect(find.text(l10n.notWiredBody), findsOneWidget);
-      expect(find.text(l10n.notWiredHint), findsOneWidget);
-      // 模板殘留的範例業務元件必須消失。
+      expect(find.text(l10n.notWiredBody), findsNothing);
+      expect(
+        find.byKey(const ValueKey<String>('root-console-remaining-notice')),
+        findsOneWidget,
+      );
       expect(find.byIcon(Icons.add), findsNothing);
       expect(find.byType(ListTile), findsNothing);
     });

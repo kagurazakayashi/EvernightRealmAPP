@@ -533,9 +533,9 @@
   "@loginModeAccount": {
     "description": "帳戶登入方式選項：送登入名與口令到 /auth/login。"
   },
-  "loginAccountNote": "本應用不提供建號或自行註冊入口：帳戶登入只對伺服器上已存在的帳戶有效。",
+  "loginAccountNote": "本應用不提供自行註冊。伺服器管理員由 Root 在其控制台開設；以登入名登入只對伺服器上已存在的帳戶有效。",
   "@loginAccountNote": {
-    "description": "如實聲明本應用沒有建號／註冊入口，帳戶登入只對已存在帳戶有效。"
+    "description": "如實聲明沒有自行註冊入口，並指出管理員由 Root 在控制台開設；帳戶登入仍只對已存在帳戶有效。"
   },
   "loginLoginNameLabel": "登入名",
   "@loginLoginNameLabel": {
@@ -762,5 +762,142 @@
   "errorCodePasswordChangeRequired": "此帳號必須先完成密碼修改或登出，才能使用其他功能。",
   "@errorCodePasswordChangeRequired": {
     "description": "机器码 2010 的接口文案（与后端 locale.go 同一语义）。"
+  },
+  "errorCodePermissionDenied": "此帳號沒有執行這項操作的權限。重新登入不會改變這一點。",
+  "@errorCodePermissionDenied": {
+    "description": "機器碼 2011：身分可信但沒有這個權限。處置既非重新登入也非重試（與後端 locale.go 同一語意）。"
+  },
+  "errorCodeLoginNameTaken": "此登入名已被佔用（比對會吸收大小寫與全形／半形等差異寫法）。請換一個名字後重新提交。",
+  "@errorCodeLoginNameTaken": {
+    "description": "機器碼 2012：要開設的登入名已被佔用；重複提交不會多出帳戶，處置是換名字（與後端 locale.go 同一語意）。"
+  },
+  "rootConsoleAdminSectionTitle": "建立伺服器管理員",
+  "@rootConsoleAdminSectionTitle": {
+    "description": "Root 控制台內本步唯一已接線能力的區塊標題。"
+  },
+  "rootConsoleRemainingNotice": "Root 控制台的其餘能力——總覽、執行日誌、備份與恢復——尚未在此實作。備份與恢復仍只以 evernight-server 子命令交付，沒有網頁入口；審計記錄也沒有查詢端點或控制台。",
+  "@rootConsoleRemainingNotice": {
+    "description": "誠實收尾：尚未實作的 Root 域能力，與兩項永遠不會有 HTTP 入口的既定邊界一起講明白。"
+  },
+  "adminListTitle": "已建立的管理員",
+  "@adminListTitle": {
+    "description": "確認用最小清單的區塊標題（不是完整帳戶目錄）。"
+  },
+  "adminProvisionDeliveryNotice": "初始口令只交付一次：伺服器不會回顯，也不會與本應用一起留存副本。你仍需透過自己信任的管道把它轉告對方；對方首次登入必須改密，改密成功後該帳號的所有裝置都會退出。",
+  "@adminProvisionDeliveryNotice": {
+    "description": "安全交付提示：口令不回顯不保存、交付管道在使用者手上、以及首次改密與全裝置退出的後果。"
+  },
+  "adminProvisionLoginNameLabel": "登入名",
+  "@adminProvisionLoginNameLabel": {
+    "description": "登入名輸入框標籤。"
+  },
+  "adminProvisionDisplayNameLabel": "顯示名稱",
+  "@adminProvisionDisplayNameLabel": {
+    "description": "顯示名稱輸入框標籤。"
+  },
+  "adminProvisionInitialPasswordLabel": "一次性初始口令",
+  "@adminProvisionInitialPasswordLabel": {
+    "description": "初始口令輸入框標籤：明確它是一次性的。"
+  },
+  "adminProvisionInitialPasswordHint": "僅供首次登入使用，伺服器要求隨後立即修改。",
+  "@adminProvisionInitialPasswordHint": {
+    "description": "輸入框下方說明：強制首次改密是服務端的門，不是建議。"
+  },
+  "adminProvisionSubmitAction": "建立管理員",
+  "@adminProvisionSubmitAction": {
+    "description": "提交開設的按鈕文字。"
+  },
+  "adminProvisionFormIncompleteNotice": "請填寫登入名、顯示名稱與初始口令。",
+  "@adminProvisionFormIncompleteNotice": {
+    "description": "本地只擋明顯沒填，其餘規則以服務端為準。"
+  },
+  "adminProvisionInvalidLoginNameNotice": "伺服器拒絕了該登入名。登入名不可含空白、控制或不可見字元，且比對不區分大小寫與全形寫法。",
+  "@adminProvisionInvalidLoginNameNotice": {
+    "description": "1004 且 details.invalid_field 為 login_name 時的轉述。"
+  },
+  "adminProvisionInvalidDisplayNameNotice": "伺服器拒絕了該顯示名稱。請改用較短、且不含控制或不可見字元的名稱。",
+  "@adminProvisionInvalidDisplayNameNotice": {
+    "description": "1004 且 details.invalid_field 為 display_name 時的轉述。"
+  },
+  "adminProvisionInvalidPasswordNotice": "初始口令不符合伺服器的長度界限，沒有建立任何帳號。",
+  "@adminProvisionInvalidPasswordNotice": {
+    "description": "1004 且 details.invalid_field 為 password 時的轉述：如實說明沒有任何寫入發生。"
+  },
+  "adminProvisionRejectedNotice": "伺服器拒絕了這次請求，請檢查填寫內容後重試。",
+  "@adminProvisionRejectedNotice": {
+    "description": "1004 但 details 沒有指出欄位時的兜底句（不猜是哪一欄錯的）。"
+  },
+  "adminProvisionCreatedTitle": "已建立管理員 {loginName}。",
+  "@adminProvisionCreatedTitle": {
+    "description": "開設成功摘要標題：點名的是伺服器回傳的登入名原值。",
+    "placeholders": {
+      "loginName": {
+        "type": "String"
+      }
+    }
+  },
+  "adminProvisionOneTimePasswordReminder": "該帳號首次登入必須修改密碼；改完之後，這次交出的初始口令隨即失效。",
+  "@adminProvisionOneTimePasswordReminder": {
+    "description": "旗標為真時的交付提醒（值取自伺服器回應，不是本地假設）。"
+  },
+  "adminProvisionNoPasswordChangeReminder": "該帳號首次登入不要求修改密碼。",
+  "@adminProvisionNoPasswordChangeReminder": {
+    "description": "旗標為假時的誠實話；本步的開設用例恆產生前者，此句留給未來的其他建號通路。"
+  },
+  "adminProvisionAccountIdLabel": "帳號標識",
+  "@adminProvisionAccountIdLabel": {
+    "description": "成功摘要裡的穩定標識列標籤。"
+  },
+  "adminListLoadingHint": "正在讀取管理員清單…",
+  "@adminListLoadingHint": {
+    "description": "清單載入中的中性提示。"
+  },
+  "adminListUnavailableNotice": "暫時讀不到管理員清單；伺服器上的任何資料都沒有被改動。",
+  "@adminListUnavailableNotice": {
+    "description": "查不了的一句：不謊報未登入，也不讓人以為清單是空的。"
+  },
+  "adminListRetryAction": "重試",
+  "@adminListRetryAction": {
+    "description": "失敗後重新讀取清單的按鈕文字。"
+  },
+  "adminListEmptyNotice": "還沒有建立任何管理員。這臺伺服器目前只有 Root 能登入。",
+  "@adminListEmptyNotice": {
+    "description": "空清單的如實說明：把只有 Root 能登入這現狀一起講清。"
+  },
+  "adminListDisplayNameLabel": "顯示名稱",
+  "@adminListDisplayNameLabel": {
+    "description": "清單列的顯示名稱標籤。"
+  },
+  "adminListStatusLabel": "狀態",
+  "@adminListStatusLabel": {
+    "description": "清單列的狀態標籤。"
+  },
+  "adminListCreatedLabel": "建立時間",
+  "@adminListCreatedLabel": {
+    "description": "清單列的建立時刻標籤。"
+  },
+  "adminListLastLoginLabel": "最近登入",
+  "@adminListLastLoginLabel": {
+    "description": "清單列的最近登入時刻標籤。"
+  },
+  "adminListNeverLoggedInValue": "尚未登入過",
+  "@adminListNeverLoggedInValue": {
+    "description": "從未登入時的值：不拿建立時刻冒充。"
+  },
+  "adminListMustChangeBadge": "仍待完成首次改密",
+  "@adminListMustChangeBadge": {
+    "description": "仍欠首次改密的標記：讓 Root 知道對方還沒換掉一次性口令。"
+  },
+  "adminStatusActive": "正常",
+  "@adminStatusActive": {
+    "description": "帳戶狀態 active 的顯示文字。"
+  },
+  "adminStatusDisabled": "已停用",
+  "@adminStatusDisabled": {
+    "description": "帳戶狀態 disabled 的顯示文字（停用能力尚未實作，此處只轉述後端給出的值）。"
+  },
+  "sessionSubjectServerAdmin": "伺服器管理員",
+  "@sessionSubjectServerAdmin": {
+    "description": "主體持有後端授予的 server_admin 時的身份行；值取自 roles 欄，不是本地推測。"
   }
 }

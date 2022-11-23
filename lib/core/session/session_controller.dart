@@ -203,6 +203,7 @@ class ActiveSession {
     required this.deviceId,
     required this.expiresAt,
     this.mustChangePassword = false,
+    this.roles = const <String>[],
   });
 
   /// 由登入回應建立。
@@ -213,6 +214,7 @@ class ActiveSession {
         deviceId: report.deviceId,
         expiresAt: report.expiresAt,
         mustChangePassword: report.mustChangePassword,
+        roles: report.roles,
       );
 
   /// 由「當前會話」回應建立。
@@ -223,6 +225,7 @@ class ActiveSession {
         deviceId: report.deviceId,
         expiresAt: report.expiresAt,
         mustChangePassword: report.mustChangePassword,
+        roles: report.roles,
       );
 
   /// 由「輪換」回應建立。
@@ -231,13 +234,22 @@ class ActiveSession {
   /// 一致；契約本身已保證這件事，本層只如實採用。輪換回應不帶旗標欄位，
   /// 而且「還沒改密就輪換」在服務端本來就被 2010 擋下——能成功輪換的會話
   /// 必然不欠改密義務，此處收斂為 false 不是猜測，是合同推論。
-  ActiveSession.fromRotation(RotationReport report)
-    : this(
-        subjectKind: report.subjectKind,
-        accountId: report.accountId,
-        deviceId: report.deviceId,
-        expiresAt: report.expiresAt,
-      );
+  ///
+  /// [previousRoles] 是輪換前那份主體事實裡的授予清單。輪換換的是秘密而不是身份
+  /// （同一會話、同一裝置、同一主體），後端的輪換回應也刻意不帶 roles 欄位——
+  /// 於是這裡只能沿用既有事實，不能憑空當成「沒有角色」。
+  /// 界面的入口因此不會因為一次換密而閃掉；真正的權限判定仍在服務端逐請求現讀，
+  /// 這裡保留的清單多留一會兒不會讓任何端點放行。
+  ActiveSession.fromRotation(
+    RotationReport report, {
+    List<String> previousRoles = const <String>[],
+  }) : this(
+         subjectKind: report.subjectKind,
+         accountId: report.accountId,
+         deviceId: report.deviceId,
+         expiresAt: report.expiresAt,
+         roles: previousRoles,
+       );
 
   /// 主體類別（帳戶或 Root）。
   final AuthSubjectKind subjectKind;
@@ -255,8 +267,17 @@ class ActiveSession {
   /// 一律 2010，界面只該呈現改密與退出這組必要入口。Root 主體恆為 false。
   final bool mustChangePassword;
 
+  /// 伺服器現讀到的伺服器級角色清單（Root 主體恆為空——它的權限不是授予出來的）。
+  ///
+  /// 界面用它決定「該載入哪些入口」，但權限的真相永遠在服務端：把這個清單改成
+  /// 任何樣子都不會讓任何一個端點多放行一件事。
+  final List<String> roles;
+
   /// 是否為 Root 主體。
   bool get isRoot => subjectKind == AuthSubjectKind.root;
+
+  /// 是否為伺服器級管理員（據後端真實授予，不據任何自報欄位）。
+  bool get isServerAdmin => roles.contains(kServerAdminRole);
 }
 
 /// 會話狀態控制器（可訂閱）。
@@ -322,6 +343,13 @@ class SessionController extends ChangeNotifier {
   /// 值來自 `/auth/login` 或 `/auth/session` 的伺服器現讀回應，本層不自創判定；
   /// 真正的把關在服務端（受保護端點回 2010），這個 getter 只負責讓界面呈現對的通話。
   bool get mustChangePassword => _active?.mustChangePassword ?? false;
+
+  /// 當前主體是否被後端認定為伺服器級管理員。
+  ///
+  /// 值一律來自 `/auth/login` 或 `/auth/session` 的伺服器回應（見 [ActiveSession.roles]），
+  /// 本層不自創判定、也不看任何請求欄位。它只決定界面呈現哪些入口：
+  /// 「不是管理員」與「尚未載入」在這裡都是 false，真正的把關在服務端。
+  bool get isServerAdmin => _active?.isServerAdmin ?? false;
 
   /// 当前會話綁定的伺服器身份（正規化文字）；未綁定時為 `null`。
   String? get boundServerDisplay => _bound?.displayText;
@@ -602,7 +630,10 @@ class SessionController extends ChangeNotifier {
       // 這裡只更新世代號與可展示事實。
       _bound = server;
       _rotationSeq = report.rotationSeq;
-      _active = ActiveSession.fromRotation(report);
+      _active = ActiveSession.fromRotation(
+        report,
+        previousRoles: _active?.roles ?? const <String>[],
+      );
       _lastStorageFailure = null;
       // 剛換發的新秘密即刻生效：本端與伺服器又對上了，狀態回到已登入。
       _status = SessionStatus.signedIn;
@@ -625,7 +656,10 @@ class SessionController extends ChangeNotifier {
     _bound = server;
     _secret = secret;
     _rotationSeq = report.rotationSeq;
-    _active = ActiveSession.fromRotation(report);
+    _active = ActiveSession.fromRotation(
+      report,
+      previousRoles: _active?.roles ?? const <String>[],
+    );
     // 與瀏覽器形態同理：換發成功即證明這枚會話可用，狀態回到已登入。
     _status = SessionStatus.signedIn;
 

@@ -337,7 +337,14 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
       Text(
         l10n.labelValuePair(
           l10n.sessionSubjectLabel,
-          active.isRoot ? l10n.sessionSubjectRoot : l10n.sessionSubjectAccount,
+          // 三個檔位全部取自伺服器現讀回應：Root 由主體類別判定，
+          // 「伺服器管理員」只在他確實持有後端授予的 server_admin 時出現，
+          // 其餘帳戶仍是普通帳戶。本地不因「剛在表單選過 Root」就宣稱任何身份。
+          active.isRoot
+              ? l10n.sessionSubjectRoot
+              : active.isServerAdmin
+              ? l10n.sessionSubjectServerAdmin
+              : l10n.sessionSubjectAccount,
         ),
         style: theme.textTheme.bodySmall,
       ),

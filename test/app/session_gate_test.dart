@@ -301,7 +301,10 @@ void main() {
       expect(find.byKey(SessionSummaryView.identityKey), findsOneWidget);
     });
 
-    testWidgets('Root 主體開 Root 控制台：放行看到的是尚未實作的佔位頁', (
+    // 本仓库对 Root 控制台的断言隨 R2-001 變動：該頁不再整頁佔位，
+    // 而是真的接了「開設伺服器級管理員」這一項。放行判定本身一個字都沒動——
+    // 這裡問的还是「Root 主體進得去、不是被擋」，只是「進去看到什麼」換了。
+    testWidgets('Root 主體開 Root 控制台：放行看到的是已接線的開設畫面', (
       WidgetTester tester,
     ) async {
       await mount(
@@ -318,8 +321,12 @@ void main() {
 
       expect(find.byKey(SessionGate.blockedKey), findsNothing);
       expect(find.text(NavContext.rootConsole.summaryOf(l10n)), findsOneWidget);
-      // 放行不等於偽裝可用：頁面仍如實標明後端未開發。
-      expect(find.text(l10n.notWiredBody), findsOneWidget);
+      // 放行不等於偽裝可用：已接線的那一項要畫出來，而其餘未實作的部分仍要如實標明。
+      expect(
+        find.byKey(const ValueKey<String>('root-console-remaining-notice')),
+        findsOneWidget,
+      );
+      expect(find.text(l10n.notWiredBody), findsNothing);
     });
   });
 

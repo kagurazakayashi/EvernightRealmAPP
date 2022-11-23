@@ -78,6 +78,46 @@ DateTime _requireUtcTime(Map<String, Object?> json, String field) {
   return parsed.toUtc();
 }
 
+/// 嚴格讀取可選的 UTC 時間戳欄位：欄位缺席或為 null 時回 `null`。
+///
+/// 「沒有這回事」與「有某個時刻」必須分得開（見 `last_login_at` 的合同：從未登入為缺席，
+/// 不是拿建立時刻冒充）；出現時仍以 [_requireUtcTime] 的同一個時區標記閘校驗。
+DateTime? _optionalUtcTime(Map<String, Object?> json, String field) {
+  if (!json.containsKey(field) || json[field] == null) {
+    return null;
+  }
+  return _requireUtcTime(json, field);
+}
+
+/// 讀取可選的字串清單（合同以「只增不刪」補上的欄位）。
+///
+/// 缺席回空清單；出現但形態不合（不是清單、元素不是非空字串）仍判合同違例。
+/// 元素值一律原樣保留成字串、不收緊成列舉：後端日後多發布一個取值時，前端該有的結果是
+/// 「這一行我不認得」，而不是「整份回應解碼失敗、連登入都進不去」。
+List<String> _optionalTextList(Map<String, Object?> json, String field) {
+  final Object? value = json[field];
+  if (value == null) {
+    return const <String>[];
+  }
+  if (value is! List) {
+    throw ApiResponseShapeException('欄位 $field 不是清單');
+  }
+  return value
+      .map((Object? item) {
+        if (item is! String || item.isEmpty) {
+          throw ApiResponseShapeException('欄位 $field 的項不是非空字串');
+        }
+        return item;
+      })
+      .toList(growable: false);
+}
+
+/// 已發布的伺服器級角色值（與後端 `roles` 欄逐字一致）：Root 之下可執行跨活動維運的主體。
+///
+/// 它是「可展示事實」的判據，不是權限的依據：每一次判定都在服務端重做，
+/// 前端拿它決定要呈現哪些入口。
+const String kServerAdminRole = 'server_admin';
+
 /// 判斷時間字串是否自帶 `Z` 或 `±HH:MM` 尾綴。
 ///
 /// `DateTime.parse` 對沒有標記的寫法會回傳本機時間，無法由結果區分，因此先看文字。
@@ -315,6 +355,7 @@ class LoginReport {
     required this.expiresAt,
     required this.requestId,
     this.mustChangePassword = false,
+    this.roles = const <String>[],
   });
 
   /// 從登入回應的 JSON 建立結果。
@@ -327,6 +368,7 @@ class LoginReport {
       expiresAt: _requireUtcTime(json, 'expires_at'),
       requestId: _requireText(json, 'request_id'),
       mustChangePassword: _optionalBool(json, 'must_change_password'),
+      roles: _optionalTextList(json, 'roles'),
     );
   }
 
@@ -346,11 +388,19 @@ class LoginReport {
   /// 界面據此主動把人帶進改密流程。合同以只增不刪補上此欄，缺席即 false。
   final bool mustChangePassword;
 
+  /// 服務端現讀到的伺服器級角色清單（合同以只增不刪補上；缺席即空清單）。
+  ///
+  /// Root 主體不在這裡出現（它的權限來自主體類別而不是授予），因此它恆為空。
+  final List<String> roles;
+
   /// 本次請求的關聯 ID。
   final String requestId;
 
   /// 是否為 Root 主體的登入。
   bool get isRoot => subjectKind == AuthSubjectKind.root;
+
+  /// 是否被後端認定為伺服器級管理員（据真實授予，不是據自報欄位）。
+  bool get isServerAdmin => roles.contains(kServerAdminRole);
 }
 
 /// `/auth/session` 的成功回應：當前會話的事實，比登入回應多帶建立與最近活動時刻。
@@ -366,6 +416,7 @@ class CurrentSessionReport {
     required this.expiresAt,
     required this.requestId,
     this.mustChangePassword = false,
+    this.roles = const <String>[],
   });
 
   /// 從 `/auth/session` 的 JSON 回應建立報告。
@@ -381,6 +432,7 @@ class CurrentSessionReport {
       expiresAt: _requireUtcTime(json, 'expires_at'),
       requestId: _requireText(json, 'request_id'),
       mustChangePassword: _optionalBool(json, 'must_change_password'),
+      roles: _optionalTextList(json, 'roles'),
     );
   }
 
@@ -413,11 +465,20 @@ class CurrentSessionReport {
   /// 改密成功後的下一次刷新即轉為 false，界面據此解除強制態。
   final bool mustChangePassword;
 
+  /// 服務端現讀到的伺服器級角色清單（缺席即空清單；Root 主體恆為空）。
+  ///
+  /// 這條通路是「重新整理即知道最新權限」的來源：授予在後端被改动之後，
+  /// 客戶端不必重新登入也能從這裡讀到現值，界面據此載入或收起入口。
+  final List<String> roles;
+
   /// 本次請求的關聯 ID。
   final String requestId;
 
   /// 是否為 Root 主體的會話。
   bool get isRoot => subjectKind == AuthSubjectKind.root;
+
+  /// 是否被後端認定為伺服器級管理員（據真實授予；自報欄位在合同裡根本不存在）。
+  bool get isServerAdmin => roles.contains(kServerAdminRole);
 }
 
 /// `POST /auth/password/change` 的成功回應：一次本人改密的結果。
@@ -613,6 +674,150 @@ class DeviceRevokeReport {
 
   /// 撤銷的是否為本請求這一臺。
   final bool current;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// Root 開設管理員帳戶的成功回應（`POST /root/admins`）。
+///
+/// 全部是可展示的身分事實；合同沒有一個欄位可以容納口令，本模型因此也沒有
+/// 「記得但不出現」的欄位——初始口令只在後端的一次調用裡存在過。
+/// [mustChangePassword] 恆為 true（一次性初始口令的產品語意），界面據此
+/// 把「這個口令要用第一次登入去換掉」講明白，而不是讓 Root 以為那是長期口令。
+class CreatedAdminReport {
+  /// 以已驗證的欄位建立開設結果。
+  const CreatedAdminReport({
+    required this.accountId,
+    required this.loginName,
+    required this.displayName,
+    required this.status,
+    required this.mustChangePassword,
+    required this.roles,
+    required this.createdAt,
+    required this.requestId,
+  });
+
+  /// 從開設回應的 JSON 建立結果。
+  static CreatedAdminReport decode(Map<String, Object?> json) {
+    return CreatedAdminReport(
+      accountId: _requireText(json, 'account_id'),
+      loginName: _requireText(json, 'login_name'),
+      displayName: _requireText(json, 'display_name'),
+      status: _requireText(json, 'status'),
+      mustChangePassword: _requireBool(json, 'must_change_password'),
+      roles: _optionalTextList(json, 'roles'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 新帳戶的穩定標識（UUIDv7 字串）。
+  final String accountId;
+
+  /// 登入名原始寫法（保留大小寫，僅供展示）。
+  final String loginName;
+
+  /// 顯示名稱。
+  final String displayName;
+
+  /// 帳戶狀態原字串（日後多一種狀態時本行不牽連整份回應）。
+  final String status;
+
+  /// 是否仍欠「首次登入必須改密」。
+  final bool mustChangePassword;
+
+  /// 服務端授予的角色清單。
+  final List<String> roles;
+
+  /// 建立時刻（UTC，取自伺服器時鐘）。
+  final DateTime createdAt;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 管理員確認清單裡的一行（`GET /root/admins`）。
+///
+/// [lastLoginAt] 可空：從未登入的帳戶在合同裡是欄位缺席，本模型不拿建立時刻冒充。
+class AdminAccountReport {
+  /// 以已驗證的欄位建立一行。
+  const AdminAccountReport({
+    required this.accountId,
+    required this.loginName,
+    required this.displayName,
+    required this.status,
+    required this.mustChangePassword,
+    required this.createdAt,
+    this.lastLoginAt,
+  });
+
+  /// 從清單單項的 JSON 建立。
+  static AdminAccountReport decode(Map<String, Object?> json) {
+    return AdminAccountReport(
+      accountId: _requireText(json, 'account_id'),
+      loginName: _requireText(json, 'login_name'),
+      displayName: _requireText(json, 'display_name'),
+      status: _requireText(json, 'status'),
+      mustChangePassword: _requireBool(json, 'must_change_password'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      lastLoginAt: _optionalUtcTime(json, 'last_login_at'),
+    );
+  }
+
+  /// 帳戶標識。
+  final String accountId;
+
+  /// 登入名原始寫法。
+  final String loginName;
+
+  /// 顯示名稱。
+  final String displayName;
+
+  /// 帳戶狀態原字串。
+  final String status;
+
+  /// 是否仍欠首次改密。
+  final bool mustChangePassword;
+
+  /// 建立時刻（UTC）。
+  final DateTime createdAt;
+
+  /// 最近一次登入時刻（UTC）；從未登入為 `null`。
+  final DateTime? lastLoginAt;
+
+  /// 是否為有效狀態（未知值不冒充有效）。
+  bool get isActive => status == 'active';
+}
+
+/// `GET /root/admins` 的成功回應：用於核實開設結果的最小清單。
+///
+/// 它不是搜尋與維護台：沒有分頁、沒有條件，後端的返回上限也不由客戶端指定。
+class AdminListReport {
+  /// 以已驗證的欄位建立清單。
+  const AdminListReport({required this.admins, required this.requestId});
+
+  /// 從 `/root/admins` 的 JSON 回應建立清單。
+  static AdminListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['admins'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('admins 不是清單');
+    }
+    final List<AdminAccountReport> admins = <AdminAccountReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('admins 項不是物件');
+      }
+      admins.add(AdminAccountReport.decode(item));
+    }
+    return AdminListReport(
+      admins: admins,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 管理員清單（依後端給出的順序，新授予的在前）。
+  final List<AdminAccountReport> admins;
 
   /// 本次請求的關聯 ID。
   final String requestId;

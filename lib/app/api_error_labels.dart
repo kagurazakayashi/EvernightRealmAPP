@@ -34,6 +34,8 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.deviceNotFound => l10n.errorCodeDeviceNotFound,
       ApiMachineCode.passwordChangeRequired =>
         l10n.errorCodePasswordChangeRequired,
+      ApiMachineCode.permissionDenied => l10n.errorCodePermissionDenied,
+      ApiMachineCode.loginNameTaken => l10n.errorCodeLoginNameTaken,
     };
   }
 
