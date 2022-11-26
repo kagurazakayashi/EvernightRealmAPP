@@ -51,11 +51,19 @@ const String kAuthDeviceRevokePath = '/auth/devices/revoke';
 /// 請求本體只有現行口令與新口令，沒有任何欄位可以指定「改誰」）。
 const String kAuthPasswordChangePath = '/auth/password/change';
 
-/// Root 開設／核實伺服器級管理員的端點路徑：GET 是最小確認清單，POST 是開設。
+/// Root 管理員集合端點路徑：GET（／HEAD）是分頁目錄，POST 是開設。
 ///
-/// 方法由後端分流，路徑只有一條：這裡沒有任何引數可以指定「建成哪一種主體」——
+/// 方法由後端分流，集合路徑只有一條：這裡沒有任何引數可以指定「建成哪一種主體」——
 /// 「建的是管理員」由「打到哪個端點」決定，請求本體裡沒有 role 這個格子。
 const String kRootAdminsPath = '/root/admins';
+
+/// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。
+///
+/// 目標在路徑上而不是本體欄位裡：編輯請求的本體只有「新值」與「提交所依據的現值」，
+/// 沒有任何 account_id 之類的格子可以填。標識經 [Uri.encodeComponent] 轉義後拼接
+/// （UUIDv7 本來是 URL 安全字串，轉義是對「呼叫端傳了別的東西」的防呆，不是修飾）。
+String rootAdminItemPath(String accountId) =>
+    '$kRootAdminsPath/${Uri.encodeComponent(accountId)}';
 
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
@@ -348,14 +356,58 @@ class ServerApi {
     );
   }
 
-  /// 讀取管理員確認清單：GET `/root/admins`（唯讀，只列後端認定持有角色的帳戶）。
+  /// 讀取管理員目錄的一頁：GET `/root/admins`（唯讀，只列後端認定持有角色的帳戶）。
   ///
-  /// 憑據攜帶與 [currentSession] 同一條路，本方法沒有任何 account_id／搜尋引數：
-  /// 「列誰的清單」由後端按解析出的受信主體決定。失敗一律以 [ApiError] 丟擲。
-  Future<AdminListReport> admins({String? acceptLanguage}) {
+  /// 憑據攜帶與 [currentSession] 同一條路；分頁與狀態篩選是本端點僅有的引數，
+  /// 「列誰的清單」仍由後端按解析出的受信主體決定，沒有任何引數可以指定別人的目錄。
+  /// 失敗一律以 [ApiError] 丟擲。
+  Future<AdminDirectoryReport> adminsDirectory({
+    int page = 1,
+    int pageSize = 20,
+    String status = 'all',
+    String? acceptLanguage,
+  }) {
     return apiClient.get(
-      kRootAdminsPath,
-      decode: AdminListReport.decode,
+      '$kRootAdminsPath?page=$page&page_size=$pageSize&status=${Uri.encodeComponent(status)}',
+      decode: AdminDirectoryReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取單筆管理員詳情：GET `/root/admins/{account_id}`。
+  ///
+  /// 回應是經後端實體校驗的當前資料：編輯表單的預填值與「提交所依據的現值」
+  /// 都只能取自這裡，不得拿目錄行或本地印象湊一份。
+  Future<AdminDetailReport> adminDetail({
+    required String accountId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      rootAdminItemPath(accountId),
+      decode: AdminDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯管理員的顯示名：PUT `/root/admins/{account_id}`。
+  ///
+  /// 白名單只有 display_name 一欄，外加它所依據的 expectedDisplayName（比較-and-set）：
+  /// 本體裡沒有狀態／旗標／類型／口令／登入名的格子，多帶會被後端打成 1004。
+  /// 現值已變時後端回 2013 且整個編輯不發生——呼叫端要重讀詳情再決定，
+  /// 而不是重發同一個意圖。成功回應是保存後的資料庫現值，不是請求的迴音。
+  Future<AdminDetailReport> updateAdminProfile({
+    required String accountId,
+    required String displayName,
+    required String expectedDisplayName,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put(
+      rootAdminItemPath(accountId),
+      jsonBody: <String, Object?>{
+        'display_name': displayName,
+        'expected_display_name': expectedDisplayName,
+      },
+      decode: AdminDetailReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

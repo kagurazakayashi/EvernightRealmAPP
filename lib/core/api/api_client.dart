@@ -151,6 +151,27 @@ class ApiClient {
     return _finish(response: response, path: path, decode: decode);
   }
 
+  /// 對指定路徑發起帶 JSON 本體的 PUT，失敗語意與 [post] 完全一致。
+  ///
+  /// PUT 的語意是「以本體給出的欄位替換資源的當前可編輯值」：本倉庫裡它只服務
+  /// Root 的管理員資料編輯端點，目標在路徑上、本體只有新值與提交所依據的現值，
+  /// 沒有 third 種「順手改別的欄位」的通道。併發落敗（2013）與其他失敗一樣
+  /// 拋 [ApiError]，不存在「回傳值但其實失敗」。
+  Future<T> put<T>(
+    String path, {
+    required Map<String, Object?> jsonBody,
+    required ResponseDecoder<T> decode,
+    String? acceptLanguage,
+  }) async {
+    final http.Response response = await _send(
+      method: 'PUT',
+      path: path,
+      acceptLanguage: acceptLanguage,
+      jsonBody: jsonBody,
+    );
+    return _finish(response: response, path: path, decode: decode);
+  }
+
   /// 發起 POST 並把成功回應解碼，同時原樣带回回應的 `Set-Cookie` 標頭文字。
   ///
   /// 存在的唯一理由是登入合同：會話秘密只進 `Set-Cookie`，原生客戶端需要它才能

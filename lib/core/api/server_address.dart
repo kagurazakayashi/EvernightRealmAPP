@@ -196,11 +196,22 @@ class ServerAddress {
   /// 接上端點路徑，組成實際請求的 URI。
   ///
   /// [path] 一律以 `/` 開頭，呼叫端不自行字串相加，避免前綴連字號被重複或丟失。
+  /// [path] 若自帶查詢串（第一個 `?` 之後的部分），它會被放進 URI 的 query 組件
+  /// 而不是路徑——否則 `?` 會被百分號編碼成 `%3F`，伺服器看到的是「一個名字很長
+  /// 的端點」而不是「端點加引數」。查詢值本身应已由呼叫端正规化與轉義
+  /// （見 server_api 的引數拼接），這裡不再重寫一編碼規則，免得兩處各編一次。
   Uri resolve(String path) {
     final String prefix = baseUri.path.endsWith('/')
         ? baseUri.path.substring(0, baseUri.path.length - 1)
         : baseUri.path;
-    return baseUri.replace(path: '$prefix$path');
+    final int queryStart = path.indexOf('?');
+    if (queryStart < 0) {
+      return baseUri.replace(path: '$prefix$path');
+    }
+    final Uri withoutQuery = baseUri.replace(
+      path: '$prefix${path.substring(0, queryStart)}',
+    );
+    return withoutQuery.replace(query: path.substring(queryStart + 1));
   }
 
   @override

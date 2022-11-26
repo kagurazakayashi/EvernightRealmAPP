@@ -737,11 +737,18 @@ class CreatedAdminReport {
   final String requestId;
 }
 
-/// 管理員確認清單裡的一行（`GET /root/admins`）。
+/// 管理員單筆資料：目錄的一行、詳情與編輯結果共用的形状（同一筆資料在不同回應裡必須同源）。
 ///
-/// [lastLoginAt] 可空：從未登入的帳戶在合同裡是欄位缺席，本模型不拿建立時刻冒充。
+/// 可缺席的兩個欄位各有其人：
+///
+/// * `last_login_at`：從未登入的帳戶在合同裡是欄位缺席，本模型不拿建立時刻冒充。
+/// * `roles`：只有單筆回應（詳情與編輯結果）帶出；目錄的每一行本來就是按授予查出來的，
+///   逐行重複同一個字串不回答任何新問題。未知角色值原樣保留為字串，不收緊成枚舉。
+///
+/// [grantedAt] 在合同的目錄行、詳情與編輯結果裡恆在（成員資格本身就是授予），
+/// 所以它是必填欄位：少了它就該判合同違例，而不是顯示成「未知時刻」。
 class AdminAccountReport {
-  /// 以已驗證的欄位建立一行。
+  /// 以已驗證的欄位建立單筆管理員資料。
   const AdminAccountReport({
     required this.accountId,
     required this.loginName,
@@ -749,10 +756,12 @@ class AdminAccountReport {
     required this.status,
     required this.mustChangePassword,
     required this.createdAt,
+    required this.grantedAt,
     this.lastLoginAt,
+    this.roles = const <String>[],
   });
 
-  /// 從清單單項的 JSON 建立。
+  /// 從 JSON 單項建立。
   static AdminAccountReport decode(Map<String, Object?> json) {
     return AdminAccountReport(
       accountId: _requireText(json, 'account_id'),
@@ -762,6 +771,8 @@ class AdminAccountReport {
       mustChangePassword: _requireBool(json, 'must_change_password'),
       createdAt: _requireUtcTime(json, 'created_at'),
       lastLoginAt: _optionalUtcTime(json, 'last_login_at'),
+      grantedAt: _requireUtcTime(json, 'granted_at'),
+      roles: _optionalTextList(json, 'roles'),
     );
   }
 
@@ -786,19 +797,32 @@ class AdminAccountReport {
   /// 最近一次登入時刻（UTC）；從未登入為 `null`。
   final DateTime? lastLoginAt;
 
+  /// server_admin 授予寫下的時刻（UTC）。
+  final DateTime grantedAt;
+
+  /// 服務端核實的角色清單；目錄行為空（欄位按合同缺席），單筆回應帶真實值。
+  final List<String> roles;
+
   /// 是否為有效狀態（未知值不冒充有效）。
   bool get isActive => status == 'active';
 }
 
-/// `GET /root/admins` 的成功回應：用於核實開設結果的最小清單。
+/// `GET /root/admins` 的成功回應：管理員目錄的一頁，含分頁回顯與篩選後總數。
 ///
-/// 它不是搜尋與維護台：沒有分頁、沒有條件，後端的返回上限也不由客戶端指定。
-class AdminListReport {
-  /// 以已驗證的欄位建立清單。
-  const AdminListReport({required this.admins, required this.requestId});
+/// 分頁三元組由後端回顯而不是客戶端複述：「你問的是哪一頁」的唯一答案在回應裡。
+/// [admins] 恆為清單，空頁是空清單（後端合同：空頁回 `[]`，不是 null、也不是錯誤）。
+class AdminDirectoryReport {
+  /// 以已驗證的欄位建立一頁目錄。
+  const AdminDirectoryReport({
+    required this.admins,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.requestId,
+  });
 
-  /// 從 `/root/admins` 的 JSON 回應建立清單。
-  static AdminListReport decode(Map<String, Object?> json) {
+  /// 從 `/root/admins` 的 JSON 回應建立一頁目錄。
+  static AdminDirectoryReport decode(Map<String, Object?> json) {
     final Object? raw = json['admins'];
     if (raw is! List) {
       throw const ApiResponseShapeException('admins 不是清單');
@@ -810,14 +834,59 @@ class AdminListReport {
       }
       admins.add(AdminAccountReport.decode(item));
     }
-    return AdminListReport(
+    return AdminDirectoryReport(
       admins: admins,
+      page: _requireInt(json, 'page'),
+      pageSize: _requireInt(json, 'page_size'),
+      total: _requireInt(json, 'total'),
       requestId: _requireText(json, 'request_id'),
     );
   }
 
-  /// 管理員清單（依後端給出的順序，新授予的在前）。
+  /// 本頁的行（依後端給出的順序，新授予的在前）。
   final List<AdminAccountReport> admins;
+
+  /// 本頁頁碼（1 起算，後端回顯）。
+  final int page;
+
+  /// 本頁尺寸（後端回顯，含對非法請求的收斂結果）。
+  final int pageSize;
+
+  /// 符合篩選條件的總筆數（不是全表數，也不是本頁數）。
+  final int total;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 總頁數至少為 1：零筆資料時第 1 頁就是那個「空但存在」的頁。
+  int get totalPages => total == 0 ? 1 : (total + pageSize - 1) ~/ pageSize;
+
+  /// 是否還有後頁；由伺服器回顯的頁碼與總數判定，客戶端不自算第二份真相。
+  bool get hasMore => page < totalPages;
+}
+
+/// `GET／PUT /root/admins/{account_id}` 的成功回應：單筆詳情或編輯後的資料庫現值。
+///
+/// PUT 的回應同样是它：界面顯示的「當前資料」必須來自服務端保存結果，
+/// 不是請求本體的迴音——本模型只從回應構造，結構上沒有「本地意圖」的格子。
+class AdminDetailReport {
+  /// 以已驗證的欄位建立單筆回應。
+  const AdminDetailReport({required this.admin, required this.requestId});
+
+  /// 從 JSON 回應建立單筆資料。
+  static AdminDetailReport decode(Map<String, Object?> json) {
+    final Object? raw = json['admin'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('admin 不是物件');
+    }
+    return AdminDetailReport(
+      admin: AdminAccountReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 單筆管理員資料。
+  final AdminAccountReport admin;
 
   /// 本次請求的關聯 ID。
   final String requestId;

@@ -1,991 +1,551 @@
 {
   "@@locale": "en",
   "statusVersionLabel": "Version",
-  "@statusVersionLabel": {
-    "description": "狀態條：版號欄位標籤。"
-  },
+  "@statusVersionLabel": {"description": "狀態條：版號欄位標籤。"},
   "statusLocaleLabel": "System language",
-  "@statusLocaleLabel": {
-    "description": "狀態條：系統語言欄位標籤。"
-  },
+  "@statusLocaleLabel": {"description": "狀態條：系統語言欄位標籤。"},
   "statusServerLabel": "Server",
-  "@statusServerLabel": {
-    "description": "狀態條：伺服器位址欄位標籤。"
-  },
+  "@statusServerLabel": {"description": "狀態條：伺服器位址欄位標籤。"},
   "statusConnectionLabel": "Connection",
-  "@statusConnectionLabel": {
-    "description": "狀態條：連線狀態欄位標籤。"
-  },
+  "@statusConnectionLabel": {"description": "狀態條：連線狀態欄位標籤。"},
   "labelValuePair": "{label}: {value}",
-  "@labelValuePair": {
-    "description": "狀態條欄位的「標籤：數值」組合，冒號型別依語言慣用。",
-    "placeholders": {
-      "label": {
-        "type": "String"
-      },
-      "value": {
-        "type": "String"
-      }
-    }
-  },
+  "@labelValuePair": {"description": "狀態條欄位的「標籤：數值」組合，冒號型別依語言慣用。", "placeholders": {"label": {"type": "String"}, "value": {"type": "String"}}},
   "valueNotProvided": "Not provided",
-  "@valueNotProvided": {
-    "description": "未取得值時的顯示文字（例如建置未注入版號）。"
-  },
+  "@valueNotProvided": {"description": "未取得值時的顯示文字（例如建置未注入版號）。"},
   "serverAddressNotSet": "Not configured",
-  "@serverAddressNotSet": {
-    "description": "伺服器位址尚未設定時的顯示文字。"
-  },
+  "@serverAddressNotSet": {"description": "伺服器位址尚未設定時的顯示文字。"},
   "notWiredBody": "The backend for this page is not developed yet, so nothing is displayed and no sample or simulated data is used.",
-  "@notWiredBody": {
-    "description": "尚未實作頁面的狀態說明，明確表示不使用模擬資料。"
-  },
+  "@notWiredBody": {"description": "尚未實作頁面的狀態說明，明確表示不使用模擬資料。"},
   "notWiredHint": "Actual content appears once the backend provides data.",
-  "@notWiredHint": {
-    "description": "尚未實作頁面的補充提示。"
-  },
+  "@notWiredHint": {"description": "尚未實作頁面的補充提示。"},
   "unknownRouteTitle": "Cannot open this page",
-  "@unknownRouteTitle": {
-    "description": "未登記路由回退頁面的標題。"
-  },
+  "@unknownRouteTitle": {"description": "未登記路由回退頁面的標題。"},
   "unknownRouteBody": "The requested route is not in the navigation table, or its feature is not available yet.",
-  "@unknownRouteBody": {
-    "description": "未登記路由回退頁面的說明。"
-  },
+  "@unknownRouteBody": {"description": "未登記路由回退頁面的說明。"},
   "unknownRouteDetail": "Requested route: {route}",
-  "@unknownRouteDetail": {
-    "description": "未登記路由回退頁面顯示的路由名稱。",
-    "placeholders": {
-      "route": {
-        "type": "String"
-      }
-    }
-  },
+  "@unknownRouteDetail": {"description": "未登記路由回退頁面顯示的路由名稱。", "placeholders": {"route": {"type": "String"}}},
   "serverEntryTitle": "Server entry",
-  "@serverEntryTitle": {
-    "description": "伺服器入口層的頁面標題。"
-  },
+  "@serverEntryTitle": {"description": "伺服器入口層的頁面標題。"},
   "serverEntrySummary": "Choose a server and sign in, register, or continue as Guest; the server decides which identities are available.",
-  "@serverEntrySummary": {
-    "description": "伺服器入口層的範圍說明。"
-  },
+  "@serverEntrySummary": {"description": "伺服器入口層的範圍說明。"},
   "rootConsoleTitle": "Root console",
-  "@rootConsoleTitle": {
-    "description": "Root 控制台的頁面標題。"
-  },
+  "@rootConsoleTitle": {"description": "Root 控制台的頁面標題。"},
   "rootConsoleSummary": "Server-level management context, kept separate from activity navigation.",
-  "@rootConsoleSummary": {
-    "description": "Root 控制台的範圍說明。"
-  },
+  "@rootConsoleSummary": {"description": "Root 控制台的範圍說明。"},
   "adminConsoleTitle": "Admin console",
-  "@adminConsoleTitle": {
-    "description": "管理員端的頁面標題。"
-  },
+  "@adminConsoleTitle": {"description": "管理員端的頁面標題。"},
   "adminConsoleSummary": "Entry for managing activities, players, assets and timelines.",
-  "@adminConsoleSummary": {
-    "description": "管理員端的範圍說明。"
-  },
+  "@adminConsoleSummary": {"description": "管理員端的範圍說明。"},
   "npcConsoleTitle": "NPC console",
-  "@npcConsoleTitle": {
-    "description": "NPC 操作台的頁面標題。"
-  },
+  "@npcConsoleTitle": {"description": "NPC 操作台的頁面標題。"},
   "npcConsoleSummary": "Operate as an explicitly selected NPC, separate from player actions.",
-  "@npcConsoleSummary": {
-    "description": "NPC 操作台的範圍說明。"
-  },
+  "@npcConsoleSummary": {"description": "NPC 操作台的範圍說明。"},
   "playerSurfaceTitle": "Player surface",
-  "@playerSurfaceTitle": {
-    "description": "玩家端的頁面標題。"
-  },
+  "@playerSurfaceTitle": {"description": "玩家端的頁面標題。"},
   "playerSurfaceSummary": "Player pages inside one activity context; Guest and Player share them.",
-  "@playerSurfaceSummary": {
-    "description": "玩家端的範圍說明。"
-  },
+  "@playerSurfaceSummary": {"description": "玩家端的範圍說明。"},
   "interfaceLanguageTitle": "Interface language",
-  "@interfaceLanguageTitle": {
-    "description": "伺服器入口層的語言選擇區標題。"
-  },
+  "@interfaceLanguageTitle": {"description": "伺服器入口層的語言選擇區標題。"},
   "interfaceLanguageFollowSystem": "Follow system",
-  "@interfaceLanguageFollowSystem": {
-    "description": "語言選項：不手工指定，使用裝置語言解析結果。"
-  },
+  "@interfaceLanguageFollowSystem": {"description": "語言選項：不手工指定，使用裝置語言解析結果。"},
   "interfaceLanguageHint": "The language changes interface text only; it never changes business state.",
-  "@interfaceLanguageHint": {
-    "description": "語言選擇的範圍說明，強調不影響業務狀態。"
-  },
+  "@interfaceLanguageHint": {"description": "語言選擇的範圍說明，強調不影響業務狀態。"},
   "connectionNotConfigured": "Server address not set",
-  "@connectionNotConfigured": {
-    "description": "狀態條與探測區：基準位址未設定或格式不合格。"
-  },
+  "@connectionNotConfigured": {"description": "狀態條與探測區：基準位址未設定或格式不合格。"},
   "connectionNotProbed": "Not checked yet",
-  "@connectionNotProbed": {
-    "description": "狀態條與探測區：已有位址，但這次啟動尚未探測。"
-  },
+  "@connectionNotProbed": {"description": "狀態條與探測區：已有位址，但這次啟動尚未探測。"},
   "connectionProbing": "Checking…",
-  "@connectionProbing": {
-    "description": "狀態條與探測區：探測請求進行中。"
-  },
+  "@connectionProbing": {"description": "狀態條與探測區：探測請求進行中。"},
   "connectionProbeOk": "Last check succeeded",
-  "@connectionProbeOk": {
-    "description": "狀態條與探測區：上次探測成功（僅代表上次結果，不是持續連線）。"
-  },
+  "@connectionProbeOk": {"description": "狀態條與探測區：上次探測成功（僅代表上次結果，不是持續連線）。"},
   "connectionProbeFailed": "Last check failed",
-  "@connectionProbeFailed": {
-    "description": "狀態條與探測區：上次探測失敗，原因見下方說明。"
-  },
+  "@connectionProbeFailed": {"description": "狀態條與探測區：上次探測失敗，原因見下方說明。"},
   "errorKindNotConfigured": "No server address is set, so the request was not sent.",
-  "@errorKindNotConfigured": {
-    "description": "失敗類別：本地前提不成立，請求根本沒有發出。"
-  },
+  "@errorKindNotConfigured": {"description": "失敗類別：本地前提不成立，請求根本沒有發出。"},
   "errorKindUnreachable": "The server could not be reached. The network may be down, the address may be wrong, or the service may not be running.",
-  "@errorKindUnreachable": {
-    "description": "失敗類別：無法取得任何回應（離線、位址錯誤、服務未啟動）。"
-  },
+  "@errorKindUnreachable": {"description": "失敗類別：無法取得任何回應（離線、位址錯誤、服務未啟動）。"},
   "errorKindTimeout": "The server did not respond within the time limit.",
-  "@errorKindTimeout": {
-    "description": "失敗類別：請求已發出但在期限內沒有拿到完整回應。"
-  },
+  "@errorKindTimeout": {"description": "失敗類別：請求已發出但在期限內沒有拿到完整回應。"},
   "errorKindHttpStatus": "The server rejected this request.",
-  "@errorKindHttpStatus": {
-    "description": "失敗類別：伺服器可達但回了非 2xx，且錯誤碼不在已知清單內。"
-  },
+  "@errorKindHttpStatus": {"description": "失敗類別：伺服器可達但回了非 2xx，且錯誤碼不在已知清單內。"},
   "errorKindInvalidResponse": "The server response could not be read, so it is not treated as success.",
-  "@errorKindInvalidResponse": {
-    "description": "失敗類別：伺服器回了 2xx 但內容不符合合同，一律不視為成功。"
-  },
+  "@errorKindInvalidResponse": {"description": "失敗類別：伺服器回了 2xx 但內容不符合合同，一律不視為成功。"},
   "errorCodeInternal": "Internal server error. Please try again later.",
-  "@errorCodeInternal": {
-    "description": "機器錯誤碼 1000：未分類的內部錯誤。"
-  },
+  "@errorCodeInternal": {"description": "機器錯誤碼 1000：未分類的內部錯誤。"},
   "errorCodeNotFound": "The requested resource does not exist.",
-  "@errorCodeNotFound": {
-    "description": "機器錯誤碼 1001：請求的路徑不存在。"
-  },
+  "@errorCodeNotFound": {"description": "機器錯誤碼 1001：請求的路徑不存在。"},
   "errorCodeMethodNotAllowed": "The request method is not allowed.",
-  "@errorCodeMethodNotAllowed": {
-    "description": "機器錯誤碼 1002：路徑存在但不支援該方法。"
-  },
+  "@errorCodeMethodNotAllowed": {"description": "機器錯誤碼 1002：路徑存在但不支援該方法。"},
   "errorCodePayloadTooLarge": "The request body is too large and was rejected.",
-  "@errorCodePayloadTooLarge": {
-    "description": "機器錯誤碼 1003：請求體超過大小上限。"
-  },
+  "@errorCodePayloadTooLarge": {"description": "機器錯誤碼 1003：請求體超過大小上限。"},
   "errorCodeInvalidBody": "The request body is malformed or contains unsupported fields.",
-  "@errorCodeInvalidBody": {
-    "description": "機器錯誤碼 1004：請求體無法解析或含未知欄位。"
-  },
+  "@errorCodeInvalidBody": {"description": "機器錯誤碼 1004：請求體無法解析或含未知欄位。"},
   "errorCodeUnsupportedMediaType": "Unsupported request content type. Use application/json.",
-  "@errorCodeUnsupportedMediaType": {
-    "description": "機器錯誤碼 1005：請求體不是 JSON 內容型別。"
-  },
+  "@errorCodeUnsupportedMediaType": {"description": "機器錯誤碼 1005：請求體不是 JSON 內容型別。"},
   "errorCodeRequestTimeout": "The server timed out while processing the request. Please try again.",
-  "@errorCodeRequestTimeout": {
-    "description": "機器錯誤碼 1006：伺服器處理該請求超過期限。"
-  },
+  "@errorCodeRequestTimeout": {"description": "機器錯誤碼 1006：伺服器處理該請求超過期限。"},
   "errorCodeNotReady": "The service is not ready yet. Please try again later.",
-  "@errorCodeNotReady": {
-    "description": "機器錯誤碼 1007：服務尚未就緒（依賴不可回應）。"
-  },
+  "@errorCodeNotReady": {"description": "機器錯誤碼 1007：服務尚未就緒（依賴不可回應）。"},
   "errorCodeInvalidCredentials": "The login name or password is incorrect, or this account cannot sign in right now.",
-  "@errorCodeInvalidCredentials": {
-    "description": "机器错误码 2001：登录被拒。后端把「查无此人／口令错误／不可登录」收敛为同一句话，不得拆成可区分的文案。"
-  },
+  "@errorCodeInvalidCredentials": {"description": "机器错误码 2001：登录被拒。后端把「查无此人／口令错误／不可登录」收敛为同一句话，不得拆成可区分的文案。"},
   "errorCodeNotAuthenticated": "This request carries no session. Please sign in first.",
-  "@errorCodeNotAuthenticated": {
-    "description": "机器错误码 2002：请求没有携带任何会话凭据，而该端点需要身份。"
-  },
+  "@errorCodeNotAuthenticated": {"description": "机器错误码 2002：请求没有携带任何会话凭据，而该端点需要身份。"},
   "errorCodeSessionInvalid": "The session is no longer valid. Please sign in again.",
-  "@errorCodeSessionInvalid": {
-    "description": "机器错误码 2003：携带的会话已过期、被撤销或主体状态不可用。"
-  },
+  "@errorCodeSessionInvalid": {"description": "机器错误码 2003：携带的会话已过期、被撤销或主体状态不可用。"},
   "errorCodeSessionStale": "The session credential in this request has been superseded by a newer one. Please retry this operation.",
-  "@errorCodeSessionStale": {
-    "description": "機器錯誤碼 2007：請求攜帶的是上一代會話憑據，已被更新的憑據取代；處置是重試，不是重新登入。"
-  },
+  "@errorCodeSessionStale": {"description": "機器錯誤碼 2007：請求攜帶的是上一代會話憑據，已被更新的憑據取代；處置是重試，不是重新登入。"},
   "errorCodeAuthMethodConflict": "The request mixes authentication methods, or a browser request used a disallowed method.",
-  "@errorCodeAuthMethodConflict": {
-    "description": "机器错误码 2004：认证方式混用（Cookie 与 Bearer 并存，或浏览器请求使用 Bearer）。"
-  },
+  "@errorCodeAuthMethodConflict": {"description": "机器错误码 2004：认证方式混用（Cookie 与 Bearer 并存，或浏览器请求使用 Bearer）。"},
   "errorCodeOriginForbidden": "The request origin failed the cross-site protection check and was rejected.",
-  "@errorCodeOriginForbidden": {
-    "description": "机器错误码 2005：有副作用的请求未通过来源（CSRF）策略。"
-  },
+  "@errorCodeOriginForbidden": {"description": "机器错误码 2005：有副作用的请求未通过来源（CSRF）策略。"},
   "errorCodeLoginThrottled": "Too many login attempts. Please try again later.",
-  "@errorCodeLoginThrottled": {
-    "description": "机器错误码 2006：登录尝试过于频繁，服务端冷却中；处置为稍后重试，不指出是哪个账户被限制。"
-  },
+  "@errorCodeLoginThrottled": {"description": "机器错误码 2006：登录尝试过于频繁，服务端冷却中；处置为稍后重试，不指出是哪个账户被限制。"},
   "errorCodeDeviceLimitReached": "This account has reached the server's limit on signed-in devices, so this sign-in was not applied. Sign out on another device, or wait for an existing session to expire, then try again.",
-  "@errorCodeDeviceLimitReached": {
-    "description": "機器錯誤碼 2008：憑據正確，但該主體的有效會話名額已達伺服器的裝置登入上限，這次登入整個沒有發生；處置是在其他裝置登出或等待會話到期，不是重打口令。"
-  },
+  "@errorCodeDeviceLimitReached": {"description": "機器錯誤碼 2008：憑據正確，但該主體的有效會話名額已達伺服器的裝置登入上限，這次登入整個沒有發生；處置是在其他裝置登出或等待會話到期，不是重打口令。"},
   "serverProbeTitle": "Server connectivity check",
-  "@serverProbeTitle": {
-    "description": "伺服器連通性探測區的標題。"
-  },
+  "@serverProbeTitle": {"description": "伺服器連通性探測區的標題。"},
   "serverProbeSummary": "Reads the server's health and time endpoints. Every value comes from the server, never from this device.",
-  "@serverProbeSummary": {
-    "description": "探測區的說明文字：點明數值來自伺服器而非本機。"
-  },
+  "@serverProbeSummary": {"description": "探測區的說明文字：點明數值來自伺服器而非本機。"},
   "serverProbeAddressLabel": "Address",
-  "@serverProbeAddressLabel": {
-    "description": "探測區：基準位址的欄位標籤。"
-  },
+  "@serverProbeAddressLabel": {"description": "探測區：基準位址的欄位標籤。"},
   "serverProbeAction": "Check now",
-  "@serverProbeAction": {
-    "description": "探測按鈕文字（本次啟動尚未探測過）。"
-  },
+  "@serverProbeAction": {"description": "探測按鈕文字（本次啟動尚未探測過）。"},
   "serverProbeRetryAction": "Check again",
-  "@serverProbeRetryAction": {
-    "description": "探測按鈕文字（已探測過一次後的再試）。"
-  },
+  "@serverProbeRetryAction": {"description": "探測按鈕文字（已探測過一次後的再試）。"},
   "serverProbeRunning": "Requesting health and time…",
-  "@serverProbeRunning": {
-    "description": "探測進行中的提示文字。"
-  },
+  "@serverProbeRunning": {"description": "探測進行中的提示文字。"},
   "serverProbeNotConfiguredHint": "No server address is available, so the check is disabled. Enter an address above and save it.",
-  "@serverProbeNotConfiguredHint": {
-    "description": "位址不可用時的說明：按鈕停用原因與位址來源。"
-  },
+  "@serverProbeNotConfiguredHint": {"description": "位址不可用時的說明：按鈕停用原因與位址來源。"},
   "serverProbeNever": "No check has been run since this session started.",
-  "@serverProbeNever": {
-    "description": "有位址但尚未探測時的提示。"
-  },
+  "@serverProbeNever": {"description": "有位址但尚未探測時的提示。"},
   "serverProbeSucceeded": "Check succeeded",
-  "@serverProbeSucceeded": {
-    "description": "探測成功的結果標題。"
-  },
+  "@serverProbeSucceeded": {"description": "探測成功的結果標題。"},
   "serverProbeFailed": "Check failed",
-  "@serverProbeFailed": {
-    "description": "探測失敗的結果標題。"
-  },
+  "@serverProbeFailed": {"description": "探測失敗的結果標題。"},
   "serverProbeStatusLabel": "Reported status",
-  "@serverProbeStatusLabel": {
-    "description": "存活端點回報的狀態欄位標籤。"
-  },
+  "@serverProbeStatusLabel": {"description": "存活端點回報的狀態欄位標籤。"},
   "serverProbeServiceLabel": "Service",
-  "@serverProbeServiceLabel": {
-    "description": "服務名與版本欄位的標籤。"
-  },
+  "@serverProbeServiceLabel": {"description": "服務名與版本欄位的標籤。"},
   "serverProbeTimeLabel": "Server time (UTC)",
-  "@serverProbeTimeLabel": {
-    "description": "伺服器 UTC 時間欄位的標籤（顯示回應原文）。"
-  },
+  "@serverProbeTimeLabel": {"description": "伺服器 UTC 時間欄位的標籤（顯示回應原文）。"},
   "serverProbeClockLabel": "Local display",
-  "@serverProbeClockLabel": {
-    "description": "按伺服器顯示時區換算後的牆鐘時間標籤。"
-  },
+  "@serverProbeClockLabel": {"description": "按伺服器顯示時區換算後的牆鐘時間標籤。"},
   "rootInitTitle": "Root initialization",
-  "@rootInitTitle": {
-    "description": "首次啟動的 Root 初始化引導卡標題。"
-  },
+  "@rootInitTitle": {"description": "首次啟動的 Root 初始化引導卡標題。"},
   "rootInitSummary": "Asks the server whether it already has a Root credential. This check only reads: this screen never collects or sends a password.",
-  "@rootInitSummary": {
-    "description": "引導卡的說明：點明這是一次只讀查詢，本頁面不收集也不傳送口令。"
-  },
+  "@rootInitSummary": {"description": "引導卡的說明：點明這是一次只讀查詢，本頁面不收集也不傳送口令。"},
   "rootInitAction": "Check initialization",
-  "@rootInitAction": {
-    "description": "查詢按鈕文字：首次查詢與重新檢查都用同一句（措辭刻意不與同屏的連通性探測按鈕相同）。"
-  },
+  "@rootInitAction": {"description": "查詢按鈕文字：首次查詢與重新檢查都用同一句（措辭刻意不與同屏的連通性探測按鈕相同）。"},
   "rootInitRunning": "Querying initialization status…",
-  "@rootInitRunning": {
-    "description": "查詢進行中的提示。"
-  },
+  "@rootInitRunning": {"description": "查詢進行中的提示。"},
   "rootInitNotConfiguredHint": "No server address is available, so the status cannot be checked. Enter and save an address above first.",
-  "@rootInitNotConfiguredHint": {
-    "description": "位址不可用時的說明：無從查詢的原因與該先做什麼。"
-  },
+  "@rootInitNotConfiguredHint": {"description": "位址不可用時的說明：無從查詢的原因與該先做什麼。"},
   "rootInitUninitializedTitle": "Not initialized: this server does not have a Root credential yet",
-  "@rootInitUninitializedTitle": {
-    "description": "伺服器明確回報「還沒有 Root」時的狀態結論。只有在這個階段才列出初始化步驟。"
-  },
+  "@rootInitUninitializedTitle": {"description": "伺服器明確回報「還沒有 Root」時的狀態結論。只有在這個階段才列出初始化步驟。"},
   "rootInitInitializedTitle": "Initialization complete",
-  "@rootInitInitializedTitle": {
-    "description": "伺服器回報已有 Root 憑據時的狀態結論。"
-  },
+  "@rootInitInitializedTitle": {"description": "伺服器回報已有 Root 憑據時的狀態結論。"},
   "rootInitInitializedNote": "The server's config file already holds a Root credential, so the one-time initialization door is closed: running init-root again is always refused, and that is the design rather than a fault. The Root login endpoint is live on the server, and the sign-in entry now sits in the \"Login and session\" card below; this card stays read-only and collects no credentials.",
-  "@rootInitInitializedNote": {
-    "description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、登入入口在下方會話卡；本卡仍然唯讀。"
-  },
+  "@rootInitInitializedNote": {"description": "已初始化時如實說明：初始化門已關、Root 登入端點在伺服器上可用、登入入口在下方會話卡；本卡仍然唯讀。"},
   "rootInitUnreachableTitle": "Cannot reach the server, so the initialization status is unknown",
-  "@rootInitUnreachableTitle": {
-    "description": "連不上伺服器（含逾時）時的狀態結論：不能把它講成「尚未初始化」。"
-  },
+  "@rootInitUnreachableTitle": {"description": "連不上伺服器（含逾時）時的狀態結論：不能把它講成「尚未初始化」。"},
   "rootInitForbiddenTitle": "The server refuses to report the initialization status",
-  "@rootInitForbiddenTitle": {
-    "description": "伺服器有回應但拒絕把狀態交給這個呼叫端時的狀態結論。"
-  },
+  "@rootInitForbiddenTitle": {"description": "伺服器有回應但拒絕把狀態交給這個呼叫端時的狀態結論。"},
   "rootInitUnknownTitle": "This check did not produce a reliable answer",
-  "@rootInitUnknownTitle": {
-    "description": "伺服器答了但結果不可信（內容抵觸合同或其他錯誤）時的狀態結論。"
-  },
+  "@rootInitUnknownTitle": {"description": "伺服器答了但結果不可信（內容抵觸合同或其他錯誤）時的狀態結論。"},
   "rootInitUnknownHint": "Ask the server again. This check is read-only: repeating it cannot create, change or overwrite a Root credential.",
-  "@rootInitUnknownHint": {
-    "description": "結果不明確時的處置：再問一次，並保證重複查詢不會動到任何 Root 憑據。"
-  },
+  "@rootInitUnknownHint": {"description": "結果不明確時的處置：再問一次，並保證重複查詢不會動到任何 Root 憑據。"},
   "rootInitConfigMissingHint": "That data directory does not have a config file yet — which is a different situation from “config file exists but has no Root”.",
-  "@rootInitConfigMissingHint": {
-    "description": "config_exists 為偽時補的一句：與「有檔案但還沒填 Root」分開講。"
-  },
+  "@rootInitConfigMissingHint": {"description": "config_exists 為偽時補的一句：與「有檔案但還沒填 Root」分開講。"},
   "rootInitEnvOverrideHint": "Note: the environment variable ER_SECURITY_ROOT_PASSWORD_HASH is set and overrides the config file at run time. init-root refuses to write in that state, so remove the variable or treat that credential as the real Root source.",
-  "@rootInitEnvOverrideHint": {
-    "description": "env_override 為真時的警告：檔案裡沒有不等於這個服務沒有 Root，且此時 init-root 必然拒絕寫入。"
-  },
+  "@rootInitEnvOverrideHint": {"description": "env_override 為真時的警告：檔案裡沒有不等於這個服務沒有 Root，且此時 init-root 必然拒絕寫入。"},
   "rootInitStepStop": "Stop the running service on the machine where the server lives. Initialization has to happen after the service releases the database lock; running init-root while it is up is always refused.",
-  "@rootInitStepStop": {
-    "description": "步驟一：停服務（單寫入實例鎖的真實約束）。"
-  },
+  "@rootInitStepStop": {"description": "步驟一：停服務（單寫入實例鎖的真實約束）。"},
   "rootInitStepMigrate": "For a brand-new data directory, run `evernight-server migrate --data-dir <data-dir>` first to create the schema — init-root also refuses when the audit table is missing.",
-  "@rootInitStepMigrate": {
-    "description": "步驟二：全新資料目錄先建結構；命令列文字不翻譯，四份逐字相同。"
-  },
+  "@rootInitStepMigrate": {"description": "步驟二：全新資料目錄先建結構；命令列文字不翻譯，四份逐字相同。"},
   "rootInitStepInitialize": "Run `evernight-server init-root --data-dir <data-dir> --password-stdin` and give the password and its confirmation on standard input, one line each.",
-  "@rootInitStepInitialize": {
-    "description": "步驟三：本機一次性初始化命令；口令只經標準輸入，命令列上不出現口令值。"
-  },
+  "@rootInitStepInitialize": {"description": "步驟三：本機一次性初始化命令；口令只經標準輸入，命令列上不出現口令值。"},
   "rootInitStepRestart": "Start the service again.",
-  "@rootInitStepRestart": {
-    "description": "步驟四：重新啟動服務（生效的憑據由啟動時讀取）。"
-  },
+  "@rootInitStepRestart": {"description": "步驟四：重新啟動服務（生效的憑據由啟動時讀取）。"},
   "rootInitStepRecheck": "Return to this screen and check once more; the status follows the config file.",
-  "@rootInitStepRecheck": {
-    "description": "步驟五：回本頁重新檢查。"
-  },
+  "@rootInitStepRecheck": {"description": "步驟五：回本頁重新檢查。"},
   "rootInitSecretBoundary": "This screen has no password field and sends no credential anywhere: initializing Root is possible only through a command run on the server itself.",
-  "@rootInitSecretBoundary": {
-    "description": "界線那一句：本步不收集口令、不開 HTTP 初始化通路。"
-  },
+  "@rootInitSecretBoundary": {"description": "界線那一句：本步不收集口令、不開 HTTP 初始化通路。"},
   "diagnosticRequestId": "Request ID",
-  "@diagnosticRequestId": {
-    "description": "診斷行：請求關聯 ID 的標籤。"
-  },
+  "@diagnosticRequestId": {"description": "診斷行：請求關聯 ID 的標籤。"},
   "diagnosticErrorCode": "Error code",
-  "@diagnosticErrorCode": {
-    "description": "診斷行：機器錯誤碼的標籤。"
-  },
+  "@diagnosticErrorCode": {"description": "診斷行：機器錯誤碼的標籤。"},
   "safeErrorTitle": "Something went wrong",
-  "@safeErrorTitle": {
-    "description": "未處理錯誤安全畫面的標題。"
-  },
+  "@safeErrorTitle": {"description": "未處理錯誤安全畫面的標題。"},
   "safeErrorBody": "The problem has been recorded on this device only. You can go back to a working page; nothing was sent anywhere.",
-  "@safeErrorBody": {
-    "description": "安全畫面的說明：記錄只留在本機、不外送，並可返回可用頁面。"
-  },
+  "@safeErrorBody": {"description": "安全畫面的說明：記錄只留在本機、不外送，並可返回可用頁面。"},
   "safeErrorReturnAction": "Return to a working page",
-  "@safeErrorReturnAction": {
-    "description": "安全畫面唯一動作的按鈕文字（清掉失敗並回到起始路由）。"
-  },
+  "@safeErrorReturnAction": {"description": "安全畫面唯一動作的按鈕文字（清掉失敗並回到起始路由）。"},
   "safeErrorRepeatedHint": "The same problem came back right after returning. Please reload the app. If it keeps happening, quote the diagnostic code above.",
-  "@safeErrorRepeatedHint": {
-    "description": "返回後同一失敗立刻重現時的額外提示（改請使用者重新載入）。"
-  },
+  "@safeErrorRepeatedHint": {"description": "返回後同一失敗立刻重現時的額外提示（改請使用者重新載入）。"},
   "safeErrorKindUi": "A part of the interface could not be drawn.",
-  "@safeErrorKindUi": {
-    "description": "失敗類別：元件建構／佈局／繪製階段出錯。"
-  },
+  "@safeErrorKindUi": {"description": "失敗類別：元件建構／佈局／繪製階段出錯。"},
   "safeErrorKindBackground": "A background task failed.",
-  "@safeErrorKindBackground": {
-    "description": "失敗類別：框架非構建階段或背景工作出錯。"
-  },
+  "@safeErrorKindBackground": {"description": "失敗類別：框架非構建階段或背景工作出錯。"},
   "safeErrorKindServer": "A request to the server failed.",
-  "@safeErrorKindServer": {
-    "description": "失敗類別：與伺服器往來時出錯。"
-  },
+  "@safeErrorKindServer": {"description": "失敗類別：與伺服器往來時出錯。"},
   "safeErrorDiagnosticCodeLabel": "Diagnostic code",
-  "@safeErrorDiagnosticCodeLabel": {
-    "description": "診斷行：本機診斷碼的標籤。"
-  },
+  "@safeErrorDiagnosticCodeLabel": {"description": "診斷行：本機診斷碼的標籤。"},
   "serverAddressTitle": "Server address",
-  "@serverAddressTitle": {
-    "description": "伺服器入口層：位址輸入卡的標題。"
-  },
+  "@serverAddressTitle": {"description": "伺服器入口層：位址輸入卡的標題。"},
   "serverAddressSummary": "Type the address of the server to use and keep it on this device. Only complete http or https addresses without credentials are accepted, and an address is saved only after it answers.",
-  "@serverAddressSummary": {
-    "description": "位址輸入卡的範圍說明：點明只接受完整位址、且驗證得通才會保存。"
-  },
+  "@serverAddressSummary": {"description": "位址輸入卡的範圍說明：點明只接受完整位址、且驗證得通才會保存。"},
   "serverAddressInputHint": "For example: http://192.168.1.10:5206",
-  "@serverAddressInputHint": {
-    "description": "位址輸入框的範例提示（含協定與埠號的寫法）。"
-  },
+  "@serverAddressInputHint": {"description": "位址輸入框的範例提示（含協定與埠號的寫法）。"},
   "serverAddressEffectiveLabel": "Address in use",
-  "@serverAddressEffectiveLabel": {
-    "description": "位址輸入卡：目前實際生效的位址欄位標籤。"
-  },
+  "@serverAddressEffectiveLabel": {"description": "位址輸入卡：目前實際生效的位址欄位標籤。"},
   "serverAddressSavedLabel": "Saved on this device",
-  "@serverAddressSavedLabel": {
-    "description": "位址輸入卡：本機已保存位址的欄位標籤（未必正在生效）。"
-  },
+  "@serverAddressSavedLabel": {"description": "位址輸入卡：本機已保存位址的欄位標籤（未必正在生效）。"},
   "serverAddressSaveAction": "Check and save",
-  "@serverAddressSaveAction": {
-    "description": "保存按鈕文字：先探測可達性再寫入本機。"
-  },
+  "@serverAddressSaveAction": {"description": "保存按鈕文字：先探測可達性再寫入本機。"},
   "serverAddressSaving": "Checking this address…",
-  "@serverAddressSaving": {
-    "description": "保存進行中的按鈕文字（正在探測候選位址）。"
-  },
+  "@serverAddressSaving": {"description": "保存進行中的按鈕文字（正在探測候選位址）。"},
   "serverAddressClearAction": "Remove saved address",
-  "@serverAddressClearAction": {
-    "description": "清除按鈕文字：移除本機保存的位址。"
-  },
+  "@serverAddressClearAction": {"description": "清除按鈕文字：移除本機保存的位址。"},
   "serverAddressFromBuildNote": "The address in use comes from a build parameter rather than this device.",
-  "@serverAddressFromBuildNote": {
-    "description": "生效位址來自編譯期注入時的來源說明。"
-  },
+  "@serverAddressFromBuildNote": {"description": "生效位址來自編譯期注入時的來源說明。"},
   "serverAddressInactiveNote": "This is a debug build, so the build parameter takes priority; the address saved on this device is not in use yet.",
-  "@serverAddressInactiveNote": {
-    "description": "debug 建置下注入值壓過本機值時的提示，避免使用者誤以為剛存的地址已生效。"
-  },
+  "@serverAddressInactiveNote": {"description": "debug 建置下注入值壓過本機值時的提示，避免使用者誤以為剛存的地址已生效。"},
   "serverAddressSavedNote": "Address saved on this device.",
-  "@serverAddressSavedNote": {
-    "description": "已驗證可達並成功寫入本機後的確認文字。"
-  },
+  "@serverAddressSavedNote": {"description": "已驗證可達並成功寫入本機後的確認文字。"},
   "serverAddressVerifyFailed": "This address did not answer, so it was not saved.",
-  "@serverAddressVerifyFailed": {
-    "description": "格式合格但連不通時的說明：明確表示沒有保存。"
-  },
+  "@serverAddressVerifyFailed": {"description": "格式合格但連不通時的說明：明確表示沒有保存。"},
   "serverAddressStorageFailed": "This device could not store the change, so nothing was modified.",
-  "@serverAddressStorageFailed": {
-    "description": "本機寫入失敗（保存或清除）時的說明：狀態保持原樣。"
-  },
+  "@serverAddressStorageFailed": {"description": "本機寫入失敗（保存或清除）時的說明：狀態保持原樣。"},
   "serverAddressCleared": "The saved address was removed from this device.",
-  "@serverAddressCleared": {
-    "description": "清除本機已存位址成功後的確認文字。"
-  },
+  "@serverAddressCleared": {"description": "清除本機已存位址成功後的確認文字。"},
   "addressIssueEmpty": "Enter a server address.",
-  "@addressIssueEmpty": {
-    "description": "格式判定：沒有任何輸入。"
-  },
+  "@addressIssueEmpty": {"description": "格式判定：沒有任何輸入。"},
   "addressIssueMissingScheme": "The address must start with http:// or https://.",
-  "@addressIssueMissingScheme": {
-    "description": "格式判定：最常見的錯誤——只寫了主機與埠號，忘了協定前綴。"
-  },
+  "@addressIssueMissingScheme": {"description": "格式判定：最常見的錯誤——只寫了主機與埠號，忘了協定前綴。"},
   "addressIssueUnsupportedScheme": "Only http and https addresses are supported.",
-  "@addressIssueUnsupportedScheme": {
-    "description": "格式判定：協定不是 http 或 https。"
-  },
+  "@addressIssueUnsupportedScheme": {"description": "格式判定：協定不是 http 或 https。"},
   "addressIssueWhitespace": "The address cannot contain spaces or tab characters.",
-  "@addressIssueWhitespace": {
-    "description": "格式判定：位址中間夾帶空白、製表符或零寬字元。"
-  },
+  "@addressIssueWhitespace": {"description": "格式判定：位址中間夾帶空白、製表符或零寬字元。"},
   "addressIssueUnresolved": "This text cannot be read as a server address.",
-  "@addressIssueUnresolved": {
-    "description": "格式判定：無法解析出帶主機的絕對位址。"
-  },
+  "@addressIssueUnresolved": {"description": "格式判定：無法解析出帶主機的絕對位址。"},
   "addressIssueHostMissing": "The address is missing a host name.",
-  "@addressIssueHostMissing": {
-    "description": "格式判定：有協定與斜線，但主機名稱為空。"
-  },
+  "@addressIssueHostMissing": {"description": "格式判定：有協定與斜線，但主機名稱為空。"},
   "addressIssueCredentials": "The address cannot contain a user name or password.",
-  "@addressIssueCredentials": {
-    "description": "格式判定：位址內含使用者名稱或密碼（憑證不入位址）。"
-  },
+  "@addressIssueCredentials": {"description": "格式判定：位址內含使用者名稱或密碼（憑證不入位址）。"},
   "addressIssueQueryOrFragment": "The address cannot contain query parameters or a # fragment.",
-  "@addressIssueQueryOrFragment": {
-    "description": "格式判定：位址內含查詢字串或片段標記。"
-  },
+  "@addressIssueQueryOrFragment": {"description": "格式判定：位址內含查詢字串或片段標記。"},
   "sessionCardTitle": "Login and session",
-  "@sessionCardTitle": {
-    "description": "入口層會話卡的標題：本卡陳述「此刻這台伺服器上的我」。"
-  },
+  "@sessionCardTitle": {"description": "入口層會話卡的標題：本卡陳述「此刻這台伺服器上的我」。"},
   "sessionNotConfiguredHint": "No server address is in effect, so there is nothing to sign in to yet. Enter and save a reachable address in the server address card above first.",
-  "@sessionNotConfiguredHint": {
-    "description": "沒有生效位址時如實說明無從登入，並指出該先做什麼。"
-  },
+  "@sessionNotConfiguredHint": {"description": "沒有生效位址時如實說明無從登入，並指出該先做什麼。"},
   "sessionSignedOutHint": "Not signed in.",
-  "@sessionSignedOutHint": {
-    "description": "確定未登入那一句。"
-  },
+  "@sessionSignedOutHint": {"description": "確定未登入那一句。"},
   "sessionGoLoginAction": "Go to sign in",
-  "@sessionGoLoginAction": {
-    "description": "前往登入頁的按鈕文字。"
-  },
+  "@sessionGoLoginAction": {"description": "前往登入頁的按鈕文字。"},
   "sessionVerifyingHint": "Restoring and verifying the previous session with the server…",
-  "@sessionVerifyingHint": {
-    "description": "啟動恢復進行中的提示：不沿用舊身分、不宣稱任何狀態。"
-  },
+  "@sessionVerifyingHint": {"description": "啟動恢復進行中的提示：不沿用舊身分、不宣稱任何狀態。"},
   "sessionUnknownHint": "The session state cannot be determined right now: the server did not answer that question. This is not a sign that you were signed out.",
-  "@sessionUnknownHint": {
-    "description": "查不了那一句：明說這不等於已登出。"
-  },
+  "@sessionUnknownHint": {"description": "查不了那一句：明說這不等於已登出。"},
   "sessionRevalidateAction": "Re-check session",
-  "@sessionRevalidateAction": {
-    "description": "重新問一次伺服器的按鈕文字。"
-  },
+  "@sessionRevalidateAction": {"description": "重新問一次伺服器的按鈕文字。"},
   "sessionExpiredNotice": "The server has determined that the previous session is no longer valid (expired, revoked, or superseded by a newer rotated credential). Please sign in again.",
-  "@sessionExpiredNotice": {
-    "description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"
-  },
+  "@sessionExpiredNotice": {"description": "伺服器判定會話失效（2003）後的提示：處置是重新登入。"},
   "sessionRotateAction": "Rotate session secret",
-  "@sessionRotateAction": {
-    "description": "已登入態的「輪換會話秘密」按鈕文字。"
-  },
+  "@sessionRotateAction": {"description": "已登入態的「輪換會話秘密」按鈕文字。"},
   "sessionRotatingAction": "Rotating…",
-  "@sessionRotatingAction": {
-    "description": "輪換進行中的按鈕文字（此時停用，防連點產生第二趟輪換請求）。"
-  },
+  "@sessionRotatingAction": {"description": "輪換進行中的按鈕文字（此時停用，防連點產生第二趟輪換請求）。"},
   "sessionRotateSuccessNotice": "The session secret has been rotated. This stays the same device and the same expiry; only the credential was renewed.",
-  "@sessionRotateSuccessNotice": {
-    "description": "輪換成功的提示：同一會話、同一設備、同一到期時刻，只換憑據。"
-  },
+  "@sessionRotateSuccessNotice": {"description": "輪換成功的提示：同一會話、同一設備、同一到期時刻，只換憑據。"},
   "sessionRotateSupersededNotice": "A newer rotation had already been applied, so this response was ignored. The current credential is unchanged.",
-  "@sessionRotateSupersededNotice": {
-    "description": "倒序送達的輪換回應被丟棄時的提示：記憶體與安全儲存都未被覆寫。"
-  },
+  "@sessionRotateSupersededNotice": {"description": "倒序送達的輪換回應被丟棄時的提示：記憶體與安全儲存都未被覆寫。"},
   "sessionRotatePersistenceFailedNotice": "The secret was rotated and works for this run, but it could not be saved to secure storage. You will need to sign in again after a restart.",
-  "@sessionRotatePersistenceFailedNotice": {
-    "description": "輪換成功但新秘密寫不進安全儲存時的提示：本次可用，重啟需重登，絕不降級明文。"
-  },
+  "@sessionRotatePersistenceFailedNotice": {"description": "輪換成功但新秘密寫不進安全儲存時的提示：本次可用，重啟需重登，絕不降級明文。"},
   "sessionRotateRejectedNotice": "The server refused the rotation and the session is no longer valid. Please sign in again.",
-  "@sessionRotateRejectedNotice": {
-    "description": "輪換被拒（2007／2003）或原生端拿不到新秘密時的提示：處置是重新登入。"
-  },
+  "@sessionRotateRejectedNotice": {"description": "輪換被拒（2007／2003）或原生端拿不到新秘密時的提示：處置是重新登入。"},
   "sessionRotateNoEffectNotice": "The rotation request did not reach the server, so nothing changed. The current credential still works.",
-  "@sessionRotateNoEffectNotice": {
-    "description": "對帳後確認輪換其實沒發生時的提示：憑據保留、仍為已登入。"
-  },
+  "@sessionRotateNoEffectNotice": {"description": "對帳後確認輪換其實沒發生時的提示：憑據保留、仍為已登入。"},
   "sessionRotateUnconfirmedNotice": "The result of the rotation could not be confirmed: the server is unreachable and the session state is unknown. The current credential is kept; retry when the server is reachable.",
-  "@sessionRotateUnconfirmedNotice": {
-    "description": "網路結果不明且對帳也不通時的提示：保留憑據、停在未知，不謊報成功也不謊報登出。"
-  },
+  "@sessionRotateUnconfirmedNotice": {"description": "網路結果不明且對帳也不通時的提示：保留憑據、停在未知，不謊報成功也不謊報登出。"},
   "sessionStorageFailureNote": "The local login state could not be read or written: verification is paused, or this session will not survive a restart. For safety the credential is never kept in plaintext.",
-  "@sessionStorageFailureNote": {
-    "description": "本機安全儲存讀寫失敗的說明：不等同未登入，也絕不降明文。"
-  },
+  "@sessionStorageFailureNote": {"description": "本機安全儲存讀寫失敗的說明：不等同未登入，也絕不降明文。"},
   "sessionIdentityTitle": "Current identity (confirmed by the server)",
-  "@sessionIdentityTitle": {
-    "description": "已登入時身分卡的標題，強調「經伺服器確認」。"
-  },
+  "@sessionIdentityTitle": {"description": "已登入時身分卡的標題，強調「經伺服器確認」。"},
   "sessionSubjectLabel": "Subject",
-  "@sessionSubjectLabel": {
-    "description": "主體類別欄位標籤。"
-  },
+  "@sessionSubjectLabel": {"description": "主體類別欄位標籤。"},
   "sessionSubjectRoot": "Root (server level)",
-  "@sessionSubjectRoot": {
-    "description": "Root 主體的顯示文字（取自伺服器回應）。"
-  },
+  "@sessionSubjectRoot": {"description": "Root 主體的顯示文字（取自伺服器回應）。"},
   "sessionSubjectAccount": "Account",
-  "@sessionSubjectAccount": {
-    "description": "帳戶主體的顯示文字（取自伺服器回應）。"
-  },
+  "@sessionSubjectAccount": {"description": "帳戶主體的顯示文字（取自伺服器回應）。"},
   "sessionAccountIdLabel": "Account ID",
-  "@sessionAccountIdLabel": {
-    "description": "帳戶標識欄位標籤。"
-  },
+  "@sessionAccountIdLabel": {"description": "帳戶標識欄位標籤。"},
   "sessionDeviceLabel": "Device",
-  "@sessionDeviceLabel": {
-    "description": "裝置標識欄位標籤。"
-  },
+  "@sessionDeviceLabel": {"description": "裝置標識欄位標籤。"},
   "sessionExpiresLabel": "Session expires (UTC)",
-  "@sessionExpiresLabel": {
-    "description": "會話到期欄位標籤：值一律標註 UTC，不做本機時區換算。"
-  },
+  "@sessionExpiresLabel": {"description": "會話到期欄位標籤：值一律標註 UTC，不做本機時區換算。"},
   "sessionRootConsoleAction": "Open Root console",
-  "@sessionRootConsoleAction": {
-    "description": "Root 身分可用的主頁入口按鈕：按下後仍由 SessionGate 依伺服器身分判定。"
-  },
+  "@sessionRootConsoleAction": {"description": "Root 身分可用的主頁入口按鈕：按下後仍由 SessionGate 依伺服器身分判定。"},
   "sessionLogoutAction": "Sign out",
-  "@sessionLogoutAction": {
-    "description": "已登入態的登出按鈕文字：讓本請求憑據指向的那一枚伺服器會話失效。"
-  },
+  "@sessionLogoutAction": {"description": "已登入態的登出按鈕文字：讓本請求憑據指向的那一枚伺服器會話失效。"},
   "sessionLoggingOutAction": "Signing out…",
-  "@sessionLoggingOutAction": {
-    "description": "登出進行中的按鈕文字（此時停用，防連點產生第二趟撤銷請求）。"
-  },
+  "@sessionLoggingOutAction": {"description": "登出進行中的按鈕文字（此時停用，防連點產生第二趟撤銷請求）。"},
   "sessionSignOutSuccessNotice": "Signed out. This device no longer holds an active session on this server.",
-  "@sessionSignOutSuccessNotice": {
-    "description": "伺服器確認撤銷後的提示：只描述這一台裝置的這一次會話已失效，不外推到其他裝置。"
-  },
+  "@sessionSignOutSuccessNotice": {"description": "伺服器確認撤銷後的提示：只描述這一台裝置的這一次會話已失效，不外推到其他裝置。"},
   "sessionSignOutUnconfirmedNotice": "This device cleared its sign-in state, but the server could not confirm that the session was revoked, so it may still count as valid there until it expires. This only affects the current session on this device; other devices were not signed out.",
-  "@sessionSignOutUnconfirmedNotice": {
-    "description": "連不上／逾時／伺服器未確認時的提示：把「本機已清理」與「伺服器撤銷未確認」分開講，明確不聲稱所有設備已下線。"
-  },
+  "@sessionSignOutUnconfirmedNotice": {"description": "連不上／逾時／伺服器未確認時的提示：把「本機已清理」與「伺服器撤銷未確認」分開講，明確不聲稱所有設備已下線。"},
   "sessionChangedDuringLoginHint": "The server address changed while this sign-in was in flight, so its result was discarded: that reply describes a different server. Please sign in again.",
-  "@sessionChangedDuringLoginHint": {
-    "description": "登入請求飛行中位址被換掉：結果如實丟棄的那一句。"
-  },
+  "@sessionChangedDuringLoginHint": {"description": "登入請求飛行中位址被換掉：結果如實丟棄的那一句。"},
   "loginTitle": "Sign in to the server",
-  "@loginTitle": {
-    "description": "登入頁標題（應用殼 AppBar）。"
-  },
+  "@loginTitle": {"description": "登入頁標題（應用殼 AppBar）。"},
   "loginSummary": "Credentials typed here are sent only to the effective server address shown above and are used solely to obtain a session. The password stays hidden and is never stored on this device.",
-  "@loginSummary": {
-    "description": "登入頁的憑據去向聲明：只發往顯示的那台、不落盤口令。"
-  },
+  "@loginSummary": {"description": "登入頁的憑據去向聲明：只發往顯示的那台、不落盤口令。"},
   "loginModeLabel": "Sign in as",
-  "@loginModeLabel": {
-    "description": "登入方式選擇的欄位標籤。"
-  },
+  "@loginModeLabel": {"description": "登入方式選擇的欄位標籤。"},
   "loginModeRoot": "Root",
-  "@loginModeRoot": {
-    "description": "Root 登入方式選項：只送口令到 /auth/root/login。"
-  },
+  "@loginModeRoot": {"description": "Root 登入方式選項：只送口令到 /auth/root/login。"},
   "loginModeAccount": "Account",
-  "@loginModeAccount": {
-    "description": "帳戶登入方式選項：送登入名與口令到 /auth/login。"
-  },
+  "@loginModeAccount": {"description": "帳戶登入方式選項：送登入名與口令到 /auth/login。"},
   "loginAccountNote": "This app offers no self-registration. Server administrators are created by Root from the Root console; signing in with a login name only works for an account the server has already created.",
-  "@loginAccountNote": {
-    "description": "如實聲明沒有自行註冊入口，並指出管理員由 Root 在控制台開設；帳戶登入仍只對已存在帳戶有效。"
-  },
+  "@loginAccountNote": {"description": "如實聲明沒有自行註冊入口，並指出管理員由 Root 在控制台開設；帳戶登入仍只對已存在帳戶有效。"},
   "loginLoginNameLabel": "Login name",
-  "@loginLoginNameLabel": {
-    "description": "登入名輸入框標籤。"
-  },
+  "@loginLoginNameLabel": {"description": "登入名輸入框標籤。"},
   "loginPasswordLabel": "Password",
-  "@loginPasswordLabel": {
-    "description": "口令輸入框標籤。"
-  },
+  "@loginPasswordLabel": {"description": "口令輸入框標籤。"},
   "loginSubmitAction": "Sign in",
-  "@loginSubmitAction": {
-    "description": "提交登入的按鈕文字。"
-  },
+  "@loginSubmitAction": {"description": "提交登入的按鈕文字。"},
   "loginSubmitting": "Signing in…",
-  "@loginSubmitting": {
-    "description": "提交進行中的按鈕文字（此時按鈕停用，防連點重複請求）。"
-  },
+  "@loginSubmitting": {"description": "提交進行中的按鈕文字（此時按鈕停用，防連點重複請求）。"},
   "loginPasswordRequired": "Enter the password before submitting.",
-  "@loginPasswordRequired": {
-    "description": "本地攔截：口令為空時不發請求的那一句。"
-  },
+  "@loginPasswordRequired": {"description": "本地攔截：口令為空時不發請求的那一句。"},
   "loginLoginNameRequired": "Enter the login name before submitting.",
-  "@loginLoginNameRequired": {
-    "description": "本地攔截：帳戶模式登入名為空時不發請求的那一句。"
-  },
+  "@loginLoginNameRequired": {"description": "本地攔截：帳戶模式登入名為空時不發請求的那一句。"},
   "loginMissingCredentialNote": "The server accepted this sign-in, but this client could not obtain a session credential to send back, so the state stays undetermined instead of claiming success. Check the device environment and sign in again.",
-  "@loginMissingCredentialNote": {
-    "description": "原生端取不到可回傳憑據：狀態停在無法確定，不謊報已登入。"
-  },
+  "@loginMissingCredentialNote": {"description": "原生端取不到可回傳憑據：狀態停在無法確定，不謊報已登入。"},
   "loginServerInfoTitle": "Sign-in target",
-  "@loginServerInfoTitle": {
-    "description": "登入目標資訊卡標題：先看清連的是哪台再輸口令。"
-  },
+  "@loginServerInfoTitle": {"description": "登入目標資訊卡標題：先看清連的是哪台再輸口令。"},
   "sessionBackHomeAction": "Back to the entry page",
-  "@sessionBackHomeAction": {
-    "description": "閘擋回時唯一出口按鈕。"
-  },
+  "@sessionBackHomeAction": {"description": "閘擋回時唯一出口按鈕。"},
   "sessionGateCheckingHint": "Confirming the sign-in identity first: nothing on this page is shown before the server answers.",
-  "@sessionGateCheckingHint": {
-    "description": "受保護頁在伺服器回答前的中性提示：一個受保護字都不畫。"
-  },
+  "@sessionGateCheckingHint": {"description": "受保護頁在伺服器回答前的中性提示：一個受保護字都不畫。"},
   "sessionGateBlockedTitle": "This identity cannot open this context",
-  "@sessionGateBlockedTitle": {
-    "description": "身分不合被擋的結論行。"
-  },
+  "@sessionGateBlockedTitle": {"description": "身分不合被擋的結論行。"},
   "sessionGateBlockedHint": "Access is decided by the identity the server confirmed, not by the address you typed. Go back to the entry page and sign in again with an account that actually has this capability.",
-  "@sessionGateBlockedHint": {
-    "description": "擋的依據是伺服器確認的身分，不是網址欄。"
-  },
+  "@sessionGateBlockedHint": {"description": "擋的依據是伺服器確認的身分，不是網址欄。"},
   "sessionGateRootRequiredHint": "The Root console requires the Root subject as confirmed by the server. The current session is not Root, so this page stays closed.",
-  "@sessionGateRootRequiredHint": {
-    "description": "Root 控制台要求 Root 主體：非 Root 會話保持關閉。"
-  },
+  "@sessionGateRootRequiredHint": {"description": "Root 控制台要求 Root 主體：非 Root 會話保持關閉。"},
   "errorCodeDeviceNotFound": "This device is no longer among your signed-in devices. It may have been removed, or your list is out of date. Please refresh and try again.",
-  "@errorCodeDeviceNotFound": {
-    "description": "機器碼 2009：定向撤銷的目標不在本人會話範圍內（不存在／已被清理／屬於他人，後端三者同形）。處置是重新整理清單。"
-  },
+  "@errorCodeDeviceNotFound": {"description": "機器碼 2009：定向撤銷的目標不在本人會話範圍內（不存在／已被清理／屬於他人，後端三者同形）。處置是重新整理清單。"},
   "sessionDevicesAction": "My devices",
-  "@sessionDevicesAction": {
-    "description": "已登入態的「我的裝置」按鈕文字：開啟僅管理本人會話的裝置清單。"
-  },
+  "@sessionDevicesAction": {"description": "已登入態的「我的裝置」按鈕文字：開啟僅管理本人會話的裝置清單。"},
   "devicesDialogTitle": "My devices",
-  "@devicesDialogTitle": {
-    "description": "裝置清單對話框標題。"
-  },
+  "@devicesDialogTitle": {"description": "裝置清單對話框標題。"},
   "devicesLoadingHint": "Loading your devices…",
-  "@devicesLoadingHint": {
-    "description": "清單載入中的中性提示。"
-  },
+  "@devicesLoadingHint": {"description": "清單載入中的中性提示。"},
   "devicesLoadFailedNotice": "The device list could not be loaded right now. Please check the connection and retry.",
-  "@devicesLoadFailedNotice": {
-    "description": "列舉裝置時「查不了」（連不上／逾時／未就緒）的提示：不謊報未登入。"
-  },
+  "@devicesLoadFailedNotice": {"description": "列舉裝置時「查不了」（連不上／逾時／未就緒）的提示：不謊報未登入。"},
   "devicesRetryAction": "Retry",
-  "@devicesRetryAction": {
-    "description": "載入失敗後的重試按鈕。"
-  },
+  "@devicesRetryAction": {"description": "載入失敗後的重試按鈕。"},
   "devicesEmptyNotice": "No other devices are signed in right now.",
-  "@devicesEmptyNotice": {
-    "description": "清單為空（理論上當前裝置總在列，這是防禦性的一句）。"
-  },
+  "@devicesEmptyNotice": {"description": "清單為空（理論上當前裝置總在列，這是防禦性的一句）。"},
   "devicesCurrentBadge": "This device",
-  "@devicesCurrentBadge": {
-    "description": "標記當前請求所用那一臺的徽章文字。"
-  },
+  "@devicesCurrentBadge": {"description": "標記當前請求所用那一臺的徽章文字。"},
   "devicesCreatedLabel": "Signed in",
-  "@devicesCreatedLabel": {
-    "description": "裝置建立時刻欄位標籤。"
-  },
+  "@devicesCreatedLabel": {"description": "裝置建立時刻欄位標籤。"},
   "devicesLastActiveLabel": "Last active",
-  "@devicesLastActiveLabel": {
-    "description": "裝置最近活動時刻欄位標籤。"
-  },
+  "@devicesLastActiveLabel": {"description": "裝置最近活動時刻欄位標籤。"},
   "deviceStatusLabel": "Status",
-  "@deviceStatusLabel": {
-    "description": "裝置狀態欄位標籤。"
-  },
+  "@deviceStatusLabel": {"description": "裝置狀態欄位標籤。"},
   "deviceStatusActive": "Active",
-  "@deviceStatusActive": {
-    "description": "狀態 active 的顯示文字。"
-  },
+  "@deviceStatusActive": {"description": "狀態 active 的顯示文字。"},
   "deviceStatusExpired": "Expired",
-  "@deviceStatusExpired": {
-    "description": "狀態 expired 的顯示文字。"
-  },
+  "@deviceStatusExpired": {"description": "狀態 expired 的顯示文字。"},
   "deviceStatusRevoked": "Revoked",
-  "@deviceStatusRevoked": {
-    "description": "狀態 revoked 的顯示文字。"
-  },
+  "@deviceStatusRevoked": {"description": "狀態 revoked 的顯示文字。"},
   "devicesRevokeAction": "Revoke",
-  "@devicesRevokeAction": {
-    "description": "非當前裝置那一列的撤銷按鈕文字。"
-  },
+  "@devicesRevokeAction": {"description": "非當前裝置那一列的撤銷按鈕文字。"},
   "devicesRevokeCurrentAction": "Sign out this device",
-  "@devicesRevokeCurrentAction": {
-    "description": "當前裝置那一列的撤銷按鈕文字：撤它等同在本機登出。"
-  },
+  "@devicesRevokeCurrentAction": {"description": "當前裝置那一列的撤銷按鈕文字：撤它等同在本機登出。"},
   "devicesRevokeConfirmTitle": "Revoke device",
-  "@devicesRevokeConfirmTitle": {
-    "description": "撤銷確認對話框標題。"
-  },
+  "@devicesRevokeConfirmTitle": {"description": "撤銷確認對話框標題。"},
   "devicesRevokeConfirmBody": "Revoke device {device}? Its session will stop working on the server immediately and cannot be restored.",
-  "@devicesRevokeConfirmBody": {
-    "description": "撤銷確認正文：點名目標裝置並說明立即失效、不可逆。",
-    "placeholders": {
-      "device": {
-        "type": "String"
-      }
-    }
-  },
+  "@devicesRevokeConfirmBody": {"description": "撤銷確認正文：點名目標裝置並說明立即失效、不可逆。", "placeholders": {"device": {"type": "String"}}},
   "devicesRevokeCurrentWarning": "This is the device you are using right now — revoking it signs you out here.",
-  "@devicesRevokeCurrentWarning": {
-    "description": "撤銷當前裝置時的額外警告行。"
-  },
+  "@devicesRevokeCurrentWarning": {"description": "撤銷當前裝置時的額外警告行。"},
   "devicesRevokeConfirmAction": "Revoke",
-  "@devicesRevokeConfirmAction": {
-    "description": "確認撤銷按鈕。"
-  },
+  "@devicesRevokeConfirmAction": {"description": "確認撤銷按鈕。"},
   "devicesRevokeCancelAction": "Cancel",
-  "@devicesRevokeCancelAction": {
-    "description": "取消撤銷按鈕。"
-  },
+  "@devicesRevokeCancelAction": {"description": "取消撤銷按鈕。"},
   "devicesRevokeSuccessNotice": "The device was revoked and its session is no longer valid.",
-  "@devicesRevokeSuccessNotice": {
-    "description": "撤銷別臺成功的提示。"
-  },
+  "@devicesRevokeSuccessNotice": {"description": "撤銷別臺成功的提示。"},
   "devicesRevokeCurrentSuccessNotice": "You have signed out of this device.",
-  "@devicesRevokeCurrentSuccessNotice": {
-    "description": "撤銷當前裝置（即本機登出）後的提示。"
-  },
+  "@devicesRevokeCurrentSuccessNotice": {"description": "撤銷當前裝置（即本機登出）後的提示。"},
   "devicesRevokeAlreadyInactiveNotice": "That device was already inactive.",
-  "@devicesRevokeAlreadyInactiveNotice": {
-    "description": "冪等撤銷（目標早已失效）的提示：不是錯誤。"
-  },
+  "@devicesRevokeAlreadyInactiveNotice": {"description": "冪等撤銷（目標早已失效）的提示：不是錯誤。"},
   "devicesRevokeStaleNotice": "That device is no longer in your list, so it was refreshed.",
-  "@devicesRevokeStaleNotice": {
-    "description": "目標不在本人範圍（2009／列表陳舊）的提示：已刷新清單。"
-  },
+  "@devicesRevokeStaleNotice": {"description": "目標不在本人範圍（2009／列表陳舊）的提示：已刷新清單。"},
   "devicesRevokeUnavailableNotice": "The revocation could not be confirmed: the server is unreachable. The device was not signed out.",
-  "@devicesRevokeUnavailableNotice": {
-    "description": "撤銷因連不上／逾時而未確認：不謊報已撤銷。"
-  }
-,
+  "@devicesRevokeUnavailableNotice": {"description": "撤銷因連不上／逾時而未確認：不謊報已撤銷。"},
   "sessionPasswordChangeAction": "Change password",
-  "@sessionPasswordChangeAction": {
-    "description": "已登入卡片的改密入口按钮：本人与 Root 都走同一条改密通路。"
-  },
+  "@sessionPasswordChangeAction": {"description": "已登入卡片的改密入口按钮：本人与 Root 都走同一条改密通路。"},
   "passwordChangeRequiredNotice": "This account has not finished the password change required at first sign-in. Other features are refused by the server until you change it or sign out.",
-  "@passwordChangeRequiredNotice": {
-    "description": "强制改密态的说明行：把「服务器端的门」讲成人话，不伪装成功能都还能用。"
-  },
+  "@passwordChangeRequiredNotice": {"description": "强制改密态的说明行：把「服务器端的门」讲成人话，不伪装成功能都还能用。"},
   "passwordChangeDialogTitle": "Change password",
-  "@passwordChangeDialogTitle": {
-    "description": "改密对话框标题。"
-  },
+  "@passwordChangeDialogTitle": {"description": "改密对话框标题。"},
   "passwordChangeCurrentLabel": "Current password",
-  "@passwordChangeCurrentLabel": {
-    "description": "再认证输入框：现行口令是改密的授权本身。"
-  },
+  "@passwordChangeCurrentLabel": {"description": "再认证输入框：现行口令是改密的授权本身。"},
   "passwordChangeNewLabel": "New password",
-  "@passwordChangeNewLabel": {
-    "description": "新口令输入框。"
-  },
+  "@passwordChangeNewLabel": {"description": "新口令输入框。"},
   "passwordChangeConfirmLabel": "Confirm new password",
-  "@passwordChangeConfirmLabel": {
-    "description": "新口令确认输入框：本地比对，不一致不发请求。"
-  },
+  "@passwordChangeConfirmLabel": {"description": "新口令确认输入框：本地比对，不一致不发请求。"},
   "passwordChangeSubmitAction": "Change it",
-  "@passwordChangeSubmitAction": {
-    "description": "提交改密的按钮文字。"
-  },
+  "@passwordChangeSubmitAction": {"description": "提交改密的按钮文字。"},
   "passwordChangeMismatchNotice": "The two new-password entries do not match; nothing was sent.",
-  "@passwordChangeMismatchNotice": {
-    "description": "本地确认不一致的提示：挡在发请求之前。"
-  },
+  "@passwordChangeMismatchNotice": {"description": "本地确认不一致的提示：挡在发请求之前。"},
   "passwordChangeIncompleteNotice": "Please fill in all three password fields.",
-  "@passwordChangeIncompleteNotice": {
-    "description": "本地空栏校验的提示。"
-  },
+  "@passwordChangeIncompleteNotice": {"description": "本地空栏校验的提示。"},
   "passwordChangeSuccessSignedOutNotice": "Password changed. All of your sessions, including this device, have signed out. Please sign in again with the new password.",
-  "@passwordChangeSuccessSignedOutNotice": {
-    "description": "改密成功后的真实交代：全部退出是已批准策略，不含混。"
-  },
+  "@passwordChangeSuccessSignedOutNotice": {"description": "改密成功后的真实交代：全部退出是已批准策略，不含混。"},
   "passwordChangeInvalidCurrentNotice": "Current password is incorrect. Nothing changed and you remain signed in.",
-  "@passwordChangeInvalidCurrentNotice": {
-    "description": "2001 的处置句：与「该重新登录」严格分开。"
-  },
+  "@passwordChangeInvalidCurrentNotice": {"description": "2001 的处置句：与「该重新登录」严格分开。"},
   "passwordChangeSameNotice": "The new password equals the current one, so this change did not go through. Please choose another.",
-  "@passwordChangeSameNotice": {
-    "description": "同口令拒绝的提示：换了等于没换不能被说成成功。"
-  },
+  "@passwordChangeSameNotice": {"description": "同口令拒绝的提示：换了等于没换不能被说成成功。"},
   "passwordChangeInvalidNewNotice": "The new password does not meet the shape limits (empty or too long).",
-  "@passwordChangeInvalidNewNotice": {
-    "description": "新口令形状问题的提示：沿用后端凭据模块的界线。"
-  },
+  "@passwordChangeInvalidNewNotice": {"description": "新口令形状问题的提示：沿用后端凭据模块的界线。"},
   "passwordChangeExpiredNotice": "This sign-in is no longer valid, so the password cannot be changed. Please sign in again.",
-  "@passwordChangeExpiredNotice": {
-    "description": "尝试期间凭据失效（2003/2002）的提示。"
-  },
+  "@passwordChangeExpiredNotice": {"description": "尝试期间凭据失效（2003/2002）的提示。"},
   "passwordChangeUnavailableNotice": "The server could not be reached, so it is unknown whether the password changed; your sign-in state is unchanged.",
-  "@passwordChangeUnavailableNotice": {
-    "description": "结果不明的一支：不谎报改密成功，也不谎报登出。"
-  },
+  "@passwordChangeUnavailableNotice": {"description": "结果不明的一支：不谎报改密成功，也不谎报登出。"},
   "errorCodePasswordChangeRequired": "This account must change its password or sign out before other features are available.",
-  "@errorCodePasswordChangeRequired": {
-    "description": "机器码 2010 的接口文案（与后端 locale.go 同一语义）。"
-  },
+  "@errorCodePasswordChangeRequired": {"description": "机器码 2010 的接口文案（与后端 locale.go 同一语义）。"},
   "errorCodePermissionDenied": "This account does not have permission for this operation. Signing in again will not change that.",
-  "@errorCodePermissionDenied": {
-    "description": "機器碼 2011：身分可信但沒有這個權限。處置既非重新登入也非重試（與後端 locale.go 同一語意）。"
-  },
+  "@errorCodePermissionDenied": {"description": "機器碼 2011：身分可信但沒有這個權限。處置既非重新登入也非重試（與後端 locale.go 同一語意）。"},
   "errorCodeLoginNameTaken": "This login name is already taken (matching absorbs case and full-width variants). Choose another name and submit again.",
-  "@errorCodeLoginNameTaken": {
-    "description": "機器碼 2012：要開設的登入名已被佔用；重複提交不會多出帳戶，處置是換名字（與後端 locale.go 同一語意）。"
-  },
+  "@errorCodeLoginNameTaken": {"description": "機器碼 2012：要開設的登入名已被佔用；重複提交不會多出帳戶，處置是換名字（與後端 locale.go 同一語意）。"},
   "rootConsoleAdminSectionTitle": "Create a server administrator",
-  "@rootConsoleAdminSectionTitle": {
-    "description": "Root 控制台內本步唯一已接線能力的區塊標題。"
-  },
-  "rootConsoleRemainingNotice": "Everything else in the Root console - overview, run logs, backup and restore - is not implemented here. Backup and restore stay evernight-server subcommands with no web entry, and audit records have neither a query endpoint nor a console.",
-  "@rootConsoleRemainingNotice": {
-    "description": "誠實收尾：尚未實作的 Root 域能力，與兩項永遠不會有 HTTP 入口的既定邊界一起講明白。"
-  },
+  "@rootConsoleAdminSectionTitle": {"description": "Root 控制台內本步唯一已接線能力的區塊標題。"},
+  "rootConsoleRemainingNotice": "Administrator role changes, deactivation, deletion and credential reset are not exposed here either; the server keeps no web console for audit queries, and backup/restore ships only as the evernight-server command line.",
+  "@rootConsoleRemainingNotice": {"description": "如實說明仍未接線的 Root 域能力：改角色、停用、刪除、重置憑據；並點名審計查詢與備份恢復永遠不會有 HTTP／網頁入口。"},
   "adminListTitle": "Administrators created so far",
-  "@adminListTitle": {
-    "description": "確認用最小清單的區塊標題（不是完整帳戶目錄）。"
-  },
+  "@adminListTitle": {"description": "確認用最小清單的區塊標題（不是完整帳戶目錄）。"},
   "adminProvisionDeliveryNotice": "The initial password is handed over once: the server never echoes it back and neither it nor this app keeps a copy. You still have to pass it to that person through a channel you already trust. They must change it at first sign-in, and once changed every device of that account signs out.",
-  "@adminProvisionDeliveryNotice": {
-    "description": "安全交付提示：口令不回顯不保存、交付管道在使用者手上、以及首次改密與全裝置退出的後果。"
-  },
+  "@adminProvisionDeliveryNotice": {"description": "安全交付提示：口令不回顯不保存、交付管道在使用者手上、以及首次改密與全裝置退出的後果。"},
   "adminProvisionLoginNameLabel": "Login name",
-  "@adminProvisionLoginNameLabel": {
-    "description": "登入名輸入框標籤。"
-  },
+  "@adminProvisionLoginNameLabel": {"description": "登入名輸入框標籤。"},
   "adminProvisionDisplayNameLabel": "Display name",
-  "@adminProvisionDisplayNameLabel": {
-    "description": "顯示名稱輸入框標籤。"
-  },
+  "@adminProvisionDisplayNameLabel": {"description": "顯示名稱輸入框標籤。"},
   "adminProvisionInitialPasswordLabel": "One-time initial password",
-  "@adminProvisionInitialPasswordLabel": {
-    "description": "初始口令輸入框標籤：明確它是一次性的。"
-  },
+  "@adminProvisionInitialPasswordLabel": {"description": "初始口令輸入框標籤：明確它是一次性的。"},
   "adminProvisionInitialPasswordHint": "Used only for the first sign-in; the server requires you to change it right after.",
-  "@adminProvisionInitialPasswordHint": {
-    "description": "輸入框下方說明：強制首次改密是服務端的門，不是建議。"
-  },
+  "@adminProvisionInitialPasswordHint": {"description": "輸入框下方說明：強制首次改密是服務端的門，不是建議。"},
   "adminProvisionSubmitAction": "Create administrator",
-  "@adminProvisionSubmitAction": {
-    "description": "提交開設的按鈕文字。"
-  },
+  "@adminProvisionSubmitAction": {"description": "提交開設的按鈕文字。"},
   "adminProvisionFormIncompleteNotice": "Please fill in the login name, display name and initial password.",
-  "@adminProvisionFormIncompleteNotice": {
-    "description": "本地只擋明顯沒填，其餘規則以服務端為準。"
-  },
+  "@adminProvisionFormIncompleteNotice": {"description": "本地只擋明顯沒填，其餘規則以服務端為準。"},
   "adminProvisionInvalidLoginNameNotice": "The server rejected this login name. Login names cannot contain spaces, control or invisible characters, and matching ignores case and width variants.",
-  "@adminProvisionInvalidLoginNameNotice": {
-    "description": "1004 且 details.invalid_field 為 login_name 時的轉述。"
-  },
+  "@adminProvisionInvalidLoginNameNotice": {"description": "1004 且 details.invalid_field 為 login_name 時的轉述。"},
   "adminProvisionInvalidDisplayNameNotice": "The server rejected this display name. Please use a shorter name without control or invisible characters.",
-  "@adminProvisionInvalidDisplayNameNotice": {
-    "description": "1004 且 details.invalid_field 為 display_name 時的轉述。"
-  },
+  "@adminProvisionInvalidDisplayNameNotice": {"description": "1004 且 details.invalid_field 為 display_name 時的轉述。"},
   "adminProvisionInvalidPasswordNotice": "The initial password does not meet the length limits of the server. Nothing was created.",
-  "@adminProvisionInvalidPasswordNotice": {
-    "description": "1004 且 details.invalid_field 為 password 時的轉述：如實說明沒有任何寫入發生。"
-  },
+  "@adminProvisionInvalidPasswordNotice": {"description": "1004 且 details.invalid_field 為 password 時的轉述：如實說明沒有任何寫入發生。"},
   "adminProvisionRejectedNotice": "The server rejected this request. Please check what you entered and try again.",
-  "@adminProvisionRejectedNotice": {
-    "description": "1004 但 details 沒有指出欄位時的兜底句（不猜是哪一欄錯的）。"
-  },
+  "@adminProvisionRejectedNotice": {"description": "1004 但 details 沒有指出欄位時的兜底句（不猜是哪一欄錯的）。"},
   "adminProvisionCreatedTitle": "Administrator {loginName} has been created.",
-  "@adminProvisionCreatedTitle": {
-    "description": "開設成功摘要標題：點名的是伺服器回傳的登入名原值。",
-    "placeholders": {
-      "loginName": {
-        "type": "String"
-      }
-    }
-  },
+  "@adminProvisionCreatedTitle": {"description": "開設成功摘要標題：點名的是伺服器回傳的登入名原值。", "placeholders": {"loginName": {"type": "String"}}},
   "adminProvisionOneTimePasswordReminder": "This account must change its password at first sign-in; the initial password you just handed over stops working after that.",
-  "@adminProvisionOneTimePasswordReminder": {
-    "description": "旗標為真時的交付提醒（值取自伺服器回應，不是本地假設）。"
-  },
+  "@adminProvisionOneTimePasswordReminder": {"description": "旗標為真時的交付提醒（值取自伺服器回應，不是本地假設）。"},
   "adminProvisionNoPasswordChangeReminder": "This account is not required to change its password at first sign-in.",
-  "@adminProvisionNoPasswordChangeReminder": {
-    "description": "旗標為假時的誠實話；本步的開設用例恆產生前者，此句留給未來的其他建號通路。"
-  },
+  "@adminProvisionNoPasswordChangeReminder": {"description": "旗標為假時的誠實話；本步的開設用例恆產生前者，此句留給未來的其他建號通路。"},
   "adminProvisionAccountIdLabel": "Account ID",
-  "@adminProvisionAccountIdLabel": {
-    "description": "成功摘要裡的穩定標識列標籤。"
-  },
+  "@adminProvisionAccountIdLabel": {"description": "成功摘要裡的穩定標識列標籤。"},
   "adminListLoadingHint": "Loading the administrator list...",
-  "@adminListLoadingHint": {
-    "description": "清單載入中的中性提示。"
-  },
+  "@adminListLoadingHint": {"description": "清單載入中的中性提示。"},
   "adminListUnavailableNotice": "The administrator list could not be read right now. Nothing on the server was changed.",
-  "@adminListUnavailableNotice": {
-    "description": "查不了的一句：不謊報未登入，也不讓人以為清單是空的。"
-  },
+  "@adminListUnavailableNotice": {"description": "查不了的一句：不謊報未登入，也不讓人以為清單是空的。"},
   "adminListRetryAction": "Try again",
-  "@adminListRetryAction": {
-    "description": "失敗後重新讀取清單的按鈕文字。"
-  },
+  "@adminListRetryAction": {"description": "失敗後重新讀取清單的按鈕文字。"},
   "adminListEmptyNotice": "No administrator has been created yet. Right now only Root can sign in to this server.",
-  "@adminListEmptyNotice": {
-    "description": "空清單的如實說明：把只有 Root 能登入這現狀一起講清。"
-  },
+  "@adminListEmptyNotice": {"description": "空清單的如實說明：把只有 Root 能登入這現狀一起講清。"},
   "adminListDisplayNameLabel": "Display name",
-  "@adminListDisplayNameLabel": {
-    "description": "清單列的顯示名稱標籤。"
-  },
+  "@adminListDisplayNameLabel": {"description": "清單列的顯示名稱標籤。"},
   "adminListStatusLabel": "Status",
-  "@adminListStatusLabel": {
-    "description": "清單列的狀態標籤。"
-  },
+  "@adminListStatusLabel": {"description": "清單列的狀態標籤。"},
   "adminListCreatedLabel": "Created",
-  "@adminListCreatedLabel": {
-    "description": "清單列的建立時刻標籤。"
-  },
+  "@adminListCreatedLabel": {"description": "清單列的建立時刻標籤。"},
   "adminListLastLoginLabel": "Last sign-in",
-  "@adminListLastLoginLabel": {
-    "description": "清單列的最近登入時刻標籤。"
-  },
+  "@adminListLastLoginLabel": {"description": "清單列的最近登入時刻標籤。"},
   "adminListNeverLoggedInValue": "Has not signed in yet",
-  "@adminListNeverLoggedInValue": {
-    "description": "從未登入時的值：不拿建立時刻冒充。"
-  },
+  "@adminListNeverLoggedInValue": {"description": "從未登入時的值：不拿建立時刻冒充。"},
   "adminListMustChangeBadge": "Still needs to change password",
-  "@adminListMustChangeBadge": {
-    "description": "仍欠首次改密的標記：讓 Root 知道對方還沒換掉一次性口令。"
-  },
+  "@adminListMustChangeBadge": {"description": "仍欠首次改密的標記：讓 Root 知道對方還沒換掉一次性口令。"},
   "adminStatusActive": "Active",
-  "@adminStatusActive": {
-    "description": "帳戶狀態 active 的顯示文字。"
-  },
+  "@adminStatusActive": {"description": "帳戶狀態 active 的顯示文字。"},
   "adminStatusDisabled": "Disabled",
-  "@adminStatusDisabled": {
-    "description": "帳戶狀態 disabled 的顯示文字（停用能力尚未實作，此處只轉述後端給出的值）。"
-  },
+  "@adminStatusDisabled": {"description": "帳戶狀態 disabled 的顯示文字（停用能力尚未實作，此處只轉述後端給出的值）。"},
   "sessionSubjectServerAdmin": "Server administrator",
-  "@sessionSubjectServerAdmin": {
-    "description": "主體持有後端授予的 server_admin 時的身份行；值取自 roles 欄，不是本地推測。"
-  }
+  "@sessionSubjectServerAdmin": {"description": "主體持有後端授予的 server_admin 時的身份行；值取自 roles 欄，不是本地推測。"},
+  "errorCodeProfileConflict": "The record you are editing changed after you opened it, so this edit was not saved. Reload to see the latest values before deciding whether to submit again.",
+  "@errorCodeProfileConflict": {"description": "機器碼 2013：編輯所依據的現值已過期，整個編輯沒有發生；處置是重讀詳情而不是重發舊意圖（與後端 locale.go 同一語意）。"},
+  "rootConsoleDirectorySectionTitle": "Administrator directory",
+  "@rootConsoleDirectorySectionTitle": {"description": "Root 控制台「管理員目錄」區塊標題（分頁目錄＋單筆詳情與編輯的入口）。"},
+  "adminDirectoryTitle": "Administrators on this server",
+  "@adminDirectoryTitle": {"description": "目錄卡的區塊標題。"},
+  "adminStatusFilterAll": "All statuses",
+  "@adminStatusFilterAll": {"description": "狀態篩選「全部」選項。"},
+  "adminStatusFilterActive": "Active",
+  "@adminStatusFilterActive": {"description": "狀態篩選「啟用」選項。"},
+  "adminStatusFilterDisabled": "Disabled",
+  "@adminStatusFilterDisabled": {"description": "狀態篩選「已停用」選項。"},
+  "adminDirectoryPageSummary": "Page {page} of {totalPages} ({total} total)",
+  "@adminDirectoryPageSummary": {"description": "分頁摘要：三個數字全部取自伺服器回顯（page／totalPages／total），本地不另算第二份真相。", "placeholders": {"page": {"type": "Object"}, "totalPages": {"type": "Object"}, "total": {"type": "Object"}}},
+  "adminDirectoryEmptyNotice": "No administrator matches this filter. The server's own Root credentials are never a row here.",
+  "@adminDirectoryEmptyNotice": {"description": "空頁提示：並說明配置 Root 不會以一行帳戶混進目錄（規格 R2-002 的邊界）。"},
+  "adminDirectoryLoadingHint": "Loading administrators…",
+  "@adminDirectoryLoadingHint": {"description": "目錄載入中的中性提示。"},
+  "adminDirectoryUnavailableNotice": "The directory could not be loaded. Details are in the local diagnostic log.",
+  "@adminDirectoryUnavailableNotice": {"description": "目錄載入失敗：只給一句話與本機診斷去向，不複述原始異常。"},
+  "adminDirectoryRetryAction": "Retry",
+  "@adminDirectoryRetryAction": {"description": "失敗後重試按鈕。"},
+  "adminDirectoryPrevAction": "Previous page",
+  "@adminDirectoryPrevAction": {"description": "上一頁按鈕。"},
+  "adminDirectoryNextAction": "Next page",
+  "@adminDirectoryNextAction": {"description": "下一頁按鈕。"},
+  "adminRowAction": "View / edit {loginName}",
+  "@adminRowAction": {"description": "行內「查看／編輯」按鈕：點名的是伺服器給的登入名原值。", "placeholders": {"loginName": {"type": "String"}}},
+  "adminGrantedAtLabel": "Granted at",
+  "@adminGrantedAtLabel": {"description": "授予時刻欄位標籤。"},
+  "adminAccountIdLabel": "Account ID",
+  "@adminAccountIdLabel": {"description": "帳戶標識欄位標籤。"},
+  "adminProfileTitle": "Administrator: {loginName}",
+  "@adminProfileTitle": {"description": "詳情／編輯卡標題：點名的是詳情換回的登入名。", "placeholders": {"loginName": {"type": "String"}}},
+  "adminProfileLoadingHint": "Loading this record…",
+  "@adminProfileLoadingHint": {"description": "單筆詳情讀取中的中性提示。"},
+  "adminProfileLoadFailedNotice": "This record could not be loaded, so the form stays closed: what you see must come from the server, never from memory.",
+  "@adminProfileLoadFailedNotice": {"description": "詳情讀取失敗：表單不打開，不拿本地印象冒充服務端現值（禁樂觀 UI 的界面表述）。"},
+  "adminProfileCloseAction": "Close",
+  "@adminProfileCloseAction": {"description": "關閉詳情卡按鈕。"},
+  "adminProfileNotFoundNotice": "This account is no longer in the administrator directory.",
+  "@adminProfileNotFoundNotice": {"description": "1001 的界面句：帳戶已不在目錄中（不存在與非成員同形）。"},
+  "adminProfileDeniedNotice": "This session is not Root: the directory and profile edit are Root-only endpoints.",
+  "@adminProfileDeniedNotice": {"description": "2011 的界面句：目錄與編輯只對 Root 開放。"},
+  "adminProfileDisplayNameLabel": "Display name",
+  "@adminProfileDisplayNameLabel": {"description": "顯示名輸入框標籤。"},
+  "adminProfileLoginNameLockedHint": "The login name cannot be edited here.",
+  "@adminProfileLoginNameLockedHint": {"description": "如實說明登入名不在本步編輯白名單內。"},
+  "adminProfileRolesLabel": "Server roles",
+  "@adminProfileRolesLabel": {"description": "角色欄位標籤（值取自服務端核實結果）。"},
+  "adminProfileSubmitAction": "Save display name",
+  "@adminProfileSubmitAction": {"description": "保存按鈕。"},
+  "adminProfileSavedNotice": "Saved: {displayName}",
+  "@adminProfileSavedNotice": {"description": "保存成功摘要：值是 PUT 回應裡保存後的資料庫現值。", "placeholders": {"displayName": {"type": "String"}}},
+  "adminProfileFormIncompleteNotice": "Enter the new display name first.",
+  "@adminProfileFormIncompleteNotice": {"description": "本地只擋「明顯沒填」。"},
+  "adminProfileInvalidDisplayNameNotice": "The server rejected this display name.",
+  "@adminProfileInvalidDisplayNameNotice": {"description": "1004 display_name 的一句。"},
+  "adminProfileConflictNotice": "Someone saved a change after you opened this record. Nothing was overwritten; reload to see the latest display name before editing again.",
+  "@adminProfileConflictNotice": {"description": "2013 的一句：沒人覆寫、請重讀再決定。"},
+  "adminProfileStaleRejectedNotice": "This session has expired or must change its password first; sign in again, then retry.",
+  "@adminProfileStaleRejectedNotice": {"description": "2003／2007／2010 會話類失敗的一句處置。"},
+  "adminProfileUnavailableNotice": "The server did not accept this save, and nothing was written. Details are in the local diagnostic log.",
+  "@adminProfileUnavailableNotice": {"description": "其餘保存失敗的一句：明確沒有任何寫入。"},
+  "adminProfileReloadAction": "Reload this record",
+  "@adminProfileReloadAction": {"description": "衝突後重讀詳情按鈕。"}
 }

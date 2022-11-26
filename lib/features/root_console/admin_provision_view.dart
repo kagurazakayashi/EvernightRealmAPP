@@ -1,4 +1,4 @@
-/// 「Root 開設伺服器級管理員」的頁面內容：一張開設表與一份最小確認清單。
+/// 「Root 開設伺服器級管理員」的表單卡：一張開設表與它的成功摘要。
 ///
 /// 界線全部落在後端合同上，這裡只做呈現與如實轉述：
 ///
@@ -10,7 +10,9 @@
 ///   不進日誌與診斷輸出；成功回應裡也沒有它（合同就沒有這個欄位）。
 /// * 「查不了」與「被拒」各說各句：連不上、逾時、會話失效、登入名已佔用、
 ///   欄位不合規、權限不足，是六句不同的話，不合併成一句「操作失敗」。
-/// * 清單只是確認剛纔那筆有沒有落地：沒有搜尋、沒有分頁，也不假裝是一份完整的帳戶目錄。
+///
+/// 開設後的核實與改名在另一張卡（見 admin_directory_view.dart 的目錄與詳情）：
+/// 本檔不再自帶「最小確認清單」——目錄本身就是它的那份清單。
 library;
 
 import 'package:flutter/material.dart';
@@ -28,16 +30,12 @@ enum _SubmitPhase { idle, submitting }
 /// 「Root 開設管理員」表单卡。
 class AdminProvisionCard extends StatefulWidget {
   /// 以端點介面建立表单卡；[onCreated] 在開設成功後被呼叫一次。
-  const AdminProvisionCard({
-    super.key,
-    required this.api,
-    this.onCreated,
-  });
+  const AdminProvisionCard({super.key, required this.api, this.onCreated});
 
   /// 統一端點存取介面（由頁面自 [AppDependencies] 取得後顯式帶入）。
   final ServerApi api;
 
-  /// 開設成功後的回呼：讓同一頁的確認清單重新讀一次。
+  /// 開設成功後的回呼：讓同一頁的目錄重新讀一次（新授予排在第一頁最前）。
   final VoidCallback? onCreated;
 
   /// 登入名輸入框識別鍵。
@@ -175,7 +173,9 @@ class _AdminProvisionCardState extends State<AdminProvisionCard> {
           key: AdminProvisionCard.loginNameKey,
           controller: _loginName,
           enabled: _phase == _SubmitPhase.idle,
-          decoration: InputDecoration(labelText: l10n.adminProvisionLoginNameLabel),
+          decoration: InputDecoration(
+            labelText: l10n.adminProvisionLoginNameLabel,
+          ),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: 10),
@@ -183,7 +183,9 @@ class _AdminProvisionCardState extends State<AdminProvisionCard> {
           key: AdminProvisionCard.displayNameKey,
           controller: _displayName,
           enabled: _phase == _SubmitPhase.idle,
-          decoration: InputDecoration(labelText: l10n.adminProvisionDisplayNameLabel),
+          decoration: InputDecoration(
+            labelText: l10n.adminProvisionDisplayNameLabel,
+          ),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: 10),
@@ -294,208 +296,6 @@ class _CreatedSummary extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 階段：載入中、就緒、載入失敗（查不了）。
-enum _ListPhase { loading, ready, failed }
-
-/// 管理員確認清單卡。
-class AdminListCard extends StatefulWidget {
-  /// 以端點介面建立清單卡；[reloadToken] 變動時重新讀取。
-  const AdminListCard({super.key, required this.api, this.reloadToken = 0});
-
-  /// 統一端點存取介面。
-  final ServerApi api;
-
-  /// 重新載入的觸發計數（開設成功後由頁面加一）。
-  final int reloadToken;
-
-  /// 載入中的中性提示識別鍵。
-  static const Key loadingKey = ValueKey<String>('admin-list-loading');
-
-  /// 空清單提示識別鍵。
-  static const Key emptyKey = ValueKey<String>('admin-list-empty');
-
-  /// 重試按鈕識別鍵。
-  static const Key retryKey = ValueKey<String>('admin-list-retry');
-
-  /// 載入失敗提示識別鍵。
-  static const Key failedKey = ValueKey<String>('admin-list-failed');
-
-  /// 依帳戶標識產生該列的識別鍵。
-  static Key rowKey(String accountId) => ValueKey<String>('admin-list-$accountId');
-
-  @override
-  State<AdminListCard> createState() => _AdminListCardState();
-}
-
-class _AdminListCardState extends State<AdminListCard> {
-  _ListPhase _phase = _ListPhase.loading;
-  List<AdminAccountReport> _admins = const <AdminAccountReport>[];
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
-
-  @override
-  void didUpdateWidget(covariant AdminListCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.reloadToken != widget.reloadToken) {
-      _load();
-    }
-  }
-
-  String get _acceptLanguage =>
-      resolveAppLocale(Localizations.localeOf(context)).tag;
-
-  Future<void> _load() async {
-    if (!mounted) {
-      return;
-    }
-    setState(() => _phase = _ListPhase.loading);
-    try {
-      final AdminListReport report = await widget.api.admins(
-        acceptLanguage: _acceptLanguage,
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _admins = report.admins;
-        _phase = _ListPhase.ready;
-      });
-    } on ApiError {
-      // 「查不了」與「查到了但被拒」都停在失敗態：這一段只呈現一句
-      // apiErrorText 給出的話，不猜是連不上還是權限問題。
-      if (!mounted) {
-        return;
-      }
-      setState(() => _phase = _ListPhase.failed);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final ThemeData theme = Theme.of(context);
-    switch (_phase) {
-      case _ListPhase.loading:
-        return Row(
-          children: <Widget>[
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                l10n.adminListLoadingHint,
-                key: AdminListCard.loadingKey,
-                style: theme.textTheme.bodyMedium,
-              ),
-            ),
-          ],
-        );
-      case _ListPhase.failed:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              l10n.adminListUnavailableNotice,
-              key: AdminListCard.failedKey,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              key: AdminListCard.retryKey,
-              onPressed: _load,
-              child: Text(l10n.adminListRetryAction),
-            ),
-          ],
-        );
-      case _ListPhase.ready:
-        if (_admins.isEmpty) {
-          return Text(
-            l10n.adminListEmptyNotice,
-            key: AdminListCard.emptyKey,
-            style: theme.textTheme.bodyMedium,
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: _admins
-              .map((AdminAccountReport a) => _row(l10n, theme, a))
-              .toList(),
-        );
-    }
-  }
-
-  /// 一行只呈現後端給出的事實：狀態與「是否還欠首次改密」都是原值轉述，
-  /// 本地不推測、也不補上任何「看起來更完整」的說明。
-  Widget _row(AppLocalizations l10n, ThemeData theme, AdminAccountReport admin) {
-    return Column(
-      key: AdminListCard.rowKey(admin.accountId),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          admin.loginName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleSmall,
-        ),
-        Text(
-          l10n.labelValuePair(l10n.adminListDisplayNameLabel, admin.displayName),
-          style: theme.textTheme.bodySmall,
-        ),
-        Text(
-          l10n.labelValuePair(
-            l10n.adminListStatusLabel,
-            _statusText(l10n, admin.status),
-          ),
-          style: theme.textTheme.bodySmall,
-        ),
-        Text(
-          l10n.labelValuePair(
-            l10n.adminListCreatedLabel,
-            _formatUtcMinute(admin.createdAt),
-          ),
-          style: theme.textTheme.bodySmall,
-        ),
-        Text(
-          l10n.labelValuePair(
-            l10n.adminListLastLoginLabel,
-            admin.lastLoginAt == null
-                ? l10n.adminListNeverLoggedInValue
-                : _formatUtcMinute(admin.lastLoginAt!),
-          ),
-          style: theme.textTheme.bodySmall,
-        ),
-        if (admin.mustChangePassword)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              l10n.adminListMustChangeBadge,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ),
-        const Divider(),
-      ],
-    );
-  }
-}
-
-/// 狀態原字串 → 顯示文字；未知值原樣顯示（後端日後多一種狀態不至於顯示空白）。
-String _statusText(AppLocalizations l10n, String status) {
-  return switch (status) {
-    'active' => l10n.adminStatusActive,
-    'disabled' => l10n.adminStatusDisabled,
-    _ => status,
-  };
 }
 
 /// 以「年-月-日 時:分 UTC」呈現，與裝置清單同一寫法：不做本機時區換算。
