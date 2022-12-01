@@ -37,6 +37,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.permissionDenied => l10n.errorCodePermissionDenied,
       ApiMachineCode.loginNameTaken => l10n.errorCodeLoginNameTaken,
       ApiMachineCode.profileConflict => l10n.errorCodeProfileConflict,
+      ApiMachineCode.adminStatusConflict => l10n.errorCodeAdminStatusConflict,
     };
   }
 

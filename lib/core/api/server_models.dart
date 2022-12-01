@@ -758,6 +758,7 @@ class AdminAccountReport {
     required this.createdAt,
     required this.grantedAt,
     this.lastLoginAt,
+    this.disabledAt,
     this.roles = const <String>[],
   });
 
@@ -771,6 +772,7 @@ class AdminAccountReport {
       mustChangePassword: _requireBool(json, 'must_change_password'),
       createdAt: _requireUtcTime(json, 'created_at'),
       lastLoginAt: _optionalUtcTime(json, 'last_login_at'),
+      disabledAt: _optionalUtcTime(json, 'disabled_at'),
       grantedAt: _requireUtcTime(json, 'granted_at'),
       roles: _optionalTextList(json, 'roles'),
     );
@@ -796,6 +798,9 @@ class AdminAccountReport {
 
   /// 最近一次登入時刻（UTC）；從未登入為 `null`。
   final DateTime? lastLoginAt;
+
+  /// 進入禁用狀態的時刻（UTC）；active 時合同欄位缺席，讀成 `null`（不拿零值冒充「停過」）。
+  final DateTime? disabledAt;
 
   /// server_admin 授予寫下的時刻（UTC）。
   final DateTime grantedAt;
@@ -887,6 +892,43 @@ class AdminDetailReport {
 
   /// 單筆管理員資料。
   final AdminAccountReport admin;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `PUT /root/admins/{account_id}/status` 的成功回應：變更後的資料庫現值與撤銷數量。
+///
+/// [revokedSessions] 是這次落庫的會話撤銷數：界面據此如實說出「這次讓 N 臺裝置
+/// 重新登入」，而不是讓 Root 對著一句「已停用」猜影響範圍。恢復時它恆為 0——
+/// 「不復活停用前會話」由後端保證，界面只轉計數。admin 欄位與詳情同形：
+/// 狀態變更後的展示仍以服務端結果為唯一來源，不是請求本體的迴音。
+class AdminStatusReport {
+  /// 以已驗證的欄位建立單次狀態變更回應。
+  const AdminStatusReport({
+    required this.admin,
+    required this.revokedSessions,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立狀態變更結果。
+  static AdminStatusReport decode(Map<String, Object?> json) {
+    final Object? raw = json['admin'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('admin 不是物件');
+    }
+    return AdminStatusReport(
+      admin: AdminAccountReport.decode(raw),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 變更後的單筆管理員資料。
+  final AdminAccountReport admin;
+
+  /// 這次撤銷的會話數量（恢復恆為 0）。
+  final int revokedSessions;
 
   /// 本次請求的關聯 ID。
   final String requestId;

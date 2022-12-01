@@ -313,10 +313,7 @@ void main() {
     });
 
     test('標識拼接經 URL 轉義：呼叫端塞進非法字串也改不了路徑結構', () {
-      expect(
-        rootAdminItemPath('a b/../c'),
-        '$kRootAdminsPath/a%20b%2F..%2Fc',
-      );
+      expect(rootAdminItemPath('a b/../c'), '$kRootAdminsPath/a%20b%2F..%2Fc');
     });
 
     test('1001（不存在與非成員同形）按機器碼取語意', () async {
@@ -336,6 +333,158 @@ void main() {
             (ApiError e) =>
                 e.machineCode == ApiMachineCode.notFound.value &&
                 e.httpStatus == 404,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('狀態子資源端點', () {
+    /// 狀態變更成功的回應本體：admin 與詳情同形，外加撤銷數量。
+    String statusBody({
+      String status = 'disabled',
+      String? disabledAt = '2026-10-02T10:00:00.000Z',
+      int revoked = 2,
+    }) {
+      final Map<String, Object?> admin = adminJson(
+        '01a0e000-0000-7000-8000-0000000000aa',
+        'Ops.Primary',
+        status: status,
+        roles: <String>[kServerAdminRole],
+      );
+      if (disabledAt != null) {
+        admin['disabled_at'] = disabledAt;
+      }
+      return jsonEncode(<String, Object?>{
+        'admin': admin,
+        'revoked_sessions': revoked,
+        'request_id': 'r-status',
+      });
+    }
+
+    test('updateAdminStatus 發 PUT /status、本體恰好兩個欄位且沒有原因格子', () async {
+      final List<http.Request> sent = <http.Request>[];
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        sent.add(request);
+        return http.Response(
+          statusBody(),
+          200,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+
+      final AdminStatusReport report = await api.updateAdminStatus(
+        accountId: '01a0e000-0000-7000-8000-0000000000aa',
+        status: 'disabled',
+        expectedStatus: 'active',
+      );
+
+      expect(sent.single.method, 'PUT');
+      expect(
+        sent.single.url.path,
+        '$kRootAdminsPath/01a0e000-0000-7000-8000-0000000000aa/status',
+      );
+      final Map<String, Object?> body =
+          jsonDecode(sent.single.body) as Map<String, Object?>;
+      expect(body.keys.toSet(), <String>{'status', 'expected_status'});
+      for (final String forbidden in <String>[
+        'reason',
+        'display_name',
+        'password',
+        'must_change_password',
+        'account_type',
+        'account_id',
+      ]) {
+        expect(sent.single.body, isNot(contains(forbidden)));
+      }
+
+      expect(report.admin.status, 'disabled');
+      expect(report.admin.disabledAt, DateTime.utc(2026, 10, 2, 10));
+      expect(report.revokedSessions, 2);
+      expect(report.requestId, 'r-status');
+    });
+
+    test('恢復形態：disabled_at 缺席讀成 null，撤銷數量如實解碼', () async {
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        return http.Response(
+          statusBody(status: 'active', disabledAt: null, revoked: 0),
+          200,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+      final AdminStatusReport report = await api.updateAdminStatus(
+        accountId: '01a0e000-0000-7000-8000-0000000000aa',
+        status: 'active',
+        expectedStatus: 'disabled',
+      );
+      expect(report.admin.status, 'active');
+      expect(report.admin.disabledAt, isNull);
+      expect(report.revokedSessions, 0);
+    });
+
+    test('狀態回應多出的未知欄位被容忍（只增不刪的兼容方向）', () {
+      final Map<String, Object?> json =
+          jsonDecode(statusBody()) as Map<String, Object?>;
+      json['future_field'] = '不認識也要活著';
+      (json['admin'] as Map<String, Object?>)['future_admin_field'] = 1;
+      final AdminStatusReport report = AdminStatusReport.decode(json);
+      expect(report.revokedSessions, 2);
+    });
+
+    test('revoked_sessions 缺席判合同違例，不降級成 0', () {
+      final Map<String, Object?> json =
+          jsonDecode(statusBody()) as Map<String, Object?>;
+      json.remove('revoked_sessions');
+      expect(
+        () => AdminStatusReport.decode(json),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+    });
+
+    test('標識經 URL 轉義後再拼 /status：路徑結構不受呼叫端內容影響', () {
+      expect(
+        rootAdminStatusPath('a b/../c'),
+        '$kRootAdminsPath/a%20b%2F..%2Fc/status',
+      );
+    });
+
+    test('2014 的數值對應不可漂走，且與 2013 各是各的碼', () {
+      expect(
+        ApiMachineCode.fromValue(2014),
+        ApiMachineCode.adminStatusConflict,
+      );
+      expect(ApiMachineCode.adminStatusConflict.value, 2014);
+      expect(
+        ApiMachineCode.adminStatusConflict,
+        isNot(ApiMachineCode.profileConflict),
+      );
+    });
+
+    test('2014 按機器碼取語意，不靠 HTTP 狀態猜', () async {
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        return http.Response(
+          '{"code":2014,"message":"stale","request_id":"r-conflict"}',
+          409,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+      await expectLater(
+        api.updateAdminStatus(
+          accountId: '01a0e000-0000-7000-8000-0000000000aa',
+          status: 'disabled',
+          expectedStatus: 'active',
+        ),
+        throwsA(
+          predicate<ApiError>(
+            (ApiError e) =>
+                e.knownCode == ApiMachineCode.adminStatusConflict &&
+                e.httpStatus == 409,
           ),
         ),
       );

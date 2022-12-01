@@ -65,6 +65,13 @@ const String kRootAdminsPath = '/root/admins';
 String rootAdminItemPath(String accountId) =>
     '$kRootAdminsPath/${Uri.encodeComponent(accountId)}';
 
+/// 管理員「登入狀態」子資源的路徑：PUT 唯一方法，動的是 status 一欄。
+///
+/// 狀態與普通資料各有自己的白名單與確認語意，因此分成子資源而不是塞進
+/// 詳情那條 PUT——那裡連狀態的格子都沒有。
+String rootAdminStatusPath(String accountId) =>
+    '${rootAdminItemPath(accountId)}/status';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -408,6 +415,30 @@ class ServerApi {
         'expected_display_name': expectedDisplayName,
       },
       decode: AdminDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 停用或恢復一名管理員的登入：PUT `/root/admins/{account_id}/status`。
+  ///
+  /// 白名單只有狀態一欄，外加它所依據的 expectedStatus（比較-and-set）：
+  /// 本體裡沒有顯示名／旗標／類型／口令／原因的格子，多帶會被後端打成 1004。
+  /// 現狀已變時後端回 2014 且整個操作不發生——狀態、撤銷、審計一件都不留，
+  /// 呼叫端要重讀目標現狀並重新確認，而不是重發同一個意圖。
+  /// 成功回應是變更後的資料庫現值與這次撤銷的會話數量，不是請求的迴音。
+  Future<AdminStatusReport> updateAdminStatus({
+    required String accountId,
+    required String status,
+    required String expectedStatus,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put(
+      rootAdminStatusPath(accountId),
+      jsonBody: <String, Object?>{
+        'status': status,
+        'expected_status': expectedStatus,
+      },
+      decode: AdminStatusReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

@@ -9,8 +9,12 @@
 ///   保存失敗時界面維持上一份伺服器真相，一個欄位都不動——不存在樂觀 UI 的窗口。
 /// * 衝突（2013）單獨成句並給「重讀這份資料」的出口：那是「你看見的已過期」，
 ///   與「存不進去」（5xx／連不上）與「你沒這個權限」（2011）是三句不同的話。
-/// * 白名單只有顯示名：界面上沒有一個能改狀態、旗標、類型或口令的控件，
+/// * 白名單只有顯示名：界面上沒有一個能改旗標、類型或口令的控件，
 ///   登入名如實標註「不在此處修改」——能力邊界由後端決定，界面只轉述。
+/// * 停用與恢復是子資源 `/status` 上的另一條白名單，且必经確認對話框：
+///   對話框如實講出目標、影響與「這不是刪除」；提交的 expected_status 取自
+///   「上一次從伺服器讀到的現狀」，成功後界面換成的仍是回應；2014（狀態已變）
+///   與 2013 同樣只給「重讀」的出口——對著舊畫面再點一次按鈕不是處置。
 library;
 
 import 'package:flutter/material.dart';
@@ -69,6 +73,24 @@ class AdminProfileCard extends StatefulWidget {
   /// 重讀詳情按鈕識別鍵。
   static const Key reloadKey = ValueKey<String>('admin-profile-reload');
 
+  /// 停用登入按鈕識別鍵（僅目標現狀為 active 時出現）。
+  static const Key disableKey = ValueKey<String>('admin-profile-disable');
+
+  /// 恢復登入按鈕識別鍵（僅目標現狀為 disabled 時出現）。
+  static const Key restoreKey = ValueKey<String>('admin-profile-restore');
+
+  /// 確認對話框的肯定按鈕識別鍵。
+  static const Key confirmKey = ValueKey<String>('admin-status-confirm');
+
+  /// 確認對話框的取消按鈕識別鍵。
+  static const Key confirmCancelKey = ValueKey<String>('admin-status-cancel');
+
+  /// 狀態成功摘要識別鍵。
+  static const Key statusNoticeKey = ValueKey<String>('admin-status-notice');
+
+  /// 未知狀態提示識別鍵。
+  static const Key statusUnknownKey = ValueKey<String>('admin-status-unknown');
+
   /// 載入中提示識別鍵。
   static const Key loadingKey = ValueKey<String>('admin-profile-loading');
 
@@ -91,8 +113,17 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
   String? _notice;
   String? _savedNotice;
 
+  /// 狀態變更的成功摘要（與顯示名保存分開：一句講改名，一句講撤了幾份會話）。
+  String? _statusNotice;
+
   /// 上一次保存是否因現值過期而落敗：決定要不要露出「重讀」的出口。
   bool _conflicted = false;
+
+  /// 狀態變更進行中：與顯示名保存各自獨立，但共用「處理中不得重複提交」的紀律。
+  bool _statusChanging = false;
+
+  /// 上一次狀態變更是否因現狀過期而落敗（2014）：同樣只給「重讀」的出口。
+  bool _statusConflicted = false;
 
   /// 讀取失敗時也要能關閉本卡：失敗態不把人困在一張沒有出口的卡上。
   String? _loadFailureText;
@@ -137,6 +168,8 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
         _phase = _ProfilePhase.ready;
         // 成功讀回什麼就顯示什麼：這裡不清「保存失敗」的殘留提示以外的任何东西。
         _notice = null;
+        _statusNotice = null;
+        _statusConflicted = false;
       });
     } on ApiError catch (error) {
       if (!mounted) {
@@ -243,6 +276,127 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
     };
   }
 
+  /// 停用／恢復的確認對話框：先把「動的是誰、會發生什麼、這不會發生什麼」講完，
+  /// 才准提交。取消是一條正經出路（關閉對話框，界面停在上一份伺服器真相）；
+  /// 確認才發出 PUT——敏感操作不該有「手滑直达」的路徑。
+  Future<void> _confirmStatusChange({
+    required String targetStatus,
+    required String currentStatus,
+  }) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final AdminAccountReport? profile = _profile;
+    if (profile == null || _statusChanging) {
+      return;
+    }
+    final bool disabling = targetStatus == 'disabled';
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(
+          disabling
+              ? l10n.adminStatusConfirmTitleDisable
+              : l10n.adminStatusConfirmTitleRestore,
+        ),
+        content: Text(
+          disabling
+              ? l10n.adminStatusConfirmDisableBody(profile.loginName)
+              : l10n.adminStatusConfirmRestoreBody(profile.loginName),
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: AdminProfileCard.confirmCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.adminStatusConfirmCancelAction),
+          ),
+          FilledButton(
+            key: AdminProfileCard.confirmKey,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              disabling
+                  ? l10n.adminStatusConfirmOkDisableAction
+                  : l10n.adminStatusConfirmOkRestoreAction,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    await _applyStatusChange(
+      targetStatus: targetStatus,
+      currentStatus: currentStatus,
+    );
+  }
+
+  /// 提交狀態變更：expected_status 取「上一次從伺服器讀到的現狀」，
+  /// 成功後的展示與撤銷計數一律換成回應；失敗則界面原地不動，逐碼分流。
+  Future<void> _applyStatusChange({
+    required String targetStatus,
+    required String currentStatus,
+  }) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final AdminAccountReport? profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    setState(() {
+      _statusChanging = true;
+      _notice = null;
+      _statusConflicted = false;
+    });
+    try {
+      final AdminStatusReport report = await widget.api.updateAdminStatus(
+        accountId: profile.accountId,
+        status: targetStatus,
+        expectedStatus: currentStatus,
+        acceptLanguage: _acceptLanguage,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = report.admin;
+        _statusChanging = false;
+        // 成功句的數字來自回應：「這次讓 N 臺裝置重新登入」不許界面自己猜。
+        _statusNotice = report.admin.status == 'disabled'
+            ? l10n.adminStatusDisabledNotice(report.revokedSessions)
+            : l10n.adminStatusRestoredNotice;
+      });
+      widget.onSaved?.call();
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusChanging = false;
+        _statusConflicted =
+            error.knownCode == ApiMachineCode.adminStatusConflict;
+        _notice = _statusFailureText(error);
+      });
+    }
+  }
+
+  /// 狀態變更失敗分流：2014 要人重讀現狀並重新確認，其餘各說各句。
+  String _statusFailureText(ApiError error) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ApiMachineCode? code = error.knownCode;
+    return switch (code) {
+      ApiMachineCode.adminStatusConflict => l10n.adminStatusConflictNotice,
+      ApiMachineCode.notFound => l10n.adminProfileNotFoundNotice,
+      ApiMachineCode.permissionDenied => l10n.adminProfileDeniedNotice,
+      ApiMachineCode.notAuthenticated ||
+      ApiMachineCode.sessionInvalid ||
+      ApiMachineCode.sessionStale ||
+      ApiMachineCode.passwordChangeRequired =>
+        l10n.adminProfileStaleRejectedNotice,
+      _ => apiErrorText(l10n, error),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -314,6 +468,12 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
       return const SizedBox.shrink();
     }
     final bool saving = _savePhase == _SavePhase.saving;
+    final bool statusChanging = _statusChanging;
+    // 「動哪個按鈕」只由伺服器讀回的現狀決定：界面不自創第三種狀態，
+    // 也不在表外值（未來新狀態）上假裝按鈕仍然適用。
+    final bool isActive = profile.status == 'active';
+    final bool isDisabled = profile.status == 'disabled';
+    final bool busy = saving || statusChanging;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -365,7 +525,68 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
               ),
             ),
           ),
+        if (profile.disabledAt != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              l10n.labelValuePair(
+                l10n.adminStatusDisabledAtLabel,
+                _formatUtcMinute(profile.disabledAt!),
+              ),
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
         const SizedBox(height: 10),
+        // 停用／恢復：狀態子資源的白名單通路。確認對話框講完目標與影響才提交；
+        // 表外狀態不長按鈕——「不確定這算哪種狀態」時界面寧可只說一句實話。
+        if (isActive)
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton(
+              key: AdminProfileCard.disableKey,
+              onPressed: busy
+                  ? null
+                  : () => _confirmStatusChange(
+                      targetStatus: 'disabled',
+                      currentStatus: profile.status,
+                    ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.colorScheme.error,
+              ),
+              child: Text(
+                statusChanging
+                    ? l10n.adminStatusWorkingHint
+                    : l10n.adminStatusDisableAction,
+              ),
+            ),
+          ),
+        if (isDisabled)
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton(
+              key: AdminProfileCard.restoreKey,
+              onPressed: busy
+                  ? null
+                  : () => _confirmStatusChange(
+                      targetStatus: 'active',
+                      currentStatus: profile.status,
+                    ),
+              child: Text(
+                statusChanging
+                    ? l10n.adminStatusWorkingHint
+                    : l10n.adminStatusRestoreAction,
+              ),
+            ),
+          ),
+        if (!isActive && !isDisabled)
+          Text(
+            l10n.adminStatusUnsupportedNotice(profile.status),
+            key: AdminProfileCard.statusUnknownKey,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        const SizedBox(height: 6),
         Text(
           l10n.adminProfileLoginNameLockedHint,
           style: theme.textTheme.bodySmall?.copyWith(
@@ -376,7 +597,7 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
         TextField(
           key: AdminProfileCard.displayNameKey,
           controller: _displayName,
-          enabled: !saving,
+          enabled: !busy,
           decoration: InputDecoration(
             labelText: l10n.adminProfileDisplayNameLabel,
           ),
@@ -388,7 +609,7 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
           alignment: Alignment.centerRight,
           child: FilledButton(
             key: AdminProfileCard.submitKey,
-            onPressed: saving ? null : _save,
+            onPressed: busy ? null : _save,
             child: saving
                 ? const SizedBox(
                     width: 16,
@@ -408,17 +629,29 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
             ),
           ),
           // 衝突語意給一條出路：重讀伺服器現值，之後再決定要不要再改。
-          if (_conflicted) ...<Widget>[
+          // 2013（顯示名過期）與 2014（狀態過期）共用這個出口：處置同形——重讀再說。
+          if (_conflicted || _statusConflicted) ...<Widget>[
             const SizedBox(height: 6),
             OutlinedButton(
               key: AdminProfileCard.reloadKey,
               onPressed: () {
-                setState(() => _conflicted = false);
+                setState(() {
+                  _conflicted = false;
+                  _statusConflicted = false;
+                });
                 _load();
               },
               child: Text(l10n.adminProfileReloadAction),
             ),
           ],
+        ],
+        if (_statusNotice != null) ...<Widget>[
+          const SizedBox(height: 8),
+          Text(
+            _statusNotice!,
+            key: AdminProfileCard.statusNoticeKey,
+            style: theme.textTheme.bodySmall,
+          ),
         ],
         if (_savedNotice != null) ...<Widget>[
           const SizedBox(height: 8),

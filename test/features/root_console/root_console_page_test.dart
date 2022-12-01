@@ -67,6 +67,38 @@ String _profileBody({String display = '首任管理員', String? login}) {
       '"roles":["server_admin"]},"request_id":"r-profile"}';
 }
 
+/// 詳情回應的可變狀態形態：停用／恢復與表外值都要有真的行可讀。
+String _detailBody({String status = 'active', String? disabledAt}) {
+  return '{"admin":{"account_id":"$_acct1",'
+      '"login_name":"Ops.Primary","display_name":"首任管理員",'
+      '"status":"$status","must_change_password":true,'
+      '"created_at":"2026-10-02T09:00:00.000Z",'
+      '"granted_at":"2026-10-02T09:00:00.000Z",'
+      '${disabledAt == null ? '' : '"disabled_at":"$disabledAt",'}'
+      '"roles":["server_admin"]},"request_id":"r-profile"}';
+}
+
+/// 狀態變更成功的回應本體：admin 與詳情同形，外加撤銷數量。
+String _statusBody({required String status, int revoked = 0}) {
+  final bool disabled = status == 'disabled';
+  final Map<String, Object?> admin = <String, Object?>{
+    'account_id': _acct1,
+    'login_name': 'Ops.Primary',
+    'display_name': '首任管理員',
+    'status': status,
+    'must_change_password': true,
+    'created_at': '2026-10-02T09:00:00.000Z',
+    'granted_at': '2026-10-02T09:00:00.000Z',
+    'roles': <String>['server_admin'],
+    if (disabled) 'disabled_at': '2026-10-02T10:00:00.000Z',
+  };
+  return jsonEncode(<String, Object?>{
+    'admin': admin,
+    'revoked_sessions': revoked,
+    'request_id': 'r-status',
+  });
+}
+
 /// 開設成功的回應本體。
 const String _createdBody =
     '{"account_id":"acct-3","login_name":"Ops.Third","display_name":"第三任",'
@@ -85,6 +117,9 @@ class _Fixture {
     this.detailBody,
     this.updateStatus = 200,
     this.updateBody,
+    this.statusUpdateStatus = 200,
+    this.statusUpdateErrorCode,
+    this.statusUpdateBody,
   });
 
   final int createStatus;
@@ -96,6 +131,12 @@ class _Fixture {
   final String? detailBody;
   final int updateStatus;
   final String? updateBody;
+  final int statusUpdateStatus;
+
+  /// 狀態變更失敗時信封裡的業務碼（409 這一態對應的合同碼是 2014）；
+  /// 不與 HTTP 態混寫成一個數——界面分流讀的是前者。
+  final int? statusUpdateErrorCode;
+  final String? statusUpdateBody;
 
   /// GET /root/admins 被問了幾趟。
   int listCalls = 0;
@@ -111,6 +152,9 @@ class _Fixture {
 
   /// 發出的 PUT 請求。
   final List<http.Request> updates = <http.Request>[];
+
+  /// 發出的 PUT /status 請求（狀態子資源與資料編輯各位一條通路）。
+  final List<http.Request> statusUpdates = <http.Request>[];
 
   ServerApi api(ServerAddressSettings settings) {
     return ServerApi(
@@ -141,6 +185,20 @@ class _Fixture {
           );
         }
         if (path.startsWith('$kRootAdminsPath/')) {
+          if (request.method == 'PUT' && path.endsWith('/status')) {
+            statusUpdates.add(request);
+            if (statusUpdateStatus != 200) {
+              return _json(
+                '{"code":${statusUpdateErrorCode ?? statusUpdateStatus},'
+                '"message":"x","request_id":"r-status"}',
+                statusUpdateStatus,
+              );
+            }
+            return _json(
+              statusUpdateBody ?? _statusBody(status: 'disabled', revoked: 2),
+              200,
+            );
+          }
           if (request.method == 'PUT') {
             updates.add(request);
             return _json(
@@ -504,6 +562,163 @@ void main() {
 
       expect(find.byType(AdminProfileCard), findsNothing);
       expect(find.byKey(AdminDirectoryCard.rowKey(_acct1)), findsOneWidget);
+    });
+  });
+
+  group('停用與恢復', () {
+    testWidgets('現狀決定按鈕：active 只給停用', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      expect(find.byKey(AdminProfileCard.disableKey), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.restoreKey), findsNothing);
+    });
+
+    testWidgets('disabled 只給恢復，且如實顯示停用時刻', (WidgetTester tester) async {
+      // 每條用例各自泵一棵新樹：頁面 State 在同一樹位置會被複用，
+      // 複用時詳情卡已打開，第二份 fixture 根本輪不到發詳情請求。
+      final _Fixture fixture = _Fixture(
+        detailBody: _detailBody(
+          status: 'disabled',
+          disabledAt: '2026-10-02T10:00:00.000Z',
+        ),
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      expect(find.byKey(AdminProfileCard.disableKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.restoreKey), findsOneWidget);
+      // 停用時刻是服務端現值：界面要講得出「幾時停的」。
+      expect(
+        find.textContaining(l10n.adminStatusDisabledAtLabel),
+        findsOneWidget,
+      );
+      expect(find.textContaining('2026-10-02 10:00 UTC'), findsOneWidget);
+    });
+
+    testWidgets('確認對話框把目標、影響與「不是刪除」一次讀完；取消一請求都不發', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await tapVisible(tester, AdminProfileCard.disableKey);
+
+      expect(
+        find.text(l10n.adminStatusConfirmDisableBody('Ops.Primary')),
+        findsOneWidget,
+      );
+      expect(find.text(l10n.adminStatusConfirmTitleDisable), findsOneWidget);
+
+      await tapVisible(tester, AdminProfileCard.confirmCancelKey);
+      expect(fixture.statusUpdates, isEmpty);
+      // 取消後界面停在上一份伺服器真相：狀態仍是 active，沒有半套變化。
+      expect(find.byKey(AdminProfileCard.disableKey), findsOneWidget);
+    });
+
+    testWidgets('確認停用：本體恰好兩欄、回應換掉現值、句裡帶撤銷數量、目錄跟著重讀', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      final int listsBefore = fixture.listCalls;
+
+      await tapVisible(tester, AdminProfileCard.disableKey);
+      await tapVisible(tester, AdminProfileCard.confirmKey);
+
+      final http.Request sent = fixture.statusUpdates.single;
+      expect(sent.method, 'PUT');
+      expect(sent.url.path, '$kRootAdminsPath/$_acct1/status');
+      final Map<String, Object?> body =
+          jsonDecode(sent.body) as Map<String, Object?>;
+      expect(body, <String, Object?>{
+        'status': 'disabled',
+        // 依據值是「上一次從伺服器讀到的現狀」，不是輸入框或本地印象。
+        'expected_status': 'active',
+      });
+
+      expect(find.text(l10n.adminStatusDisabledNotice(2)), findsOneWidget);
+      // 展示換成回應：狀態已 disable，按鈕就此翻面成「恢復登入」。
+      expect(find.byKey(AdminProfileCard.restoreKey), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.disableKey), findsNothing);
+      // 目錄重讀一趟：清單與詳情不各留一份舊真相。
+      expect(fixture.listCalls, listsBefore + 1);
+    });
+
+    testWidgets('確認恢復：句子如實「只恢復新登入能力」，展示換成回應的 active', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture(
+        detailBody: _detailBody(
+          status: 'disabled',
+          disabledAt: '2026-10-02T10:00:00.000Z',
+        ),
+        statusUpdateBody: _statusBody(status: 'active', revoked: 0),
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      await tapVisible(tester, AdminProfileCard.restoreKey);
+      expect(
+        find.text(l10n.adminStatusConfirmRestoreBody('Ops.Primary')),
+        findsOneWidget,
+      );
+      await tapVisible(tester, AdminProfileCard.confirmKey);
+
+      final Map<String, Object?> body =
+          jsonDecode(fixture.statusUpdates.single.body) as Map<String, Object?>;
+      expect(body, <String, Object?>{
+        'status': 'active',
+        'expected_status': 'disabled',
+      });
+      expect(find.text(l10n.adminStatusRestoredNotice), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.disableKey), findsOneWidget);
+      // 恢復不撤任何會話，也不該出现带数量的停用句。
+      expect(
+        find.textContaining(l10n.adminStatusDisabledNotice(0)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('2014：一句「狀態已改變」＋重讀出口，界面停在上一份伺服器真相', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture(
+        statusUpdateStatus: 409,
+        statusUpdateErrorCode: 2014,
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      await tapVisible(tester, AdminProfileCard.disableKey);
+      await tapVisible(tester, AdminProfileCard.confirmKey);
+
+      expect(find.text(l10n.adminStatusConflictNotice), findsOneWidget);
+      // 沒有「成功」的那一句，按鈕也沒翻面：操作一件都沒發生。
+      expect(
+        find.textContaining(l10n.adminStatusDisabledNotice(0)),
+        findsNothing,
+      );
+      expect(find.byKey(AdminProfileCard.disableKey), findsOneWidget);
+
+      final int detailsBefore = fixture.detailCalls;
+      await tapVisible(tester, AdminProfileCard.reloadKey);
+      expect(fixture.detailCalls, detailsBefore + 1);
+    });
+
+    testWidgets('表外狀態：不長任何按鈕，只如實說一句', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        detailBody: _detailBody(status: 'frozen'),
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      expect(find.byKey(AdminProfileCard.disableKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.restoreKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.statusUnknownKey), findsOneWidget);
+      expect(
+        find.text(l10n.adminStatusUnsupportedNotice('frozen')),
+        findsOneWidget,
+      );
+      expect(fixture.statusUpdates, isEmpty);
     });
   });
 
