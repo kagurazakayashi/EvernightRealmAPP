@@ -491,6 +491,133 @@ void main() {
     });
   });
 
+  group('憑據子資源端點', () {
+    /// 憑據重置成功的回應本體：admin 與詳情同形，外加撤銷數量。
+    String passwordResetBody({
+      int revoked = 2,
+      bool mustChange = true,
+      String status = 'active',
+    }) {
+      final Map<String, Object?> admin = adminJson(
+        '01a0e000-0000-7000-8000-0000000000ab',
+        'Ops.Primary',
+        status: status,
+        mustChange: mustChange,
+        roles: <String>[kServerAdminRole],
+      );
+      return jsonEncode(<String, Object?>{
+        'admin': admin,
+        'revoked_sessions': revoked,
+        'request_id': 'r-reset',
+      });
+    }
+
+    test('resetAdminPassword 發 PUT /password、本體恰好一個欄位且無依據值格子', () async {
+      final List<http.Request> sent = <http.Request>[];
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        sent.add(request);
+        return http.Response(
+          passwordResetBody(),
+          200,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+
+      final AdminPasswordResetReport report = await api.resetAdminPassword(
+        accountId: '01a0e000-0000-7000-8000-0000000000ab',
+        password: '一次性暫時口令',
+      );
+
+      expect(sent.single.method, 'PUT');
+      expect(
+        sent.single.url.path,
+        '$kRootAdminsPath/01a0e000-0000-7000-8000-0000000000ab/password',
+      );
+      final Map<String, Object?> body =
+          jsonDecode(sent.single.body) as Map<String, Object?>;
+      // 白名單只有口令一欄：沒有 expected_*、沒有狀態、沒有旗標的格子。
+      expect(body.keys.toSet(), <String>{'password'});
+      // 回應裡不許出現交付物：口令只在請求那一側出現一次。
+      expect(sent.single.body, contains('一次性暫時口令'));
+      expect(report.admin.mustChangePassword, isTrue);
+      expect(report.revokedSessions, 2);
+      expect(report.requestId, 'r-reset');
+    });
+
+    test('重置回應不含口令材料：解码面只有可展示事實', () async {
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        return http.Response(
+          passwordResetBody(revoked: 0, status: 'disabled'),
+          200,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+      final AdminPasswordResetReport report = await api.resetAdminPassword(
+        accountId: '01a0e000-0000-7000-8000-0000000000ab',
+        password: 'x',
+      );
+      // 停用中的目標重置後仍停用（重置不是解除停用）；撤銷數量如實為 0。
+      expect(report.admin.status, 'disabled');
+      expect(report.revokedSessions, 0);
+    });
+
+    test('重置回應多出的未知欄位被容忍（只增不刪的兼容方向）', () {
+      final Map<String, Object?> json =
+          jsonDecode(passwordResetBody()) as Map<String, Object?>;
+      json['future_field'] = '不認識也要活著';
+      final AdminPasswordResetReport report = AdminPasswordResetReport.decode(
+        json,
+      );
+      expect(report.revokedSessions, 2);
+    });
+
+    test('revoked_sessions 缺席判合同違例，不降級成 0', () {
+      final Map<String, Object?> json =
+          jsonDecode(passwordResetBody()) as Map<String, Object?>;
+      json.remove('revoked_sessions');
+      expect(
+        () => AdminPasswordResetReport.decode(json),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+    });
+
+    test('標識經 URL 轉義後再拼 /password：路徑結構不受呼叫端內容影響', () {
+      expect(
+        rootAdminPasswordPath('a b/../c'),
+        '$kRootAdminsPath/a%20b%2F..%2Fc/password',
+      );
+    });
+
+    test('1004 點名 password 由機器碼與 details 表達，不新造碼', () async {
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        return http.Response(
+          '{"code":1004,"message":"bad","details":{"invalid_field":"password"},"request_id":"r-bad"}',
+          400,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+      await expectLater(
+        api.resetAdminPassword(
+          accountId: '01a0e000-0000-7000-8000-0000000000ab',
+          password: '',
+        ),
+        throwsA(
+          predicate<ApiError>(
+            (ApiError e) =>
+                e.knownCode == ApiMachineCode.invalidBody &&
+                e.details?['invalid_field'] == 'password',
+          ),
+        ),
+      );
+    });
+  });
+
   group('角色欄位', () {
     test('登入與當前會話讀到 roles 即認定管理員；欄位缺席即為空', () {
       final LoginReport withRole = LoginReport.decode(

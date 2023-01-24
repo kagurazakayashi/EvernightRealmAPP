@@ -31,6 +31,9 @@ import '../../support/test_server.dart';
 
 const Locale _locale = Locale('zh', 'TW');
 const String _initialPassword = 'only-used-once-口令';
+
+/// 重置交付用的測試口令：只活在測試進程，斷言對象是「它不出現在界面任何一處」。
+const String _resetTempPassword = 'reset-temporary-口令';
 const String _acct1 = '01a0e000-0000-7000-8000-0000000000aa';
 const String _acct2 = '01a0e000-0000-7000-8000-0000000000bb';
 
@@ -99,6 +102,26 @@ String _statusBody({required String status, int revoked = 0}) {
   });
 }
 
+/// 憑據重置成功的回應本體：admin 與詳情同形，外加撤銷數量；不含任何口令材料。
+String _passwordResetBody({int revoked = 0, required String status}) {
+  final Map<String, Object?> admin = <String, Object?>{
+    'account_id': _acct1,
+    'login_name': 'Ops.Primary',
+    'display_name': '首任管理員',
+    'status': status,
+    'must_change_password': true,
+    'created_at': '2026-10-02T09:00:00.000Z',
+    'granted_at': '2026-10-02T09:00:00.000Z',
+    'roles': <String>['server_admin'],
+    if (status == 'disabled') 'disabled_at': '2026-10-02T10:00:00.000Z',
+  };
+  return jsonEncode(<String, Object?>{
+    'admin': admin,
+    'revoked_sessions': revoked,
+    'request_id': 'r-reset',
+  });
+}
+
 /// 開設成功的回應本體。
 const String _createdBody =
     '{"account_id":"acct-3","login_name":"Ops.Third","display_name":"第三任",'
@@ -120,6 +143,9 @@ class _Fixture {
     this.statusUpdateStatus = 200,
     this.statusUpdateErrorCode,
     this.statusUpdateBody,
+    this.passwordResetStatus = 200,
+    this.passwordResetErrorCode,
+    this.passwordResetBody,
   });
 
   final int createStatus;
@@ -138,6 +164,12 @@ class _Fixture {
   final int? statusUpdateErrorCode;
   final String? statusUpdateBody;
 
+  final int passwordResetStatus;
+
+  /// 憑據重置失敗時信封裡的業務碼（本步只有 1004／1001／2011 這一類，無衝突碼）。
+  final int? passwordResetErrorCode;
+  final String? passwordResetBody;
+
   /// GET /root/admins 被問了幾趟。
   int listCalls = 0;
 
@@ -155,6 +187,9 @@ class _Fixture {
 
   /// 發出的 PUT /status 請求（狀態子資源與資料編輯各位一條通路）。
   final List<http.Request> statusUpdates = <http.Request>[];
+
+  /// 發出的 PUT /password 請求（憑據子資源是第三條通路）。
+  final List<http.Request> passwordResets = <http.Request>[];
 
   ServerApi api(ServerAddressSettings settings) {
     return ServerApi(
@@ -196,6 +231,22 @@ class _Fixture {
             }
             return _json(
               statusUpdateBody ?? _statusBody(status: 'disabled', revoked: 2),
+              200,
+            );
+          }
+          if (request.method == 'PUT' && path.endsWith('/password')) {
+            passwordResets.add(request);
+            if (passwordResetStatus != 200) {
+              return _json(
+                passwordResetBody ??
+                    '{"code":${passwordResetErrorCode ?? passwordResetStatus},'
+                        '"message":"x","request_id":"r-reset"}',
+                passwordResetStatus,
+              );
+            }
+            return _json(
+              passwordResetBody ??
+                  _passwordResetBody(revoked: 2, status: 'active'),
               200,
             );
           }
@@ -719,6 +770,182 @@ void main() {
         findsOneWidget,
       );
       expect(fixture.statusUpdates, isEmpty);
+    });
+  });
+
+  group('憑據重置', () {
+    /// 在重置欄填入暫時口令（欄位在狀態區下方，先滾進視口）。
+    Future<void> fillReset(WidgetTester tester) async {
+      await tester.ensureVisible(find.byKey(AdminProfileCard.resetFieldKey));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(AdminProfileCard.resetFieldKey),
+        _resetTempPassword,
+      );
+      await tester.pump();
+    }
+
+    testWidgets('active 目標同樣長重置區：不按狀態分岔（disabled 由下方用例單獨釘）', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture activeFixture = _Fixture();
+      await pump(tester, activeFixture);
+      await openProfile(tester, activeFixture);
+      expect(find.byKey(AdminProfileCard.resetFieldKey), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.resetActionKey), findsOneWidget);
+    });
+
+    testWidgets('未填口令時一請求都不發，也不開對話框', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      expect(fixture.passwordResets, isEmpty);
+      expect(find.text(l10n.adminResetFormIncompleteNotice), findsOneWidget);
+      expect(find.text(l10n.adminResetConfirmTitle), findsNothing);
+    });
+
+    testWidgets('確認對話框講完目標、三件效果與「不是解除停用／不是刪除」；取消一請求都不發', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await fillReset(tester);
+
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      expect(find.text(l10n.adminResetConfirmTitle), findsOneWidget);
+      expect(
+        find.text(l10n.adminResetConfirmBody('Ops.Primary')),
+        findsOneWidget,
+      );
+
+      await tapVisible(tester, AdminProfileCard.resetConfirmCancelKey);
+      expect(fixture.passwordResets, isEmpty);
+      // 取消後界面停在上一份伺服器真相：沒有成功句，也沒有半套變化。
+      expect(find.byKey(AdminProfileCard.resetNoticeKey), findsNothing);
+    });
+
+    testWidgets('確認重置：本體恰好一欄、欄位即刻清空、展示換回應、目錄重讀、口令不再現', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      final int listsBefore = fixture.listCalls;
+      await fillReset(tester);
+
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      await tapVisible(tester, AdminProfileCard.resetConfirmKey);
+
+      final http.Request sent = fixture.passwordResets.single;
+      expect(sent.method, 'PUT');
+      expect(sent.url.path, '$kRootAdminsPath/$_acct1/password');
+      final Map<String, Object?> body =
+          jsonDecode(sent.body) as Map<String, Object?>;
+      // 白名單只有口令一欄：沒有 expected_*、沒有狀態、沒有旗標的格子。
+      expect(body.keys.toSet(), <String>{'password'});
+      expect(body['password'], _resetTempPassword);
+
+      // 送出即清空：輸入框不再持有交付物。
+      expect(
+        tester
+            .widget<TextField>(find.byKey(AdminProfileCard.resetFieldKey))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      // 界面任何一處都不再出現口令（含成功句與遮罩欄）。
+      final Iterable<Text> visible = tester.widgetList<Text>(find.byType(Text));
+      expect(
+        visible.any((Text t) => (t.data ?? '').contains(_resetTempPassword)),
+        isFalse,
+      );
+      // 成功句的撤銷數量來自回應（fixture 給 2）。
+      expect(find.text(l10n.adminResetSuccessNotice(2)), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.resetNoticeKey), findsOneWidget);
+      expect(fixture.listCalls, listsBefore + 1);
+    });
+
+    testWidgets('停用目標重置：回應仍 disabled，展示與停用時刻都不變', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        detailBody: _detailBody(
+          status: 'disabled',
+          disabledAt: '2026-10-02T10:00:00.000Z',
+        ),
+        passwordResetBody: _passwordResetBody(revoked: 0, status: 'disabled'),
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await fillReset(tester);
+
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      await tapVisible(tester, AdminProfileCard.resetConfirmKey);
+
+      expect(find.text(l10n.adminResetSuccessNotice(0)), findsOneWidget);
+      // 「重置不是解除停用」：恢復按鈕仍在、停用時刻仍是服務端那份。
+      expect(find.byKey(AdminProfileCard.restoreKey), findsOneWidget);
+      expect(find.textContaining('2026-10-02 10:00 UTC'), findsOneWidget);
+    });
+
+    testWidgets('1004 點名 password 給單獨一句，沒有成功句', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        passwordResetStatus: 400,
+        passwordResetErrorCode: 1004,
+        passwordResetBody: '{"code":1004,"message":"bad","details":{"invalid_field":"password"},"request_id":"r-bad"}',
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await fillReset(tester);
+
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      await tapVisible(tester, AdminProfileCard.resetConfirmKey);
+
+      expect(find.text(l10n.adminResetInvalidPasswordNotice), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.resetNoticeKey), findsNothing);
+      // 失敗也不把口令留在欄位裡：本地草稿同樣是秘密的落點。
+      expect(
+        tester
+            .widget<TextField>(find.byKey(AdminProfileCard.resetFieldKey))
+            .controller!
+            .text,
+        isEmpty,
+      );
+    });
+
+    testWidgets('2011 講成權限不足而不是被登出', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        passwordResetStatus: 403,
+        passwordResetErrorCode: 2011,
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await fillReset(tester);
+
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      await tapVisible(tester, AdminProfileCard.resetConfirmKey);
+
+      expect(find.text(l10n.adminProfileDeniedNotice), findsOneWidget);
+      expect(find.text(l10n.errorCodeSessionInvalid), findsNothing);
+    });
+
+    testWidgets('結果不明（5xx）不自動重發：一次提交就是一趟請求', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        passwordResetStatus: 500,
+        passwordResetErrorCode: 1000,
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await fillReset(tester);
+
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      await tapVisible(tester, AdminProfileCard.resetConfirmKey);
+
+      // 重置沒有依據值：「再點一次」不是重試而是又做一次真實重置，
+      // 所以界面对失敗絕不自動補發，成功句也不許出現。
+      expect(fixture.passwordResets, hasLength(1));
+      expect(find.byKey(AdminProfileCard.resetNoticeKey), findsNothing);
     });
   });
 

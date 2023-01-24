@@ -933,3 +933,42 @@ class AdminStatusReport {
   /// 本次請求的關聯 ID。
   final String requestId;
 }
+
+/// `PUT /root/admins/{account_id}/password` 的成功回應：重置後的資料庫現值與撤銷數量。
+///
+/// 欄位形態與 [AdminStatusReport] 同構但刻意各自獨名：兩條子資源白名單的語意不同
+/// （一個動狀態、一個動憑據），合併成一個型別會讓「這次成功的是哪件事」在界面層失去出處。
+/// [admin] 是重置後的單筆真相：`must_change_password` 必為 true（重置交付的永遠是
+/// 一次性口令），`status` 與 `disabled_at` 保持目標原樣（重置不是解除停用）。
+/// [revokedSessions] 為這次落庫的會話撤銷數，缺席判合同違例、不降級成 0；
+/// 回應裡不存在、也不允許出現任何口令或憑據材料——口令只在請求那一側出現一次。
+class AdminPasswordResetReport {
+  /// 以已驗證的欄位建立單次憑據重置回應。
+  const AdminPasswordResetReport({
+    required this.admin,
+    required this.revokedSessions,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立憑據重置結果。
+  static AdminPasswordResetReport decode(Map<String, Object?> json) {
+    final Object? raw = json['admin'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('admin 不是物件');
+    }
+    return AdminPasswordResetReport(
+      admin: AdminAccountReport.decode(raw),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 重置後的單筆管理員資料。
+  final AdminAccountReport admin;
+
+  /// 這次撤銷的會話數量（停用中的目標通常是 0——其會話早在停用時已撤）。
+  final int revokedSessions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}

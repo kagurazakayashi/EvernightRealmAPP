@@ -15,6 +15,12 @@
 ///   對話框如實講出目標、影響與「這不是刪除」；提交的 expected_status 取自
 ///   「上一次從伺服器讀到的現狀」，成功後界面換成的仍是回應；2014（狀態已變）
 ///   與 2013 同樣只給「重讀」的出口——對著舊畫面再點一次按鈕不是處置。
+/// * 重置憑據是子資源 `/password` 上的第三條白名單：本體只有新口令一欄，
+///   刻意沒有依據值（Root 拿不出「現行口令」那類誠實錨點；重複提交是又做一次
+///   完整重置，不是被拒的陳舊嘗試——所以結果不明時界面絕不自動重發）。
+///   確認對話框講完三件效果（舊口令死、舊會話退出、首登必改密）與兩件「不會發生」
+///   （不停用/不解除停用、不是刪除）才提交；口令欄 obscureText、送出即清空，
+///   成功句的撤銷數量取自回應，交付提醒明確寫著「界面不會再次顯示它」。
 library;
 
 import 'package:flutter/material.dart';
@@ -91,6 +97,23 @@ class AdminProfileCard extends StatefulWidget {
   /// 未知狀態提示識別鍵。
   static const Key statusUnknownKey = ValueKey<String>('admin-status-unknown');
 
+  /// 重置口令輸入框識別鍵。
+  static const Key resetFieldKey = ValueKey<String>('admin-reset-field');
+
+  /// 重置按鈕識別鍵。
+  static const Key resetActionKey = ValueKey<String>('admin-reset-action');
+
+  /// 重置確認對話框肯定按鈕識別鍵。
+  static const Key resetConfirmKey = ValueKey<String>('admin-reset-confirm');
+
+  /// 重置確認對話框取消按鈕識別鍵。
+  static const Key resetConfirmCancelKey = ValueKey<String>(
+    'admin-reset-cancel',
+  );
+
+  /// 重置成功摘要識別鍵。
+  static const Key resetNoticeKey = ValueKey<String>('admin-reset-notice');
+
   /// 載入中提示識別鍵。
   static const Key loadingKey = ValueKey<String>('admin-profile-loading');
 
@@ -103,6 +126,9 @@ class AdminProfileCard extends StatefulWidget {
 
 class _AdminProfileCardState extends State<AdminProfileCard> {
   final TextEditingController _displayName = TextEditingController();
+
+  /// 重置口令輸入框的控制器：值只活在這一個欄位裡，送出即清空、不進任何展示與緩存。
+  final TextEditingController _resetPassword = TextEditingController();
 
   _ProfilePhase _phase = _ProfilePhase.loading;
   _SavePhase _savePhase = _SavePhase.idle;
@@ -125,6 +151,13 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
   /// 上一次狀態變更是否因現狀過期而落敗（2014）：同樣只給「重讀」的出口。
   bool _statusConflicted = false;
 
+  /// 憑據重置進行中：與狀態變更同樣「處理中不得重複提交」——
+  /// 對重置而言這不只是防手滑：每一次成功提交都是又做一次真實的重置。
+  bool _resetting = false;
+
+  /// 重置成功的摘要（帶伺服器回傳的撤銷數量）。
+  String? _resetNotice;
+
   /// 讀取失敗時也要能關閉本卡：失敗態不把人困在一張沒有出口的卡上。
   String? _loadFailureText;
 
@@ -137,6 +170,7 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
   @override
   void dispose() {
     _displayName.dispose();
+    _resetPassword.dispose();
     super.dispose();
   }
 
@@ -170,6 +204,9 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
         _notice = null;
         _statusNotice = null;
         _statusConflicted = false;
+        // 重讀不把舊的重置句留在畫面上，也不讓口令殘留在欄位裡。
+        _resetNotice = null;
+        _resetPassword.clear();
       });
     } on ApiError catch (error) {
       if (!mounted) {
@@ -397,6 +434,114 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
     };
   }
 
+  /// 重置憑據的確認對話框：先把「動的是誰、三件效果、兩件不會發生、交付歸誰」
+  /// 講完才准提交。取消是一條正經出路（一請求都不發）；這裡沒有「重試」按鈕的
+  /// 位置——重置沒有依據值，對著不明結果再點一次不是重試，而是又做一次。
+  Future<void> _confirmPasswordReset() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final AdminAccountReport? profile = _profile;
+    if (profile == null || _resetting) {
+      return;
+    }
+    final String password = _resetPassword.text;
+    if (password.trim().isEmpty) {
+      setState(() => _notice = l10n.adminResetFormIncompleteNotice);
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(l10n.adminResetConfirmTitle),
+        content: Text(l10n.adminResetConfirmBody(profile.loginName)),
+        actions: <Widget>[
+          TextButton(
+            key: AdminProfileCard.resetConfirmCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.adminStatusConfirmCancelAction),
+          ),
+          FilledButton(
+            key: AdminProfileCard.resetConfirmKey,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.adminResetConfirmOkAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    await _applyPasswordReset(password);
+  }
+
+  /// 提交重置：口令在發出請求前就從輸入框清掉（成功與失敗都不留）；
+  /// 成功展示與撤銷計數一律換成 PUT 回應，目錄跟著重讀；失敗界面原地不動。
+  Future<void> _applyPasswordReset(String password) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final AdminAccountReport? profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    setState(() {
+      _resetting = true;
+      _notice = null;
+      _resetNotice = null;
+      _resetPassword.clear();
+    });
+    try {
+      final AdminPasswordResetReport report = await widget.api
+          .resetAdminPassword(
+            accountId: profile.accountId,
+            password: password,
+            acceptLanguage: _acceptLanguage,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = report.admin;
+        _resetting = false;
+        // 成功句的數字來自回應；交付提醒不寫口令本身，只說「線下交付、界面不再顯示」。
+        _resetNotice = l10n.adminResetSuccessNotice(report.revokedSessions);
+      });
+      widget.onSaved?.call();
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _resetting = false;
+        _notice = _resetFailureText(error);
+      });
+    }
+  }
+
+  /// 重置失敗分流：1004 點名口令欄位給單獨一句，目標與權限各說各句。
+  /// 刻意沒有「衝突」這一支：本端點不設依據值，重複提交不是被拒的陳舊嘗試。
+  String _resetFailureText(ApiError error) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ApiMachineCode? code = error.knownCode;
+    if (code == ApiMachineCode.invalidBody) {
+      final Object? field = error.details?['invalid_field'];
+      return switch (field) {
+        'password' => l10n.adminResetInvalidPasswordNotice,
+        _ => apiErrorText(l10n, error),
+      };
+    }
+    return switch (code) {
+      ApiMachineCode.notFound => l10n.adminProfileNotFoundNotice,
+      ApiMachineCode.permissionDenied => l10n.adminProfileDeniedNotice,
+      ApiMachineCode.notAuthenticated ||
+      ApiMachineCode.sessionInvalid ||
+      ApiMachineCode.sessionStale ||
+      ApiMachineCode.passwordChangeRequired =>
+        l10n.adminProfileStaleRejectedNotice,
+      _ => apiErrorText(l10n, error),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -469,11 +614,12 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
     }
     final bool saving = _savePhase == _SavePhase.saving;
     final bool statusChanging = _statusChanging;
+    final bool resetting = _resetting;
     // 「動哪個按鈕」只由伺服器讀回的現狀決定：界面不自創第三種狀態，
     // 也不在表外值（未來新狀態）上假裝按鈕仍然適用。
     final bool isActive = profile.status == 'active';
     final bool isDisabled = profile.status == 'disabled';
-    final bool busy = saving || statusChanging;
+    final bool busy = saving || statusChanging || resetting;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -586,6 +732,36 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
+        const SizedBox(height: 10),
+        // 重置憑據：憑據子資源的白名單通路。輸入框只存在這一個控制器裡、
+        // obscureText 全開、送出即清空；確認對話框講完效果與「不會發生」才提交。
+        // 停用中的目標同樣可以重置（重置不是解除停用），所以這裡不按狀態分岔。
+        TextField(
+          key: AdminProfileCard.resetFieldKey,
+          controller: _resetPassword,
+          enabled: !busy,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: l10n.adminResetPasswordFieldLabel,
+          ),
+          textInputAction: TextInputAction.done,
+        ),
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton(
+            key: AdminProfileCard.resetActionKey,
+            onPressed: busy ? null : _confirmPasswordReset,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+            ),
+            child: Text(
+              resetting
+                  ? l10n.adminResetWorkingHint
+                  : l10n.adminResetPasswordAction,
+            ),
+          ),
+        ),
         const SizedBox(height: 6),
         Text(
           l10n.adminProfileLoginNameLockedHint,
@@ -650,6 +826,14 @@ class _AdminProfileCardState extends State<AdminProfileCard> {
           Text(
             _statusNotice!,
             key: AdminProfileCard.statusNoticeKey,
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+        if (_resetNotice != null) ...<Widget>[
+          const SizedBox(height: 8),
+          Text(
+            _resetNotice!,
+            key: AdminProfileCard.resetNoticeKey,
             style: theme.textTheme.bodySmall,
           ),
         ],

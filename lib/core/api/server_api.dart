@@ -72,6 +72,14 @@ String rootAdminItemPath(String accountId) =>
 String rootAdminStatusPath(String accountId) =>
     '${rootAdminItemPath(accountId)}/status';
 
+/// 管理員「登入憑據」子資源的路徑：PUT 唯一方法，動的是 password 一欄。
+///
+/// 憑據與狀態同屬安全欄位，但兩條白名單、兩套確認語意各走各的子資源：
+/// 「重置不是解除停用」在 URL 形狀上就分開。本方法無依据值欄位（見
+/// [ServerApi.resetAdminPassword] 的說明）。
+String rootAdminPasswordPath(String accountId) =>
+    '${rootAdminItemPath(accountId)}/password';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -439,6 +447,27 @@ class ServerApi {
         'expected_status': expectedStatus,
       },
       decode: AdminStatusReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// Root 重置一名管理員的登入憑據：PUT `/root/admins/{account_id}/password`。
+  ///
+  /// 白名單只有新口令一欄，且刻意沒有 expected_* 依據值：重置的發起人（Root）
+  /// 拿不出「現行口令」那類誠實的錨點，重複提交是又做一次完整重置而不是被拒的
+  /// 陳舊嘗試——呼叫端因此不得在結果不明時自動重發。多帶任何其他欄位會被後端打成 1004。
+  /// 成功效果：舊口令與名下全部會話即刻失效、該帳戶首次登入必須改密、
+  /// 停用狀態保持原樣（重置不是解除停用）。口令只在請求本體出現一次，
+  /// 回應不回顯、日誌與審計不留痕；線下的交付管道屬協議之外。
+  Future<AdminPasswordResetReport> resetAdminPassword({
+    required String accountId,
+    required String password,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put(
+      rootAdminPasswordPath(accountId),
+      jsonBody: <String, Object?>{'password': password},
+      decode: AdminPasswordResetReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }
