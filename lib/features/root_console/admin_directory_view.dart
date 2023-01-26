@@ -58,6 +58,11 @@ class AdminDirectoryCard extends StatefulWidget {
     'admin-directory-filter-disabled',
   );
 
+  /// 狀態篩選「已刪除」識別鍵。
+  static const Key filterDeletedKey = ValueKey<String>(
+    'admin-directory-filter-deleted',
+  );
+
   /// 分頁摘要識別鍵。
   static const Key summaryKey = ValueKey<String>('admin-directory-summary');
 
@@ -190,6 +195,14 @@ class _AdminDirectoryCardState extends State<AdminDirectoryCard> {
               label: Text(l10n.adminStatusFilterDisabled),
               selected: _status == 'disabled',
               onSelected: (_) => _setStatus('disabled'),
+            ),
+            // 已刪除的帳戶仍在目錄裡：這一行是「當年那個人」唯一的可點入口，
+            // 少了它，審計裡的操作者標識就只剩一串查不到出處的 UUID。
+            ChoiceChip(
+              key: AdminDirectoryCard.filterDeletedKey,
+              label: Text(l10n.adminStatusFilterDeleted),
+              selected: _status == 'deleted',
+              onSelected: (_) => _setStatus('deleted'),
             ),
           ],
         ),
@@ -363,6 +376,7 @@ String _statusText(AppLocalizations l10n, String status) {
   return switch (status) {
     'active' => l10n.adminStatusActive,
     'disabled' => l10n.adminStatusDisabled,
+    'deleted' => l10n.adminStatusDeleted,
     _ => status,
   };
 }

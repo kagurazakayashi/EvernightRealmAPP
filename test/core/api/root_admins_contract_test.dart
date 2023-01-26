@@ -23,6 +23,8 @@ Map<String, Object?> adminJson(
   String status = 'active',
   bool mustChange = true,
   String? lastLogin,
+  String? disabledAt,
+  String? deletedAt,
   List<String>? roles,
 }) {
   return <String, Object?>{
@@ -34,6 +36,8 @@ Map<String, Object?> adminJson(
     'created_at': '2026-10-02T09:00:00.000Z',
     'granted_at': '2026-10-02T09:00:00.000Z',
     'last_login_at': ?lastLogin,
+    'disabled_at': ?disabledAt,
+    'deleted_at': ?deletedAt,
     'roles': ?roles,
   };
 }
@@ -618,6 +622,165 @@ void main() {
     });
   });
 
+  group('刪除端點', () {
+    /// 刪除成功的回應本體：admin 是刪除後的現值（佔位名＋刪除時刻），外加撤銷數量。
+    String deleteBody({
+      int revoked = 2,
+      String status = 'deleted',
+      String display = 'DEL_20261002_首任管理員',
+      String? deletedAt = '2026-10-02T11:00:00.000Z',
+    }) {
+      return jsonEncode(<String, Object?>{
+        'admin': adminJson(
+          '01a0e000-0000-7000-8000-0000000000ab',
+          'Ops.Primary',
+          display: display,
+          status: status,
+          deletedAt: deletedAt,
+          roles: <String>[kServerAdminRole],
+        ),
+        'revoked_sessions': revoked,
+        'request_id': 'r-delete',
+      });
+    }
+
+    test('deleteAdmin 發 DELETE 到單筆路徑、本體是空的（不選欄位也不交依據值）', () async {
+      final List<http.Request> sent = <http.Request>[];
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        sent.add(request);
+        return http.Response(
+          deleteBody(),
+          200,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+
+      final AdminDeleteReport report = await api.deleteAdmin(
+        accountId: '01a0e000-0000-7000-8000-0000000000ab',
+      );
+
+      expect(sent.single.method, 'DELETE');
+      expect(
+        sent.single.url.path,
+        '$kRootAdminsPath/01a0e000-0000-7000-8000-0000000000ab',
+      );
+      // 本體空著：刪除沒有欄位可填，也沒有 expected_* 那類格子。
+      expect(sent.single.body, isEmpty);
+      expect(report.admin.status, 'deleted');
+      expect(report.admin.isDeleted, isTrue);
+      expect(report.revokedSessions, 2);
+      expect(report.requestId, 'r-delete');
+    });
+
+    test('刪除現值的三個欄位各自讀回：狀態、佔位名與刪除時刻不同源不成立', () async {
+      final Map<String, Object?> json =
+          jsonDecode(deleteBody()) as Map<String, Object?>;
+      final AdminDeleteReport report = AdminDeleteReport.decode(json);
+      expect(report.admin.isDeleted, isTrue);
+      expect(report.admin.isActive, isFalse);
+      expect(report.admin.displayName, 'DEL_20261002_首任管理員');
+      // 登入名是歷史身份的承載者：它必須原樣還在，不是被佔位值替換的那一欄。
+      expect(report.admin.loginName, 'Ops.Primary');
+      expect(report.admin.deletedAt, isNotNull);
+      expect(report.admin.deletedAt!.toUtc().hour, 11);
+    });
+
+    test('未刪除的行讀成「沒有刪除時刻」，不拿停用時刻或建立時刻冒充', () {
+      final AdminAccountReport live = AdminAccountReport.decode(
+        adminJson('01a0e000-0000-7000-8000-0000000000aa', 'Ops.Primary'),
+      );
+      expect(live.deletedAt, isNull);
+      expect(live.isDeleted, isFalse);
+
+      final AdminAccountReport stopped = AdminAccountReport.decode(
+        adminJson(
+          '01a0e000-0000-7000-8000-0000000000aa',
+          'Ops.Primary',
+          status: 'disabled',
+          disabledAt: '2026-10-02T10:00:00.000Z',
+        ),
+      );
+      // 停用不是刪除：兩個時刻各記各的事，isDeleted 只認狀態字串。
+      expect(stopped.disabledAt, isNotNull);
+      expect(stopped.deletedAt, isNull);
+      expect(stopped.isDeleted, isFalse);
+    });
+
+    test('revoked_sessions 缺席判合同違例，不降級成 0', () {
+      final Map<String, Object?> json =
+          jsonDecode(deleteBody()) as Map<String, Object?>;
+      json.remove('revoked_sessions');
+      expect(
+        () => AdminDeleteReport.decode(json),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+    });
+
+    test('回應多出的未知欄位被容忍（只增不刪的兼容方向）', () {
+      final Map<String, Object?> json =
+          jsonDecode(deleteBody()) as Map<String, Object?>;
+      json['future_field'] = '不認識也要活著';
+      final AdminDeleteReport report = AdminDeleteReport.decode(json);
+      expect(report.revokedSessions, 2);
+    });
+
+    test('標識經 URL 轉義：刪除目標不會被內容改寫成另一條路徑', () {
+      expect(
+        rootAdminItemPath('a/b?c'),
+        '$kRootAdminsPath/${Uri.encodeComponent('a/b?c')}',
+      );
+      expect(rootAdminItemPath('a/b?c'), isNot(contains('a/b?c')));
+    });
+
+    test('2015 是 409 上的獨立語意，既不冒充 1001 也不冒充 2013／2014', () async {
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        return http.Response(
+          '{"code":2015,"message":"already deleted","request_id":"r-2015"}',
+          409,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+      await expectLater(
+        api.deleteAdmin(accountId: '01a0e000-0000-7000-8000-0000000000ab'),
+        throwsA(
+          predicate<ApiError>(
+            (ApiError e) =>
+                e.knownCode == ApiMachineCode.adminDeleted &&
+                e.machineCode == 2015 &&
+                e.httpStatus == 409,
+          ),
+        ),
+      );
+
+      // 同一枚碼打在既有寫入通路上也是同一句話：介面分流不靠 HTTP 態猜。
+      final ServerApi editApi = apiWithHandler((http.Request request) async {
+        return http.Response(
+          '{"code":2015,"message":"already deleted","request_id":"r-2015b"}',
+          409,
+          headers: <String, String>{
+            'content-type': 'application/json; charset=utf-8',
+          },
+        );
+      });
+      await expectLater(
+        editApi.updateAdminProfile(
+          accountId: '01a0e000-0000-7000-8000-0000000000ab',
+          displayName: '已刪除還想改名',
+          expectedDisplayName: '首任管理員',
+        ),
+        throwsA(
+          predicate<ApiError>(
+            (ApiError e) => e.knownCode == ApiMachineCode.adminDeleted,
+          ),
+        ),
+      );
+    });
+  });
+
   group('角色欄位', () {
     test('登入與當前會話讀到 roles 即認定管理員；欄位缺席即為空', () {
       final LoginReport withRole = LoginReport.decode(
@@ -654,6 +817,14 @@ void main() {
       expect(ApiMachineCode.permissionDenied.value, 2011);
       expect(ApiMachineCode.loginNameTaken.value, 2012);
       expect(ApiMachineCode.profileConflict.value, 2013);
+      // 2015 是刪除終態的碼：它必須與 1001（不在目錄）、2013／2014（依據值過期）
+      // 都不同——三者對介面的處置是三句話，混用任何一個都會把「別再寫他」說成別的事。
+      expect(ApiMachineCode.fromValue(2015), ApiMachineCode.adminDeleted);
+      expect(ApiMachineCode.adminDeleted.value, 2015);
+      expect(
+        ApiMachineCode.fromValue(1001),
+        isNot(ApiMachineCode.adminDeleted),
+      );
     });
 
     test('409 與 403 都按機器碼取語意，不靠 HTTP 狀態猜', () async {

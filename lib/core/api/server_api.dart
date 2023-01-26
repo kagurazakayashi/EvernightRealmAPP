@@ -472,6 +472,30 @@ class ServerApi {
     );
   }
 
+  /// Root 軟刪除一名管理員帳戶：DELETE `/root/admins/{account_id}`。
+  ///
+  /// 本體是空的，而且刻意沒有依據值欄位：刪除的正當性錨在「他還沒被刪」這條狀態機
+  /// 守衛上，Root 對「現行刪除時刻」拿不出任何可交的東西（未被刪時那一欄本來就是 NULL）。
+  /// 因此這裡也沒有 2013/2014 那樣的「陳舊依據被拒」——第二次刪除回的是 2015
+  /// 「目標已被刪除」，結果不明時界面不得自動重發（那不會是重試，而是對一個已刪除
+  /// 的人再下一次寫入令）。
+  ///
+  /// 成功效果（同一次交易落地）：新登入被拒、名下全部會話即刻撤銷（[revokedSessions]
+  /// 是權威數量）、顯示名換成匿名化佔位值。它【不】做的事同樣要講清楚：帳戶行與
+  /// 登入名保留（因此登入名不可被復用，同名開設回 2012）、授予與既有審計一行不動
+  /// （歷史操作者仍指回每一個人）、也不存在任何把刪除改回來的通路——
+  /// 「恢復登入」那條子資源對已刪除目標一律回 2015。
+  Future<AdminDeleteReport> deleteAdmin({
+    required String accountId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.delete(
+      rootAdminItemPath(accountId),
+      decode: AdminDeleteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
   /// 讀取 Root 初始化狀態：GET `/root/init-status`。
   ///
   /// 這是本應用對「這台伺服器有沒有 Root」唯一的得知管道，而且只進不出：

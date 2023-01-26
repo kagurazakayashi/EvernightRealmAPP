@@ -38,26 +38,47 @@ const String _acct1 = '01a0e000-0000-7000-8000-0000000000aa';
 const String _acct2 = '01a0e000-0000-7000-8000-0000000000bb';
 
 /// 目錄一頁的回應（第二項從未登入；行不帶 roles）。
+///
+/// 用 jsonEncode 而不是手拼字串：可選欄位（last_login_at／deleted_at）的有無
+/// 由地圖本身表達，不會因為多一個逗號就產出後端永遠不會給的畸形本體。
 String _directoryBody({
   int page = 1,
   int total = 2,
   int rows = 2,
   String status = 'all',
+  String secondStatus = 'active',
 }) {
-  final List<String> items = <String>[
-    '{"account_id":"$_acct1","login_name":"Ops.Primary","display_name":"首任管理員",'
-        '"status":"active","must_change_password":true,'
-        '"created_at":"2026-10-02T09:00:00.000Z",'
-        '"granted_at":"2026-10-02T09:00:00.000Z",'
-        '"last_login_at":"2026-10-02T09:30:00.000Z"}',
-    if (rows > 1)
-      '{"account_id":"$_acct2","login_name":"Ops.Second","display_name":"次任管理員",'
-          '"status":"active","must_change_password":false,'
-          '"created_at":"2026-10-02T09:10:00.000Z",'
-          '"granted_at":"2026-10-02T09:10:00.000Z"}',
+  final bool secondDeleted = secondStatus == 'deleted';
+  final List<Map<String, Object?>> items = <Map<String, Object?>>[
+    <String, Object?>{
+      'account_id': _acct1,
+      'login_name': 'Ops.Primary',
+      'display_name': '首任管理員',
+      'status': 'active',
+      'must_change_password': true,
+      'created_at': '2026-10-02T09:00:00.000Z',
+      'granted_at': '2026-10-02T09:00:00.000Z',
+      'last_login_at': '2026-10-02T09:30:00.000Z',
+    },
+    <String, Object?>{
+      'account_id': _acct2,
+      'login_name': 'Ops.Second',
+      // 刪除態下服務端回的是佔位名，不是原本那個：界面要顯示的是回應。
+      'display_name': secondDeleted ? 'DEL_20261002_次任管理員' : '次任管理員',
+      'status': secondStatus,
+      'must_change_password': false,
+      'created_at': '2026-10-02T09:10:00.000Z',
+      'granted_at': '2026-10-02T09:10:00.000Z',
+      if (secondDeleted) 'deleted_at': '2026-10-02T11:00:00.000Z',
+    },
   ];
-  return '{"admins":[${items.take(rows).join(',')}],'
-      '"page":$page,"page_size":20,"total":$total,"request_id":"r-list"}';
+  return jsonEncode(<String, Object?>{
+    'admins': items.take(rows).toList(),
+    'page': page,
+    'page_size': 20,
+    'total': total,
+    'request_id': 'r-list',
+  });
 }
 
 /// 單筆詳情／編輯結果的回應本體。
@@ -70,14 +91,20 @@ String _profileBody({String display = '首任管理員', String? login}) {
       '"roles":["server_admin"]},"request_id":"r-profile"}';
 }
 
-/// 詳情回應的可變狀態形態：停用／恢復與表外值都要有真的行可讀。
-String _detailBody({String status = 'active', String? disabledAt}) {
+/// 詳情回應的可變狀態形態：停用／刪除／表外值都要有真的行可讀。
+String _detailBody({
+  String status = 'active',
+  String? disabledAt,
+  String? deletedAt,
+  String display = '首任管理員',
+}) {
   return '{"admin":{"account_id":"$_acct1",'
-      '"login_name":"Ops.Primary","display_name":"首任管理員",'
+      '"login_name":"Ops.Primary","display_name":"$display",'
       '"status":"$status","must_change_password":true,'
       '"created_at":"2026-10-02T09:00:00.000Z",'
       '"granted_at":"2026-10-02T09:00:00.000Z",'
       '${disabledAt == null ? '' : '"disabled_at":"$disabledAt",'}'
+      '${deletedAt == null ? '' : '"deleted_at":"$deletedAt",'}'
       '"roles":["server_admin"]},"request_id":"r-profile"}';
 }
 
@@ -122,6 +149,26 @@ String _passwordResetBody({int revoked = 0, required String status}) {
   });
 }
 
+/// 刪除成功的回應本體：admin 已是刪除態現值（佔位顯示名＋刪除時刻），外加撤銷數量。
+String _deleteBody({int revoked = 0, String display = 'DEL_20261002_首任管理員'}) {
+  final Map<String, Object?> admin = <String, Object?>{
+    'account_id': _acct1,
+    'login_name': 'Ops.Primary',
+    'display_name': display,
+    'status': 'deleted',
+    'must_change_password': true,
+    'created_at': '2026-10-02T09:00:00.000Z',
+    'granted_at': '2026-10-02T09:00:00.000Z',
+    'deleted_at': '2026-10-02T11:00:00.000Z',
+    'roles': <String>['server_admin'],
+  };
+  return jsonEncode(<String, Object?>{
+    'admin': admin,
+    'revoked_sessions': revoked,
+    'request_id': 'r-delete',
+  });
+}
+
 /// 開設成功的回應本體。
 const String _createdBody =
     '{"account_id":"acct-3","login_name":"Ops.Third","display_name":"第三任",'
@@ -146,6 +193,9 @@ class _Fixture {
     this.passwordResetStatus = 200,
     this.passwordResetErrorCode,
     this.passwordResetBody,
+    this.deleteStatus = 200,
+    this.deleteErrorCode,
+    this.secondStatus = 'active',
   });
 
   final int createStatus;
@@ -170,6 +220,14 @@ class _Fixture {
   final int? passwordResetErrorCode;
   final String? passwordResetBody;
 
+  final int deleteStatus;
+
+  /// 刪除失敗時信封裡的業務碼（2015 才是「已被刪除」那句，404 是「不在目錄」）。
+  final int? deleteErrorCode;
+
+  /// 目錄第二行的狀態原字串（用於「已刪除」這一行怎麼呈現）。
+  final String secondStatus;
+
   /// GET /root/admins 被問了幾趟。
   int listCalls = 0;
 
@@ -190,6 +248,9 @@ class _Fixture {
 
   /// 發出的 PUT /password 請求（憑據子資源是第三條通路）。
   final List<http.Request> passwordResets = <http.Request>[];
+
+  /// 發出的 DELETE 請求（刪除是第四條、也是唯一不可逆的通路）。
+  final List<http.Request> deletes = <http.Request>[];
 
   ServerApi api(ServerAddressSettings settings) {
     return ServerApi(
@@ -215,6 +276,7 @@ class _Fixture {
               total: total,
               rows: rows,
               status: request.url.queryParameters['status'] ?? 'all',
+              secondStatus: secondStatus,
             ),
             200,
           );
@@ -249,6 +311,18 @@ class _Fixture {
                   _passwordResetBody(revoked: 2, status: 'active'),
               200,
             );
+          }
+          if (request.method == 'DELETE') {
+            // 刪除打在單筆路徑上，沒有自己的子路徑：目標在地址裡，本體什麼都不帶。
+            deletes.add(request);
+            if (deleteStatus != 200) {
+              return _json(
+                '{"code":${deleteErrorCode ?? deleteStatus},'
+                '"message":"x","request_id":"r-delete"}',
+                deleteStatus,
+              );
+            }
+            return _json(_deleteBody(revoked: 2), 200);
           }
           if (request.method == 'PUT') {
             updates.add(request);
@@ -424,6 +498,48 @@ void main() {
       expect(fixture.listCalls, 2);
       expect(fixture.lastListQuery['status'], 'disabled');
       expect(fixture.lastListQuery['page'], '1');
+    });
+
+    testWidgets('「已刪除」是第四個篩選取值：問服務端要 deleted，不自己排本地行', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+
+      await tapVisible(tester, AdminDirectoryCard.filterDeletedKey);
+
+      expect(fixture.listCalls, 2);
+      expect(fixture.lastListQuery['status'], 'deleted');
+      // 切篩選照例回第一頁：帶著舊頁碼換條件會翻出一頁不存在的東西。
+      expect(fixture.lastListQuery['page'], '1');
+    });
+
+    testWidgets('目錄把刪除態如實標出來，並顯示服務端給的佔位名', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(secondStatus: 'deleted');
+      await pump(tester, fixture);
+
+      expect(
+        find.descendant(
+          of: find.byKey(AdminDirectoryCard.rowKey(_acct2)),
+          matching: find.text(
+            l10n.labelValuePair(
+              l10n.adminListStatusLabel,
+              l10n.adminStatusDeleted,
+            ),
+          ),
+        ),
+        findsOneWidget,
+      );
+      // 名字是回應給的佔位值：界面不自己拼、也不設法還原原本那個。
+      expect(
+        find.descendant(
+          of: find.byKey(AdminDirectoryCard.rowKey(_acct2)),
+          matching: find.textContaining('DEL_20261002_次任管理員'),
+        ),
+        findsOneWidget,
+      );
+      // 人已不在，但行還在目錄裡——入口也還在（詳情要讀得回來）。
+      expect(find.byKey(AdminDirectoryCard.actionKey(_acct2)), findsOneWidget);
     });
 
     testWidgets('下一页把伺服器回顯的邊界變成按鈕的可點性', (WidgetTester tester) async {
@@ -946,6 +1062,236 @@ void main() {
       // 所以界面对失敗絕不自動補發，成功句也不許出現。
       expect(fixture.passwordResets, hasLength(1));
       expect(find.byKey(AdminProfileCard.resetNoticeKey), findsNothing);
+    });
+  });
+
+  group('刪除', () {
+    testWidgets('還沒被刪的目標長刪除入口（第四條寫入通路）', (WidgetTester tester) async {
+      final _Fixture live = _Fixture();
+      await pump(tester, live);
+      await openProfile(tester, live);
+      expect(find.byKey(AdminProfileCard.deleteKey), findsOneWidget);
+      expect(find.text(l10n.adminDeleteZoneHint), findsOneWidget);
+    });
+
+    testWidgets('已刪除的詳情一律不給寫入控件，只列服務端回的現值', (WidgetTester tester) async {
+      // 同一個人從伺服器讀回來已是刪除態時：四條寫入通路（改名、停用/恢復、
+      // 重置、刪除）全部消失。留著按鈕對著一個不再接受寫入的對象，
+      // 比少一顆按鈕更容易讓人以為還做得動。
+      final _Fixture deleted = _Fixture(
+        detailBody: _detailBody(
+          status: 'deleted',
+          deletedAt: '2026-10-02T11:00:00.000Z',
+          display: 'DEL_20261002_首任管理員',
+        ),
+      );
+      await pump(tester, deleted);
+      await openProfile(tester, deleted);
+      expect(find.byKey(AdminProfileCard.deleteKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.submitKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.displayNameKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.resetFieldKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.resetActionKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.disableKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.restoreKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.statusUnknownKey), findsNothing);
+      // 「表外狀態」那一句不該用在一個明明認識的狀態上。
+      expect(
+        find.text(l10n.adminStatusUnsupportedNotice('deleted')),
+        findsNothing,
+      );
+      expect(
+        find.text(l10n.adminProfileDeletedBannerAt('2026-10-02 11:00 UTC')),
+        findsOneWidget,
+      );
+      // 佔位顯示名由回應列出：活的投影現在長這樣，這件事要看得見。
+      expect(
+        find.byKey(AdminProfileCard.deletedDisplayNameKey),
+        findsOneWidget,
+      );
+      expect(find.textContaining('DEL_20261002_首任管理員'), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.identityKeptKey), findsOneWidget);
+    });
+
+    testWidgets('確認對話框講完目標、三件效果與「不是停用／沒有回頭路」；取消一請求都不發', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      await tapVisible(tester, AdminProfileCard.deleteKey);
+      expect(find.text(l10n.adminDeleteConfirmTitle), findsOneWidget);
+      expect(
+        find.text(l10n.adminDeleteConfirmBody('Ops.Primary')),
+        findsOneWidget,
+      );
+
+      await tapVisible(tester, AdminProfileCard.deleteConfirmCancelKey);
+      expect(fixture.deletes, isEmpty);
+      expect(find.byKey(AdminProfileCard.deleteNoticeKey), findsNothing);
+      // 取消之後人還在原地：寫入控件仍舊在（沒被一次沒發生的操作改掉）。
+      expect(find.byKey(AdminProfileCard.deleteKey), findsOneWidget);
+    });
+
+    testWidgets('確認刪除：DELETE 打在單筆路徑上、不帶本體、成功句帶回應的撤銷數量', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      final int listsBefore = fixture.listCalls;
+
+      await tapVisible(tester, AdminProfileCard.deleteKey);
+      await tapVisible(tester, AdminProfileCard.deleteConfirmKey);
+
+      final http.Request sent = fixture.deletes.single;
+      expect(sent.method, 'DELETE');
+      expect(sent.url.path, '/root/admins/$_acct1');
+      // 本體是空的：刪除不選欄位，也沒有依據值可交。
+      expect(sent.body, isEmpty);
+      expect(
+        fixture.deletes.map((http.Request r) => r.url.path),
+        isNot(contains('/delete')),
+      );
+
+      expect(find.text(l10n.adminDeleteSuccessNotice(2)), findsOneWidget);
+      expect(fixture.listCalls, listsBefore + 1);
+    });
+
+    testWidgets('刪除成功即退出編輯態：底稿清空、四個寫入控件消失、展示換成回應', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture();
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      // 先在改名框留一半草稿：刪除之後它不該繼續出現在畫面上。
+      await tester.enterText(
+        find.byKey(AdminProfileCard.displayNameKey),
+        '改到一半',
+      );
+      await tester.pump();
+
+      await tapVisible(tester, AdminProfileCard.deleteKey);
+      await tapVisible(tester, AdminProfileCard.deleteConfirmKey);
+
+      expect(find.byKey(AdminProfileCard.displayNameKey), findsNothing);
+      expect(find.text('改到一半'), findsNothing);
+      expect(find.byKey(AdminProfileCard.submitKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.resetFieldKey), findsNothing);
+      expect(find.byKey(AdminProfileCard.deleteKey), findsNothing);
+      // 顯示名換成回應給的佔位值，不是本地那半份草稿。
+      expect(find.textContaining('DEL_20261002_首任管理員'), findsOneWidget);
+      expect(
+        find.text(l10n.adminProfileDeletedBannerAt('2026-10-02 11:00 UTC')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('2015（他早被刪過了）：一句「什麼都沒發生」，不謊報成第二次成功', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture(
+        deleteStatus: 409,
+        deleteErrorCode: 2015,
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      await tapVisible(tester, AdminProfileCard.deleteKey);
+      await tapVisible(tester, AdminProfileCard.deleteConfirmKey);
+
+      expect(fixture.deletes.length, 1);
+      expect(find.text(l10n.adminDeleteAlreadyNotice), findsOneWidget);
+      expect(
+        find.textContaining(l10n.adminDeleteSuccessNotice(0)),
+        findsNothing,
+      );
+      // 失敗不改形態：人還在原地，控件仍舊在（下一次要問的是目錄，不是再點一次）。
+      expect(find.byKey(AdminProfileCard.deleteKey), findsOneWidget);
+    });
+
+    testWidgets('2015 打在停用/恢復通路上時，說的是「不再接受任何寫入」', (WidgetTester tester) async {
+      // 真實形態是競爭：畫面開著時他已被另一位 Root 刪掉，本地還留著按鈕。
+      final _Fixture fixture = _Fixture(
+        statusUpdateStatus: 409,
+        statusUpdateErrorCode: 2015,
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await tapVisible(tester, AdminProfileCard.disableKey);
+      await tapVisible(tester, AdminProfileCard.confirmKey);
+      expect(find.text(l10n.adminProfileDeletedNotice), findsOneWidget);
+      // 不是 2014 那句「現狀已改變，重讀再確認」：刪除沒有「再來一次」這條出路。
+      expect(find.text(l10n.adminStatusConflictNotice), findsNothing);
+    });
+
+    testWidgets('2015 打在重置通路上時，同一句話而不是「改改口令再試」', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        passwordResetStatus: 409,
+        passwordResetErrorCode: 2015,
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await tester.enterText(
+        find.byKey(AdminProfileCard.resetFieldKey),
+        _resetTempPassword,
+      );
+      await tester.pump();
+      await tapVisible(tester, AdminProfileCard.resetActionKey);
+      await tapVisible(tester, AdminProfileCard.resetConfirmKey);
+      expect(find.text(l10n.adminProfileDeletedNotice), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.resetNoticeKey), findsNothing);
+    });
+
+    testWidgets('2015 打在改名通路上時不冒充 2013，也不給重發舊草稿的出口', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture(
+        updateStatus: 409,
+        updateBody: '{"code":2015,"message":"x","request_id":"r-edit"}',
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+      await tester.enterText(
+        find.byKey(AdminProfileCard.displayNameKey),
+        '刪掉之後還想改名',
+      );
+      await tester.pump();
+      await tapVisible(tester, AdminProfileCard.submitKey);
+      expect(find.text(l10n.adminProfileDeletedNotice), findsOneWidget);
+      // 2013 那句「有人改過了，重讀再決定」在這裡是謊話：沒有現值可再改。
+      expect(find.text(l10n.adminProfileConflictNotice), findsNothing);
+      expect(find.byKey(AdminProfileCard.savedKey), findsNothing);
+    });
+
+    testWidgets('1004（本體塞了欄位）：一句「刪除不帶欄位」，沒有成功句', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        deleteStatus: 400,
+        deleteErrorCode: 1004,
+      );
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      await tapVisible(tester, AdminProfileCard.deleteKey);
+      await tapVisible(tester, AdminProfileCard.deleteConfirmKey);
+      expect(find.text(l10n.adminDeleteNoFieldNotice), findsOneWidget);
+      expect(find.byKey(AdminProfileCard.deleteNoticeKey), findsNothing);
+    });
+
+    testWidgets('結果不明（5xx）不自動補發：一次確認就是一趟請求', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(deleteStatus: 500);
+      await pump(tester, fixture);
+      await openProfile(tester, fixture);
+
+      await tapVisible(tester, AdminProfileCard.deleteKey);
+      await tapVisible(tester, AdminProfileCard.deleteConfirmKey);
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(fixture.deletes.length, 1);
+      expect(find.byKey(AdminProfileCard.deleteNoticeKey), findsNothing);
+      expect(
+        find.text(l10n.adminDeleteSuccessNotice(0).split('{').first),
+        findsNothing,
+      );
     });
   });
 

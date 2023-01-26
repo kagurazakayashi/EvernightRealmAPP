@@ -38,6 +38,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.loginNameTaken => l10n.errorCodeLoginNameTaken,
       ApiMachineCode.profileConflict => l10n.errorCodeProfileConflict,
       ApiMachineCode.adminStatusConflict => l10n.errorCodeAdminStatusConflict,
+      ApiMachineCode.adminDeleted => l10n.errorCodeAdminDeleted,
     };
   }
 

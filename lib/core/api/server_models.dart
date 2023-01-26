@@ -739,9 +739,11 @@ class CreatedAdminReport {
 
 /// 管理員單筆資料：目錄的一行、詳情與編輯結果共用的形状（同一筆資料在不同回應裡必須同源）。
 ///
-/// 可缺席的兩個欄位各有其人：
+/// 可缺席的三個欄位各有其人：
 ///
 /// * `last_login_at`：從未登入的帳戶在合同裡是欄位缺席，本模型不拿建立時刻冒充。
+/// * `disabled_at`：只在目標停過時出現；被刪前若本是停用者，這個時刻在刪除之後仍留在回應裡。
+/// * `deleted_at`：只在目標已被刪除時出現，界面不得拿停用時刻或建立時刻代填。
 /// * `roles`：只有單筆回應（詳情與編輯結果）帶出；目錄的每一行本來就是按授予查出來的，
 ///   逐行重複同一個字串不回答任何新問題。未知角色值原樣保留為字串，不收緊成枚舉。
 ///
@@ -759,6 +761,7 @@ class AdminAccountReport {
     required this.grantedAt,
     this.lastLoginAt,
     this.disabledAt,
+    this.deletedAt,
     this.roles = const <String>[],
   });
 
@@ -773,6 +776,7 @@ class AdminAccountReport {
       createdAt: _requireUtcTime(json, 'created_at'),
       lastLoginAt: _optionalUtcTime(json, 'last_login_at'),
       disabledAt: _optionalUtcTime(json, 'disabled_at'),
+      deletedAt: _optionalUtcTime(json, 'deleted_at'),
       grantedAt: _requireUtcTime(json, 'granted_at'),
       roles: _optionalTextList(json, 'roles'),
     );
@@ -802,6 +806,12 @@ class AdminAccountReport {
   /// 進入禁用狀態的時刻（UTC）；active 時合同欄位缺席，讀成 `null`（不拿零值冒充「停過」）。
   final DateTime? disabledAt;
 
+  /// 進入刪除終態的時刻（UTC）；未被刪除時合同欄位缺席，讀成 `null`。
+  ///
+  /// 它與 [disabledAt] 是兩件事：後者記「何時停的」（被刪前若本是停用者，那個時刻仍留著），
+  /// 前者記「何時被刪」。界面不得把兩者混成一個標籤，也不得用其中一個去推另一個。
+  final DateTime? deletedAt;
+
   /// server_admin 授予寫下的時刻（UTC）。
   final DateTime grantedAt;
 
@@ -810,6 +820,12 @@ class AdminAccountReport {
 
   /// 是否為有效狀態（未知值不冒充有效）。
   bool get isActive => status == 'active';
+
+  /// 是否已是刪除終態（只認服務端回傳的狀態字串）。
+  ///
+  /// 判的是 `status` 而不是 `deletedAt != null`：兩個值在後端由同一條 CHECK 成對鎖定，
+  /// 但介面要問的原話是「他現在是哪個狀態」，答案就取那個欄位。
+  bool get isDeleted => status == 'deleted';
 }
 
 /// `GET /root/admins` 的成功回應：管理員目錄的一頁，含分頁回顯與篩選後總數。
@@ -967,6 +983,45 @@ class AdminPasswordResetReport {
   final AdminAccountReport admin;
 
   /// 這次撤銷的會話數量（停用中的目標通常是 0——其會話早在停用時已撤）。
+  final int revokedSessions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `DELETE /root/admins/{account_id}` 的成功回應：刪除後的資料庫現值與撤銷數量。
+///
+/// 欄位形態與 [AdminStatusReport]、[AdminPasswordResetReport] 同構但刻意各自獨名：
+/// 三條通路成功的是三件不同的事，合併成一個型別會讓「這次辦掉的是哪一件」在界面層
+/// 失去出處。[admin] 是刪除後的單筆真相：`status` 必為 `deleted`、`deleted_at` 必在、
+/// `display_name` 已是匿名化佔位值，而 `login_name` 原樣保留（它就是歷史身份的承載者）。
+/// [revokedSessions] 為這次落庫的會話撤銷數，缺席判合同違例、不降級成 0。
+/// 回應裡不會有任何「如何恢復」的暗示：刪除是終態，協定層沒有一條把它改回來的路。
+class AdminDeleteReport {
+  /// 以已驗證的欄位建立單次刪除回應。
+  const AdminDeleteReport({
+    required this.admin,
+    required this.revokedSessions,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立刪除結果。
+  static AdminDeleteReport decode(Map<String, Object?> json) {
+    final Object? raw = json['admin'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('admin 不是物件');
+    }
+    return AdminDeleteReport(
+      admin: AdminAccountReport.decode(raw),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 刪除後的單筆管理員資料。
+  final AdminAccountReport admin;
+
+  /// 這次撤銷的會話數量（本就停用且會話早已撤盡的目標是 0）。
   final int revokedSessions;
 
   /// 本次請求的關聯 ID。

@@ -172,6 +172,26 @@ class ApiClient {
     return _finish(response: response, path: path, decode: decode);
   }
 
+  /// 對指定路徑發起沒有本體的 DELETE，失敗語意與 [get] 完全一致。
+  ///
+  /// 本倉庫裡它只服務一個入口：「軟刪除一名管理員帳戶」。目標在路徑上、本體空著——
+  /// 刪除不選欄位，也沒有可交的依據值（後端對帶欄位的本體一律回 1004，
+  /// 而不是默默忽略那些欄位）。成功是 200 帶回應本體而不是 204：
+  /// 呼叫端要的是服務端落庫後的現值與這次撤銷的會話數量，不是「收到了」這三個字。
+  /// 失敗（含 2015「目標已被刪除」）一律拋 [ApiError]，不存在回傳值但其實失敗。
+  Future<T> delete<T>(
+    String path, {
+    required ResponseDecoder<T> decode,
+    String? acceptLanguage,
+  }) async {
+    final http.Response response = await _send(
+      method: 'DELETE',
+      path: path,
+      acceptLanguage: acceptLanguage,
+    );
+    return _finish(response: response, path: path, decode: decode);
+  }
+
   /// 發起 POST 並把成功回應解碼，同時原樣带回回應的 `Set-Cookie` 標頭文字。
   ///
   /// 存在的唯一理由是登入合同：會話秘密只進 `Set-Cookie`，原生客戶端需要它才能
