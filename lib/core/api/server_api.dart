@@ -41,6 +41,18 @@ const String kAuthSessionRotatePath = '/auth/session/rotate';
 /// Root 初始化狀態端點路徑（唯讀：查一次不會改變伺服器任何狀態）。
 const String kRootInitStatusPath = '/root/init-status';
 
+/// 登入前界面用的對外入口能力端點路徑（匿名唯讀：回應只有兩個布林）。
+///
+/// 掛在 `/auth` 首段下而不是 `/root` 下：它是「還站在門外的人」要問的事，
+/// 而 `/root` 那一整段屬 Root 面。路徑本身不透露任何策略細節。
+const String kAuthCapabilitiesPath = '/auth/capabilities';
+
+/// 帳戶建立策略端點路徑：GET（／HEAD）是現讀三份值與對外答案，PUT 是整份寫入。
+///
+/// 一條路徑、一份單例文件：這裡沒有目標標識、也沒有「只改某一欄」的子路徑——
+/// 三個值一次寫入正是後端合同的形狀（少一個欄位就是 1004，不是默默按關）。
+const String kRootAccountPolicyPath = '/root/account-policy';
+
 /// 「我的裝置」清單端點路徑（唯讀：只列當前主體名下的會話）。
 const String kAuthDevicesPath = '/auth/devices';
 
@@ -508,6 +520,59 @@ class ServerApi {
     return apiClient.get(
       kRootInitStatusPath,
       decode: InitStatusReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取伺服器帳戶建立策略：GET `/root/account-policy`（只有 Root 讀得到）。
+  ///
+  /// 回的是資料庫裡此刻的三個值，以及由它們合成的對外入口答案；
+  /// 查不出來一律拋 `ApiError`，沒有一條路把「讀失敗」降級成「全關」或一份預設策略。
+  Future<AccountPolicyReport> accountPolicy({String? acceptLanguage}) {
+    return apiClient.get(
+      kRootAccountPolicyPath,
+      decode: AccountPolicyReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 一次寫入帳戶建立策略：PUT `/root/account-policy`。
+  ///
+  /// 這是一份單例文件的整份 PUT：三個欄位一個都不能少（漏欄位會被後端打成 1004 並點名，
+  /// 不會被當成「按關」——沉默是介面壞了，不是一個決定），也刻意沒有比較-and-set 依據值：
+  /// 能改它的只有 Root 一個主體，重複提交不是「依據陳舊」而是「又確認一次」，
+  /// 因此結果不明時呼叫端絕不自動補發。
+  /// 模式字串要原樣交出去：`approval`／`invite` 是已批准但尚未上線的名字，
+  /// 後端以 2016 拒之，界面據此另成一句，而不是自己攔下來假裝那個名字不存在。
+  /// 成功回應是落庫後的現值加新的對外答案，不是請求的回音。
+  Future<AccountPolicyReport> updateAccountPolicy({
+    required bool adminCreateStandard,
+    required String selfRegisterMode,
+    required bool guestEnabled,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put(
+      kRootAccountPolicyPath,
+      jsonBody: <String, Object?>{
+        'admin_create_standard': adminCreateStandard,
+        'self_register_mode': selfRegisterMode,
+        'guest_enabled': guestEnabled,
+      },
+      decode: AccountPolicyReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取登入前界面的兩個入口答案：GET `/auth/capabilities`（匿名可讀）。
+  ///
+  /// 這是尚未登入的界面唯一被允許詢問的准入資訊：回應只有兩個布林加關聯 ID，
+  /// 不含模式名字、修改時刻、建號開關、帳戶清單或任何閾值。呼叫端必須把查不出來
+  /// 當成「不知道」處理（不顯示任何入口），而不是猜一個答案——猜「開」會露出一個
+  /// 按下去必然失敗的入口，猜「關」也會讓一次故障看起來像 Root 做了決定。
+  Future<EntryCapabilitiesReport> entryCapabilities({String? acceptLanguage}) {
+    return apiClient.get(
+      kAuthCapabilitiesPath,
+      decode: EntryCapabilitiesReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

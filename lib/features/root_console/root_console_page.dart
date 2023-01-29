@@ -1,11 +1,12 @@
 /// Root 控制台頁面。
 ///
-/// Root 屬伺服器級上下文，與活動端導航嚴格隔離。本頁目前接線的 Root 域能力有三項，
+/// Root 屬伺服器級上下文，與活動端導航嚴格隔離。本頁目前接線的 Root 域能力有四項，
 /// 全部經統一端點介面讀寫伺服器，且後端對每一項都只認 Root 的受信主體：
 ///
 /// * 開設伺服器級管理員帳戶（[AdminProvisionCard]）；
 /// * 分頁瀏覽管理員目錄與狀態篩選（[AdminDirectoryCard]）；
-/// * 單筆詳情與顯示名的白名單編輯（[AdminProfileCard]）。
+/// * 單筆詳情與顯示名的白名單編輯（[AdminProfileCard]）；
+/// * 伺服器級帳戶建立策略的現讀與整份保存（[AccountPolicyCard]）。
 ///
 /// 目錄由「確認清單」升級而來：它是只含管理員 Account 的目錄——配置 Root 不是
 /// accounts 表裡的一行，也就不會被偽裝成一條可被普通帳戶接口編輯的記錄。
@@ -25,6 +26,7 @@ import '../../app/nav_context_labels.dart';
 import '../../core/api/server_api.dart';
 import '../../core/api/server_models.dart';
 import '../../l10n/app_localizations.dart';
+import 'account_policy_view.dart';
 import 'admin_directory_view.dart';
 import 'admin_profile_view.dart';
 import 'admin_provision_view.dart';
@@ -101,6 +103,10 @@ class _RootConsolePageState extends State<RootConsolePage> {
               onSaved: () => setState(() => _reloadToken++),
             ),
           ],
+          const SizedBox(height: 28),
+          // 策略卡自己帶標題（accountPolicyTitle），因此不再疊一層頁面級 section title：
+          // 同一張卡有兩個標題時，日後改其中一個就會出現「同一節有兩個名字」。
+          AccountPolicyCard(api: api),
           const SizedBox(height: 28),
           Text(
             l10n.rootConsoleRemainingNotice,

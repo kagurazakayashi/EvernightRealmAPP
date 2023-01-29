@@ -1027,3 +1027,125 @@ class AdminDeleteReport {
   /// 本次請求的關聯 ID。
   final String requestId;
 }
+
+/// 登入前界面可見的兩個入口答案（`/auth/capabilities` 的本體，也嵌在策略回應裡）。
+///
+/// 只有兩個布林，是刻意的：模式名字、最後修改時刻、管理員建號開關都不在這個合同裡，
+/// 因此界面無法把「這台伺服器打算怎麼做准入」講給還站在門外的人聽。
+/// 兩個值是「策略說要開」與「那條通路真的存在」的合成結果，所以策略被存成放開而通路
+/// 還沒上線時，這裡照樣是 `false`——界面據此不得顯示任何按下必然失敗的入口。
+class AccountEntryCapabilities {
+  /// 以已驗證的欄位建立對外入口答案。
+  const AccountEntryCapabilities({
+    required this.signUpOpen,
+    required this.guestOpen,
+  });
+
+  /// 從 JSON 建立（頂層與嵌在 `entry` 裡都是同一組欄位名，因此共用這個解碼點）。
+  static AccountEntryCapabilities decode(Map<String, Object?> json) {
+    return AccountEntryCapabilities(
+      signUpOpen: _requireBool(json, 'sign_up_open'),
+      guestOpen: _requireBool(json, 'guest_open'),
+    );
+  }
+
+  /// 用戶自註冊入口對外是否開放。
+  final bool signUpOpen;
+
+  /// 訪客（臨時帳戶）入口對外是否開放。
+  final bool guestOpen;
+}
+
+/// `GET／PUT /root/account-policy` 的成功回應：帳戶建立策略現值與其對外結果。
+///
+/// 三個值就是策略全文（後端那張表也只有這三個值加一個時刻）：[adminCreateStandard]、
+/// [selfRegisterMode]、[guestEnabled] 彼此獨立，界面不得把其中一個的變動推給另一個。
+/// [updatedAt] 為 null 是一個有意義的事實——「這一列出廠以來沒人改過」，
+/// 不是「時刻查不到」，因此界面要說「尚未修改過」而不能顯示一個假日期。
+/// [entry] 是「這份策略此刻讓登入前界面看到什麼」：它與策略值刻意並列在同一份回應裡，
+/// 讓操作者能同時核對意圖與結果，而不是自己推算（推算就會推錯）。
+/// [selfRegisterMode] 原字串保留：日後後端多出新模式名字時，界面要能如實顯示那個名字
+/// 並把「本版本還不能選它」說出來，而不是判成合同違例或默默當成 `closed`。
+class AccountPolicyReport {
+  /// 以已驗證的欄位建立一份策略現值。
+  const AccountPolicyReport({
+    required this.adminCreateStandard,
+    required this.selfRegisterMode,
+    required this.guestEnabled,
+    required this.entry,
+    required this.requestId,
+    this.updatedAt,
+  });
+
+  /// 從 JSON 建立。`entry` 缺席或不是物件判合同違例：少了它，界面就只剩策略值、
+  /// 沒有「對外此刻是什麼」，而那正是這張卡要避免猜測的一件事。
+  static AccountPolicyReport decode(Map<String, Object?> json) {
+    final Object? raw = json['entry'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('entry 不是物件');
+    }
+    return AccountPolicyReport(
+      adminCreateStandard: _requireBool(json, 'admin_create_standard'),
+      selfRegisterMode: _requireText(json, 'self_register_mode'),
+      guestEnabled: _requireBool(json, 'guest_enabled'),
+      updatedAt: _optionalUtcTime(json, 'updated_at'),
+      entry: AccountEntryCapabilities.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 「管理員可建立普通帳戶」開關。
+  final bool adminCreateStandard;
+
+  /// 自註冊模式原字串。
+  final String selfRegisterMode;
+
+  /// 「可建立訪客（臨時）帳戶」開關。
+  final bool guestEnabled;
+
+  /// 最後一次修改的時刻（UTC）；從未被改寫為 `null`。
+  final DateTime? updatedAt;
+
+  /// 由這份策略合成的對外入口答案。
+  final AccountEntryCapabilities entry;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 模式是否為已批准的四個名字之一（未知名字不是錯誤，但界面不能假裝認得它）。
+  bool get isKnownMode =>
+      selfRegisterMode == 'closed' ||
+      selfRegisterMode == 'open' ||
+      selfRegisterMode == 'approval' ||
+      selfRegisterMode == 'invite';
+
+  /// 模式是否為本版本可寫入的兩個名字之一。
+  ///
+  /// 判定只依這條清單，界面不得另猜一份：後端放行哪個模式是它那一側的登記，
+  /// 這裡只是「不要讓 Root 選一個必然被打成 2016 的值」。
+  bool get isWritableMode =>
+      selfRegisterMode == 'closed' || selfRegisterMode == 'open';
+}
+
+/// `GET /auth/capabilities` 的成功回應：兩個對外布林加關聯 ID。
+///
+/// 這是登入前界面唯一的准入資訊來源，而且只進不出：本請求沒有任何欄位可以攜帶
+/// 身分或意圖，查得到的結果也不含帳戶清單、名額、閾值或策略全文。
+class EntryCapabilitiesReport {
+  /// 以已驗證的欄位建立對外入口答案的回應。
+  const EntryCapabilitiesReport({required this.entry, required this.requestId});
+
+  /// 從 JSON 建立。
+  static EntryCapabilitiesReport decode(Map<String, Object?> json) {
+    return EntryCapabilitiesReport(
+      entry: AccountEntryCapabilities.decode(json),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 兩個入口的對外答案。
+  final AccountEntryCapabilities entry;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}

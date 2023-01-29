@@ -39,6 +39,8 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.profileConflict => l10n.errorCodeProfileConflict,
       ApiMachineCode.adminStatusConflict => l10n.errorCodeAdminStatusConflict,
       ApiMachineCode.adminDeleted => l10n.errorCodeAdminDeleted,
+      ApiMachineCode.accountPolicyModeUnavailable =>
+        l10n.errorCodeAccountPolicyModeUnavailable,
     };
   }
 

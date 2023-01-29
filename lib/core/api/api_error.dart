@@ -151,7 +151,14 @@ enum ApiMachineCode {
   /// 把它報成成功，則是在審計與真相之間造出一件沒發生過的事。
   /// 它也與 [profileConflict]／[adminStatusConflict] 不同：那兩者說「重讀現值再來一次」，
   /// 而刪除是終態——重讀之後的答案是「他不再生效」，再點一次那顆按鈕不是答案。
-  adminDeleted(2015);
+  adminDeleted(2015),
+
+  /// 2016：送來的自註冊模式是已批准的名字，但它所需的准入通路在本伺服器版本尚未落地。
+  ///
+  /// 介面必須把它與 [invalidBody]（1004）分開：1004 的處置是「改寫法再來」，
+  /// 而這裡改寫法換不來任何結果——要等的是後端把那條通路做出來。
+  /// 把兩者唸成同一句，Root 就會對著一個規格裡見過的名字反覆懷疑自己打錯字。
+  accountPolicyModeUnavailable(2016);
 
   /// 以對外發布的數值建立錯誤碼。
   const ApiMachineCode(this.value);

@@ -16,6 +16,7 @@ import 'package:evernightrealm/app/app_dependencies.dart';
 import 'package:evernightrealm/core/api/api_client.dart';
 import 'package:evernightrealm/core/api/server_address_settings.dart';
 import 'package:evernightrealm/core/api/server_api.dart';
+import 'package:evernightrealm/features/root_console/account_policy_view.dart';
 import 'package:evernightrealm/features/root_console/admin_directory_view.dart';
 import 'package:evernightrealm/features/root_console/admin_profile_view.dart';
 import 'package:evernightrealm/features/root_console/admin_provision_view.dart';
@@ -252,6 +253,9 @@ class _Fixture {
   /// 發出的 DELETE 請求（刪除是第四條、也是唯一不可逆的通路）。
   final List<http.Request> deletes = <http.Request>[];
 
+  /// GET /root/account-policy 被問了幾趟（策略卡接線與「只讀一趟」的斷言用）。
+  int policyReads = 0;
+
   ServerApi api(ServerAddressSettings settings) {
     return ServerApi(
       config: ServerApiConfig(source: settings),
@@ -339,6 +343,18 @@ class _Fixture {
                 ? (detailBody ?? _profileBody())
                 : '{"code":1001,"message":"x","request_id":"r-detail"}',
             detailStatus,
+          );
+        }
+        if (path == kRootAccountPolicyPath) {
+          // 策略卡自己按 contract 讀一次：頁面測試只確認它接上了線，
+          // 卡內的分流由 account_policy_view_test.dart 逐條取證。
+          policyReads++;
+          return _json(
+            '{"admin_create_standard":false,"self_register_mode":"closed",'
+            '"guest_enabled":false,'
+            '"entry":{"sign_up_open":false,"guest_open":false},'
+            '"request_id":"r-policy"}',
+            200,
           );
         }
         return jsonOk('{}');
@@ -1456,5 +1472,17 @@ void main() {
       findsOneWidget,
     );
     expect(find.text(l10n.rootConsoleRemainingNotice), findsOneWidget);
+  });
+
+  testWidgets('策略卡接在頁面上，且進頁只現讀一趟', (WidgetTester tester) async {
+    final _Fixture fixture = _Fixture();
+    await pump(tester, fixture);
+
+    expect(find.byKey(AccountPolicyCard.titleKey), findsOneWidget);
+    expect(find.byKey(AccountPolicyCard.submitKey), findsOneWidget);
+    expect(fixture.policyReads, 1);
+    // 卡上的對外答案列要出現：Root 在同一張畫面上看見「存了 open 也還沒上線」，
+    // 而不是自己推算功能是不是壞了。
+    expect(find.byKey(AccountPolicyCard.entryKey), findsOneWidget);
   });
 }
