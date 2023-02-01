@@ -144,12 +144,11 @@ void main() {
       });
     }
 
-    // 「如實標明尚未實作」這句話的對象隨 R2-001 縮小：Root 控制台已經接上
-    // 「開設伺服器級管理員」一項，所以它不再整頁佔位；其餘三個上下文仍是佔位頁。
-    // 兩個方向都要釘住——把 Root 控制台也寫成佔位是謊報落後，把管理員端寫成已實作
-    // 是謊報進度，而「不出現範例業務元件」對兩者都還成立。
+    // 「如實標明尚未實作」這句話的對象隨各步接線而縮小：Root 控制台自 R2-001 起已接上
+    // 開設與目錄等項；管理員端自 R2-007 起接上「建立普通帳戶」一張卡，所以它也不再整頁佔位。
+    // 兩個方向都要釘住——把已接線的上下文寫成佔位是謊報落後，把未接線的寫成已實作
+    // 是謊報進度，而「不出現範例業務元件」對各者都還成立。
     for (final NavContext context in <NavContext>[
-      NavContext.adminConsole,
       NavContext.npcConsole,
       NavContext.playerSurface,
     ]) {
@@ -166,6 +165,24 @@ void main() {
         expect(find.byType(ListTile), findsNothing);
       });
     }
+
+    testWidgets('管理員端不再整頁佔位：接上建立普通帳戶卡，仍如實標明其餘未接線', (WidgetTester tester) async {
+      await pumpSignedIn(tester, exchange: accountExchange('acct-1'));
+      navigatorOf(tester).pushNamed(NavContext.adminConsole.routeName);
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.notWiredBody), findsNothing);
+      expect(
+        find.byKey(const ValueKey<String>('std-account-provision-submit')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('admin-console-remaining-notice')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.add), findsNothing);
+      expect(find.byType(ListTile), findsNothing);
+    });
 
     testWidgets('Root 控制台不再整頁佔位，但仍不擺範例業務元件', (WidgetTester tester) async {
       await pumpSignedIn(tester, exchange: rootExchange());

@@ -69,6 +69,14 @@ const String kAuthPasswordChangePath = '/auth/password/change';
 /// 「建的是管理員」由「打到哪個端點」決定，請求本體裡沒有 role 這個格子。
 const String kRootAdminsPath = '/root/admins';
 
+/// 管理員建立普通帳戶的端點路徑：只有 POST 一個方法。
+///
+/// 與 `/root/admins` 的分工是一條邊界而不是一個目錄慣例：這條建的是普通帳戶
+/// （standard、無任何伺服器級授予、首次登入必須改密），受「管理員建立普通帳戶」
+/// 開關約束；那一條開的是管理員，只有 Root、不受三個開關約束。
+/// 「建的是哪一類主體」由端點決定，請求本體裡同樣沒有 role／type／status 的格子。
+const String kAdminAccountsPath = '/admin/accounts';
+
 /// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。
 ///
 /// 目標在路徑上而不是本體欄位裡：編輯請求的本體只有「新值」與「提交所依據的現值」，
@@ -379,6 +387,36 @@ class ServerApi {
         'password': password,
       },
       decode: CreatedAdminReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 建立一個普通帳戶：POST `/admin/accounts`。
+  ///
+  /// 只有持有伺服器級管理權的會話能成功：普通帳戶與匿名拿到 2011，
+  /// 系統主體根本沒有對話路徑。「此刻准不准建」由後端在寫入那一刻現讀策略決定：
+  /// 開關關閉回 2017（不是 2011，也不是 1004——換名字、換身分、重登都不是處置），
+  /// 這裡也沒有、也不該有「預讀開關」的另一個端點：判定只發生在提交裡。
+  /// 請求本體只有登入名、顯示名與一次性初始口令三個欄位，沒有任何
+  /// role／account_type／status／activity_id 欄位可填，多帶會被後端打成 1004。
+  /// 重複的登入名回 2012，後端不會因此多出一個帳戶，也不回顯任何口令。
+  /// 回應本體只有可展示的身分事實——初始口令不進回應，交付管道在應用之外；
+  /// 也沒有 roles 欄位（建的帳戶恆無授予），更沒有任何活動欄位：
+  /// 「已建立」不等於「已加入活動」。結果不明時不得自動補發。
+  Future<CreatedStandardAccountReport> createStandardAccount({
+    required String loginName,
+    required String displayName,
+    required String password,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<CreatedStandardAccountReport>(
+      kAdminAccountsPath,
+      jsonBody: <String, Object?>{
+        'login_name': loginName,
+        'display_name': displayName,
+        'password': password,
+      },
+      decode: CreatedStandardAccountReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }
