@@ -35,10 +35,20 @@ enum _SubmitPhase { idle, submitting }
 /// 「管理員建立普通帳戶」表單卡。
 class StandardAccountProvisionCard extends StatefulWidget {
   /// 以端點介面建立表單卡。
-  const StandardAccountProvisionCard({super.key, required this.api});
+  const StandardAccountProvisionCard({
+    super.key,
+    required this.api,
+    this.onCreated,
+  });
 
   /// 統一端點存取介面（由頁面自 [AppDependencies] 取得後顯式帶入）。
   final ServerApi api;
+
+  /// 建立成功的回呼：頁面據此重讀目錄。
+  ///
+  /// 這裡只遞「發生了一次成功」這個信號，不遞那份資料——目錄要的是服務端的結果，
+  /// 拿回應本體去拼一行會繞過「清單以重讀為準」這條約定。
+  final VoidCallback? onCreated;
 
   /// 登入名輸入框識別鍵。
   static const Key loginNameKey = ValueKey<String>(
@@ -144,6 +154,7 @@ class _StandardAccountProvisionCardState
         _phase = _SubmitPhase.idle;
         _created = report;
       });
+      widget.onCreated?.call();
     } on ApiError catch (error) {
       if (!mounted) {
         return;

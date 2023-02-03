@@ -69,13 +69,22 @@ const String kAuthPasswordChangePath = '/auth/password/change';
 /// 「建的是管理員」由「打到哪個端點」決定，請求本體裡沒有 role 這個格子。
 const String kRootAdminsPath = '/root/admins';
 
-/// 管理員建立普通帳戶的端點路徑：只有 POST 一個方法。
+/// 管理員端普通帳戶的集合端點路徑：GET（／HEAD）是分頁目錄，POST 是建立。
 ///
-/// 與 `/root/admins` 的分工是一條邊界而不是一個目錄慣例：這條建的是普通帳戶
-/// （standard、無任何伺服器級授予、首次登入必須改密），受「管理員建立普通帳戶」
-/// 開關約束；那一條開的是管理員，只有 Root、不受三個開關約束。
-/// 「建的是哪一類主體」由端點決定，請求本體裡同樣沒有 role／type／status 的格子。
+/// 與 `/root/admins` 的分工是一條邊界而不是一個目錄慣例：這組端點打理的是普通帳戶
+/// （不帶任何伺服器級授予的 standard 與 guest），經伺服器級管理權判定，而建號那一條
+/// 另受「管理員建立普通帳戶」開關約束；`/root/admins` 那組打理的是管理員，只有 Root 走得通、
+/// 不受三個開關約束。兩組目錄彼此互斥：這裡列不到持有授予的人，那裡列不到沒有授予的人。
+/// 「動的是哪一類資料」由端點與方法決定，請求本體裡沒有 role／type／status 的格子。
 const String kAdminAccountsPath = '/admin/accounts';
+
+/// 單筆普通帳戶端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。
+///
+/// 目標在路徑上而不是本體欄位裡：編輯的本體只有「新值」與「提交所依據的現值」兩欄，
+/// 沒有任何 account_id 之類的格子可以填。標識經 [Uri.encodeComponent] 轉義後拼接
+/// （與 [rootAdminItemPath] 同一防呆理由：轉義不是修飾，是不讓呼叫端把路徑寫壞）。
+String adminAccountItemPath(String accountId) =>
+    '$kAdminAccountsPath/${Uri.encodeComponent(accountId)}';
 
 /// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。
 ///
@@ -417,6 +426,87 @@ class ServerApi {
         'password': password,
       },
       decode: CreatedStandardAccountReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取普通帳戶目錄的一頁：GET `/admin/accounts`。
+  ///
+  /// 這本目錄列的是「不帶任何伺服器級授予」的普通與訪客帳戶：管理員（含操作者自己）
+  /// 與已進入刪除終態的帳戶都不在其中，讀到的每一筆都可以被這條通路編輯。
+  /// 五個引數是本端點僅有的篩選（頁碼、每頁筆數、狀態、來源、名稱關鍵字），
+  /// 「列誰的清單」仍由後端按解析出的受信主體決定：沒有任何引數可以指定別人的目錄，
+  /// 也沒有任何引數可以把管理員拉進來。非法取值一律 1004 並點出是哪個參數，
+  /// 超出總數的合法頁碼則回空清單與真實總數（那不是錯誤）。
+  Future<StandardAccountDirectoryReport> standardAccountsDirectory({
+    int page = 1,
+    int pageSize = 20,
+    String status = 'all',
+    String type = 'all',
+    String query = '',
+    String? acceptLanguage,
+  }) {
+    final buffer = StringBuffer(kAdminAccountsPath)
+      ..write('?page=')
+      ..write(page)
+      ..write('&page_size=')
+      ..write(pageSize)
+      ..write('&status=')
+      ..write(Uri.encodeComponent(status))
+      ..write('&type=')
+      ..write(Uri.encodeComponent(type));
+    // 空關鍵字不發參數：後端把「沒帶」與「帶了但全是空白」收斂成同一句話（不篩選），
+    // 但界面不必因此多送一個無意義的 `q=`。
+    if (query.trim().isNotEmpty) {
+      buffer
+        ..write('&q=')
+        ..write(Uri.encodeComponent(query));
+    }
+    return apiClient.get(
+      buffer.toString(),
+      decode: StandardAccountDirectoryReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取單筆普通帳戶詳情：GET `/admin/accounts/{account_id}`。
+  ///
+  /// 回應是經後端實體校驗的當前資料：編輯表單的預填值與「提交所依據的現值」都只能
+  /// 取自這裡，不得拿目錄行或本地印象湊一份。目標不在這本目錄（不存在、是管理員、
+  /// 或已是刪除終態）一律同一個 1001，端點因此不是標識格式探測器，也不是
+  /// 「某個人是不是管理員」的 oracle。
+  Future<StandardAccountDetailReport> standardAccountDetail({
+    required String accountId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      adminAccountItemPath(accountId),
+      decode: StandardAccountDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯普通帳戶的顯示名：PUT `/admin/accounts/{account_id}`。
+  ///
+  /// 白名單只有 display_name 一欄，另帶它所依據的 expected_display_name（compare-and-set）。
+  /// 這裡動不到憑據、狀態、首次改密旗標與來源類型：本體連格子都沒有（多帶即 1004），
+  /// 後端的 UPDATE 語句也不碰那些欄位。登入名不在此處修改（它是自建立起不變的身分錨點）。
+  /// 現值已變時回 2013（409）且整個編輯不發生——處置是重讀詳情，不是再點一次保存。
+  /// 成功回應是保存後的資料庫現值（含後端的空白整理），不是請求的迴音；
+  /// 結果不明（逾時、連線中斷）時不得自動補發。
+  Future<StandardAccountDetailReport> updateStandardAccountProfile({
+    required String accountId,
+    required String displayName,
+    required String expectedDisplayName,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<StandardAccountDetailReport>(
+      adminAccountItemPath(accountId),
+      jsonBody: <String, Object?>{
+        'display_name': displayName,
+        'expected_display_name': expectedDisplayName,
+      },
+      decode: StandardAccountDetailReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

@@ -1,6 +1,12 @@
 /// 管理員端「建立普通帳戶」的介面測試。
 ///
-/// 全部走注入的假傳輸：不碰網路、不落任何真實憑據。測試問的是幾件事：
+/// 全部走注入的假傳輸：不碰網路、不落任何真實憑據。頁面現在同時掛著目錄卡
+/// （載入即發一次 GET /admin/accounts），因此本檔案的夹具把「讀」與「寫」分開記：
+/// [requests] 只記有副作用的請求（POST／PUT），[reads] 記 GET——
+/// 「不發第二趟」那條斷言問的是寫入，不該被目錄的讀取污染。
+/// 目錄與詳情卡自己的介面測試在 admin_account_directory_test.dart。
+///
+/// 測試問的是幾件事：
 ///   1. 沒填齊時一趟請求都不發（擋在本地，不是擋在按鈕看不見）；
 ///   2. 成功後只呈現伺服器回傳的事實，並把「尚未加入活動」講在第一線；
 ///   3. 2017（策略未開放）與 2012（登入名已佔用）各轉述成對應那一句，
@@ -27,6 +33,11 @@ import '../../support/test_address.dart';
 
 const Locale _locale = Locale('zh', 'TW');
 const String _oneTimePassword = 'only-used-once-口令';
+
+/// 空目錄的一頁：本檔案只关心建立表單，目錄給空清單即可。
+const String _emptyDirectoryBody =
+    '{"accounts":[],"page":1,"page_size":20,"total":0,"request_id":"r-dir"}';
+
 const String _createdAccountBody =
     '{"account_id":"01a0e000-0000-7000-8000-0000000000ee",'
     '"login_name":"New.Player","display_name":"新玩家",'
@@ -40,8 +51,11 @@ class _Fixture {
   final int status;
   final String body;
 
-  /// 發出過的請求（斷言「只發一趟」「本體三欄」的證據）。
+  /// 發出過的有副作用請求（斷言「只發一趟」「本體三欄」的證據）。
   final List<http.Request> requests = <http.Request>[];
+
+  /// 發出過的讀取請求（目錄卡在載入與重讀時發；不參與寫入趟數的斷言）。
+  final List<http.Request> reads = <http.Request>[];
 
   bool _holdNext = false;
 
@@ -52,6 +66,16 @@ class _Fixture {
     return ServerApi(
       config: ServerApiConfig(source: settings),
       client: MockClient((http.Request request) async {
+        if (request.method == 'GET') {
+          reads.add(request);
+          return http.Response(
+            _emptyDirectoryBody,
+            200,
+            headers: <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+          );
+        }
         requests.add(request);
         if (_holdNext) {
           await Future<void>.delayed(const Duration(milliseconds: 40));

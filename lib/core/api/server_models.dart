@@ -803,6 +803,170 @@ class CreatedStandardAccountReport {
 ///
 /// [grantedAt] 在合同的目錄行、詳情與編輯結果裡恆在（成員資格本身就是授予），
 /// 所以它是必填欄位：少了它就該判合同違例，而不是顯示成「未知時刻」。
+/// 普通帳戶目錄／詳情裡的一行（`GET /admin/accounts` 的行與單筆回應共用的形狀）。
+///
+/// 這是管理員端「普通帳戶目錄」的形狀，與 [AdminAccountReport] 分開是合同差而不是抄一份：
+///
+/// * 沒有 `granted_at` 也沒有 `roles`——本目錄的定義就是「不帶任何伺服器級授予」，
+///   回應不描述一件不存在的事；拿管理員那一個模型套上來，界面就會多出一列永遠為空的授予時刻。
+/// * 多一個必填的 `account_type`：他是普通帳戶還是訪客帳戶，是這本目錄必須講清楚的來源事實，
+///   值原樣保留為字串（未知取值不收緊成枚舉，與狀態欄同一取向）。
+/// * 沒有 `deleted_at`：刪除終態不在本目錄的範圍之內（後端把那些行整個排除了），
+///   因此這裡也沒有一個格子可以去猜「這個缺席是『沒被刪』還是『查不到』」。
+///
+/// `last_login_at` 與 `disabled_at` 可缺席：前者是從未登入，後者只在停過時出現，
+/// 兩個都不拿建立時刻或零值冒充。
+class StandardAccountReport {
+  /// 以已驗證的欄位建立單筆普通帳戶資料。
+  const StandardAccountReport({
+    required this.accountId,
+    required this.loginName,
+    required this.displayName,
+    required this.accountType,
+    required this.status,
+    required this.mustChangePassword,
+    required this.createdAt,
+    this.lastLoginAt,
+    this.disabledAt,
+  });
+
+  /// 從 JSON 單項建立。
+  static StandardAccountReport decode(Map<String, Object?> json) {
+    return StandardAccountReport(
+      accountId: _requireText(json, 'account_id'),
+      loginName: _requireText(json, 'login_name'),
+      displayName: _requireText(json, 'display_name'),
+      accountType: _requireText(json, 'account_type'),
+      status: _requireText(json, 'status'),
+      mustChangePassword: _requireBool(json, 'must_change_password'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      lastLoginAt: _optionalUtcTime(json, 'last_login_at'),
+      disabledAt: _optionalUtcTime(json, 'disabled_at'),
+    );
+  }
+
+  /// 帳戶穩定標識。
+  final String accountId;
+
+  /// 登入名原始寫法（保留大小寫，僅供展示；它不是授權依據，也不是本步的可改欄位）。
+  final String loginName;
+
+  /// 顯示名稱。
+  final String displayName;
+
+  /// 來源類型原字串（standard|guest，未知值原樣保留）。
+  final String accountType;
+
+  /// 帳戶狀態原字串（本目錄可能出现的值是 active 與 disabled；deleted 不在範圍內）。
+  final String status;
+
+  /// 是否仍欠首次改密（只讀展示；解除它的唯一通路是本人改密，本目錄不提供）。
+  final bool mustChangePassword;
+
+  /// 建立時刻（UTC）。
+  final DateTime createdAt;
+
+  /// 最近一次登入時刻（UTC）；從未登入為 `null`（合同欄位缺席）。
+  final DateTime? lastLoginAt;
+
+  /// 進入禁用狀態的時刻（UTC）；可用狀態時欄位缺席，讀成 `null`（不拿零值冒充「停過」）。
+  final DateTime? disabledAt;
+
+  /// 是否為有效狀態（未知值不冒充有效）。
+  bool get isActive => status == 'active';
+
+  /// 是否為訪客帳戶（只認服務端回傳的來源欄位，不看口令、也不看有無授予）。
+  bool get isGuest => accountType == 'guest';
+}
+
+/// `GET /admin/accounts` 的成功回應：普通帳戶目錄的一頁，含分頁回顯與篩選後總數。
+///
+/// 與 [AdminDirectoryReport] 同一形態但各是各型別：兩本目錄的範圍規則不同
+/// （一本按授予列、另一本按「沒有授予」列），混成一個型別遲早會有人拿錯那份回顯去算頁。
+class StandardAccountDirectoryReport {
+  /// 以已驗證的欄位建立一頁目錄。
+  const StandardAccountDirectoryReport({
+    required this.accounts,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.requestId,
+  });
+
+  /// 從 `/admin/accounts` 的 JSON 回應建立一頁目錄。
+  static StandardAccountDirectoryReport decode(Map<String, Object?> json) {
+    final Object? raw = json['accounts'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('accounts 不是清單');
+    }
+    final List<StandardAccountReport> accounts = <StandardAccountReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('accounts 項不是物件');
+      }
+      accounts.add(StandardAccountReport.decode(item));
+    }
+    return StandardAccountDirectoryReport(
+      accounts: accounts,
+      page: _requireInt(json, 'page'),
+      pageSize: _requireInt(json, 'page_size'),
+      total: _requireInt(json, 'total'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本頁的行（依後端給出的順序，新建立的在前）。
+  final List<StandardAccountReport> accounts;
+
+  /// 本頁頁碼（1 起算，後端回顯）。
+  final int page;
+
+  /// 本頁尺寸（後端回顯）。
+  final int pageSize;
+
+  /// 符合篩選條件的總筆數（不是全表數，也不是本頁數）。
+  final int total;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 總頁數至少為 1：零筆資料時第 1 頁就是那個「空但存在」的頁。
+  int get totalPages => total == 0 ? 1 : (total + pageSize - 1) ~/ pageSize;
+
+  /// 是否還有後頁；由伺服器回顯的頁碼與總數判定，客戶端不自算第二份真相。
+  bool get hasMore => page < totalPages;
+}
+
+/// `GET／PUT /admin/accounts/{account_id}` 的成功回應：單筆詳情或編輯後的資料庫現值。
+///
+/// PUT 回的也是它：界面顯示的「當前資料」必須來自服務端保存結果，不是請求本體的迴音——
+/// 本模型只從回應構造，結構上沒有「本地意圖」的格子。
+class StandardAccountDetailReport {
+  /// 以已驗證的欄位建立單筆回應。
+  const StandardAccountDetailReport({
+    required this.account,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立單筆資料。
+  static StandardAccountDetailReport decode(Map<String, Object?> json) {
+    final Object? raw = json['account'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('account 不是物件');
+    }
+    return StandardAccountDetailReport(
+      account: StandardAccountReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 單筆普通帳戶資料。
+  final StandardAccountReport account;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
 class AdminAccountReport {
   /// 以已驗證的欄位建立單筆管理員資料。
   const AdminAccountReport({
