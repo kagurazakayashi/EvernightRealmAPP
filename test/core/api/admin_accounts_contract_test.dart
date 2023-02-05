@@ -364,12 +364,123 @@ void main() {
         () => missing.standardAccountDetail(accountId: _firstId),
       );
       expect(notFound.knownCode, ApiMachineCode.notFound);
-      // 已發布碼各歸各：2014／2015 仍是管理員那兩句話，本步沒有複用它們。
-      expect(
-        ApiMachineCode.fromValue(2014),
-        ApiMachineCode.adminStatusConflict,
-      );
+      // 已發布碼各歸各：2015 仍是 Root 管理員目錄那句「已被刪除」，
+      // 普通帳戶目錄不複用它（那本目錄按定義不列刪除態，出局就是 1001）。
       expect(ApiMachineCode.fromValue(2015), ApiMachineCode.adminDeleted);
+    });
+  });
+
+  group('普通帳戶登入狀態子資源端點', () {
+    test('狀態路徑是父路徑下的 /status，標識經編碼不越界', () async {
+      expect(
+        adminAccountStatusPath(_firstId),
+        '$kAdminAccountsPath/$_firstId/status',
+      );
+      // 呼叫端塞進路徑段 separator 時不產生第二條路由（轉義不是修飾）。
+      expect(adminAccountStatusPath('a/b'), '$kAdminAccountsPath/a%2Fb/status');
+
+      final List<http.Request> sent = <http.Request>[];
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        sent.add(request);
+        return http.Response(_statusBody, 200, headers: _jsonHeaders);
+      });
+      await api.updateStandardAccountStatus(
+        accountId: _firstId,
+        status: 'disabled',
+        expectedStatus: 'active',
+      );
+      expect(sent.single.method, 'PUT');
+      expect(sent.single.url.path, adminAccountStatusPath(_firstId));
+    });
+
+    test('狀態本體恰好兩欄：顯示名、憑據、類型、角色與活動都沒有格子', () async {
+      final List<http.Request> sent = <http.Request>[];
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        sent.add(request);
+        return http.Response(_statusBody, 200, headers: _jsonHeaders);
+      });
+      await api.updateStandardAccountStatus(
+        accountId: _firstId,
+        status: 'active',
+        expectedStatus: 'disabled',
+      );
+      final Map<String, Object?> body =
+          jsonDecode(sent.single.body) as Map<String, Object?>;
+      expect(body.keys.toSet(), <String>{'status', 'expected_status'});
+      for (final String forbidden in <String>[
+        'display_name',
+        'expected_display_name',
+        'password',
+        'password_hash',
+        'account_type',
+        'must_change_password',
+        'roles',
+        'subject_kind',
+        'account_id',
+        'activity_id',
+        'reason',
+        'purge',
+      ]) {
+        expect(body, isNot(contains(forbidden)));
+      }
+    });
+
+    test('撤銷數量是必填合同欄：缺席判違例，不降級成 0', () {
+      // 「這次讓幾臺裝置重新登入」是影響範圍的陳述，讀成 0 等於謊報沒人受影響。
+      expect(
+        () => StandardAccountStatusReport.decode(
+          jsonDecode(
+            '{"account":{'
+            '"account_id":"01a0e000-0000-7000-8000-0000000000aa",'
+            '"login_name":"alpha.player","display_name":"阿爾法",'
+            '"account_type":"standard","status":"disabled",'
+            '"must_change_password":false,'
+            '"created_at":"2026-10-02T08:00:00.000Z"},'
+            '"request_id":"r-s"}',
+          ) as Map<String, Object?>,
+        ),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+      // 未知新欄位容忍（只增不刪），而 account 缺席仍是違例。
+      final String tolerantBody =
+          '${_statusBody.substring(0, _statusBody.length - 1)},"future_field":{"a":1}}';
+      final StandardAccountStatusReport tolerant =
+          StandardAccountStatusReport.decode(
+            jsonDecode(tolerantBody) as Map<String, Object?>,
+          );
+      expect(tolerant.revokedSessions, 3);
+      expect(tolerant.account.status, 'disabled');
+      expect(tolerant.account.disabledAt, isNotNull);
+      expect(tolerant.account.isDisabled, isTrue);
+      expect(tolerant.account.isActive, isFalse);
+      expect(
+        () => StandardAccountStatusReport.decode(
+          jsonDecode('{"revoked_sessions":1,"request_id":"r"}')
+              as Map<String, Object?>,
+        ),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+    });
+
+    test('本步不新增機器碼：狀態衝突複用 2014，2018 仍無人認領', () async {
+      final ServerApi stale = apiWithHandler(
+        (http.Request request) async => http.Response(
+          '{"code":2014,"message":"x","request_id":"r-s"}',
+          409,
+          headers: _jsonHeaders,
+        ),
+      );
+      final ApiError conflict = await captureCreateFailure(
+        () => stale.updateStandardAccountStatus(
+          accountId: _firstId,
+          status: 'disabled',
+          expectedStatus: 'active',
+        ),
+      );
+      expect(conflict.machineCode, 2014);
+      expect(conflict.knownCode, ApiMachineCode.adminStatusConflict);
+      expect(ApiMachineCode.fromValue(2018), isNull);
+      expect(ApiMachineCode.fromValue(2019), isNull);
     });
   });
 }
@@ -401,3 +512,13 @@ const String _detailBody =
     '"account_type":"standard","status":"active","must_change_password":false,'
     '"created_at":"2026-10-02T08:00:00.000Z",'
     '"last_login_at":"2026-10-03T07:15:00.000Z"},"request_id":"r-detail"}';
+
+/// 狀態變更成功的合同樣本：account 是「變更後」的現值（disabled 帶停用時刻），
+/// revoked_sessions 必填（缺席即合同違例，見對應測試）。
+const String _statusBody =
+    '{"account":{"account_id":"01a0e000-0000-7000-8000-0000000000aa",'
+    '"login_name":"alpha.player","display_name":"服務端的現在顯示名",'
+    '"account_type":"standard","status":"disabled","must_change_password":true,'
+    '"created_at":"2026-10-02T08:00:00.000Z",'
+    '"disabled_at":"2026-10-03T09:30:00.000Z"},'
+    '"revoked_sessions":3,"request_id":"r-status"}';

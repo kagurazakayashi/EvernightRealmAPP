@@ -86,6 +86,14 @@ const String kAdminAccountsPath = '/admin/accounts';
 String adminAccountItemPath(String accountId) =>
     '$kAdminAccountsPath/${Uri.encodeComponent(accountId)}';
 
+/// 普通帳戶「登入狀態」子資源的路徑：PUT 唯一方法，動的是 status 一欄。
+///
+/// 與管理員那一條（[rootAdminStatusPath]）同形但分屬兩組端點：狀態與普通資料各有
+/// 自己的白名單與確認語意，因此分成子資源而不是塞進詳情那條 PUT——那裡連狀態的
+/// 格子都沒有。目標範圍也不同：這條碰不到管理員，也碰不到 Root。
+String adminAccountStatusPath(String accountId) =>
+    '${adminAccountItemPath(accountId)}/status';
+
 /// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。
 ///
 /// 目標在路徑上而不是本體欄位裡：編輯請求的本體只有「新值」與「提交所依據的現值」，
@@ -507,6 +515,33 @@ class ServerApi {
         'expected_display_name': expectedDisplayName,
       },
       decode: StandardAccountDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 停用或恢復一名普通帳戶的伺服器級登入：PUT `/admin/accounts/{account_id}/status`。
+  ///
+  /// 動的是這個帳戶在整臺伺服器的登入能力，不是某一場活動裡的玩家限制：
+  /// 停用同時拒絕他的新登入並撤銷他現有的全部會話（跨所有裝置、跨所有活動）。
+  /// 白名單只有狀態一欄，外加它所依據的 expectedStatus（compare-and-set）；本體裡
+  /// 沒有顯示名／憑據／旗標／類型／原因的格子，多帶會被後端打成 1004。
+  /// 現狀已變時後端回 2014（409）且整個操作不發生——狀態、撤銷、審計一件都不留，
+  /// 處置是重讀目標現狀並重新走一次確認，而不是把那顆按鈕再點一遍。
+  /// 成功回應是變更後的資料庫現值與這次撤銷的會話數量，不是請求的迴音；
+  /// 恢復只恢復新登入資格：舊會話不復活、首次改密義務不解除、刪除終態不可恢復。
+  Future<StandardAccountStatusReport> updateStandardAccountStatus({
+    required String accountId,
+    required String status,
+    required String expectedStatus,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<StandardAccountStatusReport>(
+      adminAccountStatusPath(accountId),
+      jsonBody: <String, Object?>{
+        'status': status,
+        'expected_status': expectedStatus,
+      },
+      decode: StandardAccountStatusReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

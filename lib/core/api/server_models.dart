@@ -875,6 +875,12 @@ class StandardAccountReport {
   /// 是否為有效狀態（未知值不冒充有效）。
   bool get isActive => status == 'active';
 
+  /// 是否為停用狀態（同樣只認服務端回傳的原字串；未知值既不算有效也不算停用）。
+  ///
+  /// 界面那顆「恢復登入」按鈕只在這裡為真時出現：拿「不是 active」推斷會把
+  /// 未來任何新狀態都當成「可恢復」，而那正是 2014 要擋的那種註定落敗的請求。
+  bool get isDisabled => status == 'disabled';
+
   /// 是否為訪客帳戶（只認服務端回傳的來源欄位，不看口令、也不看有無授予）。
   bool get isGuest => accountType == 'guest';
 }
@@ -962,6 +968,48 @@ class StandardAccountDetailReport {
 
   /// 單筆普通帳戶資料。
   final StandardAccountReport account;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `PUT /admin/accounts/{account_id}/status` 的成功回應：變更後的資料庫現值與撤銷數量。
+///
+/// 形態與 [AdminStatusReport] 同構但各是各型別（與目錄那兩對同一取向）：兩條通路的
+/// 目標範圍與權限檔位不同（一本按授予列、另一本按「沒有授予」列），合併型別就會有人
+/// 拿錯那一側的資料去講「我剛動了誰」。
+/// [revokedSessions] 是這次落庫的會話撤銷數——缺席判合同違例，不降級成 0：
+/// 「撤銷了幾個」是這次操作對外的影響範圍陳述，把它讀成 0 等於對使用者謊報「沒有別人
+/// 因此被登出」，而那正是停用最要緊的那一半效果。恢復時服務端恆回 0（不復活也不新撤），
+/// 那個 0 是事實而不是失敗。
+/// [account] 是變更後的單筆真相：`status` 與 `disabled_at` 成對（disabled 帶時刻、
+/// active 欄位缺席），而 `must_change_password` 保持原樣——恢復只恢復新登入資格。
+class StandardAccountStatusReport {
+  /// 以已驗證的欄位建立單次狀態變更回應。
+  const StandardAccountStatusReport({
+    required this.account,
+    required this.revokedSessions,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立狀態變更結果。
+  static StandardAccountStatusReport decode(Map<String, Object?> json) {
+    final Object? raw = json['account'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('account 不是物件');
+    }
+    return StandardAccountStatusReport(
+      account: StandardAccountReport.decode(raw),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 變更後的單筆普通帳戶資料。
+  final StandardAccountReport account;
+
+  /// 這次撤銷的會話數量（恢復恆為 0）。
+  final int revokedSessions;
 
   /// 本次請求的關聯 ID。
   final String requestId;
