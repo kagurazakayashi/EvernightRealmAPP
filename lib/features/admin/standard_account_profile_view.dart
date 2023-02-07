@@ -17,6 +17,12 @@
 ///   它動的是這個帳戶在整臺伺服器的登入能力——他現有的一切會話（所有裝置、所有活動）
 ///   會被撤銷、未來的登入會被拒，所以確認對話框必須先把目標與影響範圍講完。
 ///   按鈕只由服務端讀回的現狀決定；2014 另成一句並只給重讀出口。
+/// * 登入憑據走第三條白名單（`/password` 子資源，本體只有 password 一欄）：它交付的是
+///   操作者親自交的一次性口令，伺服器不生成也不回顯，因此界面在發出請求前就把輸入框清空，
+///   成功之後口令不再出現在任何一處。「刻意沒有依據值」這條語意要講给操作者聽：
+///   結果不明時再點一次不是重試，而是又做一次完整重置，所以這裡不擺自動補發。
+///   訪戶帳戶不在這條通路的職責裡（後端以 2018 拒），界面據服務端讀回的來源欄位
+///   說明「那要等後續那條明確的訪戶升級通路」，而不是讓他按下一顆註定被拒的按鈕。
 /// * 活動、資產與訊息都不在這一頁：那些模組尚未實作，擺一個空清單或 0 就是假資料。
 library;
 
@@ -132,6 +138,37 @@ class StandardAccountProfileCard extends StatefulWidget {
     'std-account-status-unknown',
   );
 
+  /// 一次性口令輸入框識別鍵。
+  static const Key resetFieldKey = ValueKey<String>('std-account-reset-field');
+
+  /// 憑據區影響範圍說明識別鍵（與狀態那區的範圍句分開：兩句話各自講各自的通路）。
+  static const Key resetScopeKey = ValueKey<String>('std-account-reset-scope');
+
+  /// 重置按鈕識別鍵。
+  static const Key resetActionKey = ValueKey<String>(
+    'std-account-reset-action',
+  );
+
+  /// 重置成功摘要識別鍵。
+  static const Key resetNoticeKey = ValueKey<String>(
+    'std-account-reset-notice',
+  );
+
+  /// 重置確認對話框的肯定按鈕識別鍵。
+  static const Key resetConfirmKey = ValueKey<String>(
+    'std-account-reset-confirm',
+  );
+
+  /// 重置確認對話框的取消按鈕識別鍵。
+  static const Key resetConfirmCancelKey = ValueKey<String>(
+    'std-account-reset-cancel',
+  );
+
+  /// 訪戶帳戶「沒有憑據可重置」的說明識別鍵。
+  static const Key guestResetNoticeKey = ValueKey<String>(
+    'std-account-reset-guest-notice',
+  );
+
   @override
   State<StandardAccountProfileCard> createState() =>
       _StandardAccountProfileCardState();
@@ -164,6 +201,15 @@ class _StandardAccountProfileCardState
   /// 2014 之後兩顆狀態按鈕進入停用態：衝突的處置是重讀現狀，不是再點一次。
   bool _statusConflicted = false;
 
+  /// 一次性口令只活在這一個控制器裡，且在發出請求前就清空（成功與失敗都不留）。
+  final TextEditingController _resetPassword = TextEditingController();
+
+  /// 重置進行中（進行中不再發第二趟，也不與另兩條白名單並發——三張卡動的是同一筆）。
+  bool _resetting = false;
+
+  /// 重置的成功句：撤銷數量一律取自 PUT 回應，而口令本身不在這句話裡。
+  String? _resetNotice;
+
   @override
   void initState() {
     super.initState();
@@ -173,6 +219,7 @@ class _StandardAccountProfileCardState
   @override
   void dispose() {
     _displayName.dispose();
+    _resetPassword.dispose();
     super.dispose();
   }
 
@@ -191,6 +238,8 @@ class _StandardAccountProfileCardState
       _conflicted = false;
       _statusNotice = null;
       _statusConflicted = false;
+      _resetNotice = null;
+      _resetPassword.clear();
     });
     try {
       final StandardAccountDetailReport report = await widget.api
@@ -296,6 +345,127 @@ class _StandardAccountProfileCardState
       return l10n.adminProfileConflictNotice;
     }
     return switch (code) {
+      ApiMachineCode.notFound => l10n.stdAccountProfileNotFoundNotice,
+      ApiMachineCode.permissionDenied => l10n.stdAccountProfileDeniedNotice,
+      ApiMachineCode.notAuthenticated ||
+      ApiMachineCode.sessionInvalid ||
+      ApiMachineCode.sessionStale ||
+      ApiMachineCode.passwordChangeRequired =>
+        l10n.adminProfileStaleRejectedNotice,
+      _ => apiErrorText(l10n, error),
+    };
+  }
+
+  /// 重置憑據的確認對話框：先把「動的是誰、三件效果、兩件不會發生、交付歸誰」講完
+  /// 才准提交。取消是一條正經出路（一請求都不發，界面停在上一份伺服器真相）。
+  /// 這裡沒有「重試」按鈕的位置：重置沒有依據值，對著不明的結果再點一次不是重試，
+  /// 而是又做一次完整的重置——那會真的再撤一輪會話、再留一筆審計。
+  Future<void> _confirmPasswordReset() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null || _resetting) {
+      return;
+    }
+    if (profile.isGuest) {
+      // 服務端對訪戶只有一句 2018；界面先按服務端讀回的來源欄位把這句話講出來，
+      // 不發一趟注定被拒的請求，也不假裝那是一欄可以填的口令。
+      setState(() => _notice = l10n.stdAccountResetGuestNotice);
+      return;
+    }
+    final String password = _resetPassword.text;
+    if (password.trim().isEmpty) {
+      // 本地只擋「明顯沒填」：口令的域規則由服務端判，界面不抄第二份。
+      setState(() => _notice = l10n.adminResetFormIncompleteNotice);
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(l10n.stdAccountResetConfirmTitle),
+        content: Text(l10n.stdAccountResetConfirmBody(profile.loginName)),
+        actions: <Widget>[
+          TextButton(
+            key: StandardAccountProfileCard.resetConfirmCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.adminStatusConfirmCancelAction),
+          ),
+          FilledButton(
+            key: StandardAccountProfileCard.resetConfirmKey,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.adminResetConfirmOkAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    await _applyPasswordReset(password);
+  }
+
+  /// 提交重置：口令在發出請求前就從輸入框清掉（成功與失敗都不留）；
+  /// 成功展示與撤銷計數一律換成 PUT 回應，目錄跟著重讀；失敗則界面原地不動。
+  Future<void> _applyPasswordReset(String password) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    setState(() {
+      _resetting = true;
+      _notice = null;
+      _resetNotice = null;
+      _resetPassword.clear();
+    });
+    try {
+      final StandardAccountPasswordResetReport report = await widget.api
+          .resetStandardAccountPassword(
+            accountId: profile.accountId,
+            password: password,
+            acceptLanguage: _acceptLanguage,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = report.account;
+        _displayName.text = report.account.displayName;
+        _resetting = false;
+        // 成功句的數字來自回應；交付提醒不寫口令本身，只說「線下交付、界面不再顯示」。
+        _resetNotice = l10n.stdAccountResetSuccessNotice(
+          report.revokedSessions,
+        );
+      });
+      widget.onSaved?.call();
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _resetting = false;
+        _notice = _resetFailureText(error);
+      });
+    }
+  }
+
+  /// 重置失敗分流：1004 點名口令欄位給單獨一句、2018 是「訪戶今日沒有憑據可重置」，
+  /// 1001／2011／會話那一簇各說各句。刻意沒有「衝突」這一支：本端點不設依據值，
+  /// 重複提交不是被拒的陳舊嘗試，而是又做一次完整重置。
+  String _resetFailureText(ApiError error) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ApiMachineCode? code = error.knownCode;
+    if (code == ApiMachineCode.invalidBody) {
+      final Object? field = error.details?['invalid_field'];
+      return switch (field) {
+        'password' => l10n.adminResetInvalidPasswordNotice,
+        _ => apiErrorText(l10n, error),
+      };
+    }
+    return switch (code) {
+      ApiMachineCode.guestUpgradeRequired => l10n.stdAccountResetGuestNotice,
       ApiMachineCode.notFound => l10n.stdAccountProfileNotFoundNotice,
       ApiMachineCode.permissionDenied => l10n.stdAccountProfileDeniedNotice,
       ApiMachineCode.notAuthenticated ||
@@ -511,9 +681,10 @@ class _StandardAccountProfileCardState
     ThemeData theme,
     StandardAccountReport profile,
   ) {
-    // 兩條白名單動的是同一筆帳戶：並發提交會讓其中一條的依據值在送出那一刻就過期，
-    // 因此這一張卡在任一寫入進行中都停住另一個入口。
-    final bool busy = _savePhase == _SavePhase.saving || _statusChanging;
+    // 三條白名單動的是同一筆帳戶：並發提交會讓其中一條的依據值在送出那一刻就過期，
+    // 因此這一張卡在任一寫入進行中都停住其餘入口。
+    final bool busy =
+        _savePhase == _SavePhase.saving || _statusChanging || _resetting;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -726,6 +897,64 @@ class _StandardAccountProfileCardState
                 onPressed: _load,
                 child: Text(l10n.adminProfileReloadAction),
               ),
+            ),
+          ),
+        const Divider(),
+        // 登入憑據：第三條白名單（只有 password 一欄）、另一個確認語意。
+        // 停用中的目標同樣可以重置（重置不是解除停用），所以這裡不按狀態分岔；
+        // 但訪戶不按分岔的條件出局——他今日沒有密碼可換，寫一個進去是替他升級身分。
+        Text(
+          l10n.stdAccountResetScopeHint,
+          key: StandardAccountProfileCard.resetScopeKey,
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        if (profile.isGuest)
+          Text(
+            l10n.stdAccountResetGuestNotice,
+            key: StandardAccountProfileCard.guestResetNoticeKey,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        if (!profile.isGuest) ...<Widget>[
+          // 口令只存在這一個控制器裡：obscureText 全開、送出即清空，
+          // 成功與失敗都不回填——界面上不會有第二處把這句話顯示出來。
+          TextField(
+            key: StandardAccountProfileCard.resetFieldKey,
+            controller: _resetPassword,
+            enabled: !busy,
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: l10n.adminResetPasswordFieldLabel,
+              isDense: true,
+            ),
+            textInputAction: TextInputAction.done,
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton(
+              key: StandardAccountProfileCard.resetActionKey,
+              onPressed: busy ? null : _confirmPasswordReset,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.colorScheme.error,
+              ),
+              child: Text(
+                _resetting
+                    ? l10n.adminResetWorkingHint
+                    : l10n.adminResetPasswordAction,
+              ),
+            ),
+          ),
+        ],
+        if (_resetNotice != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _resetNotice!,
+              key: StandardAccountProfileCard.resetNoticeKey,
+              style: theme.textTheme.bodySmall,
             ),
           ),
       ],

@@ -94,6 +94,16 @@ String adminAccountItemPath(String accountId) =>
 String adminAccountStatusPath(String accountId) =>
     '${adminAccountItemPath(accountId)}/status';
 
+/// 普通帳戶「登入憑據」子資源的路徑：PUT 唯一方法，動的是 password 一欄。
+///
+/// 與管理員那一條（[rootAdminPasswordPath]）同形但分屬兩組端點：那條經 Root 判定且
+/// 只認管理員目錄，這條經伺服器級管理權判定、目標範圍把持有授予者與刪除終態排掉。
+/// 憑據與狀態同屬安全欄位，但兩條白名單、兩套確認語意各走各的子資源——
+/// 「重置不是解除停用」在 URL 形狀上就分開。本方法無依據值欄位（見
+/// [ServerApi.resetStandardAccountPassword] 的說明）。
+String adminAccountPasswordPath(String accountId) =>
+    '${adminAccountItemPath(accountId)}/password';
+
 /// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。
 ///
 /// 目標在路徑上而不是本體欄位裡：編輯請求的本體只有「新值」與「提交所依據的現值」，
@@ -542,6 +552,31 @@ class ServerApi {
         'expected_status': expectedStatus,
       },
       decode: StandardAccountStatusReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 管理員重置一名普通帳戶的登入憑據：PUT `/admin/accounts/{account_id}/password`。
+  ///
+  /// 白名單只有新口令一欄，且刻意沒有 expected_* 依據值：重置的發起人拿不出「現行口令」
+  /// 那類誠實的錨點，重複提交是又做一次完整重置而不是被拒的陳舊嘗試——呼叫端因此
+  /// 不得在結果不明時自動重發。多帶任何其他欄位（顯示名、狀態、旗標、類型、原因）
+  /// 會被後端打成 1004。
+  /// 成功效果：舊口令與名下全部會話即刻失效、該帳戶首次登入必須改密、
+  /// 停用狀態與刪除終態保持原樣（重置不是解除停用，也不是復活）。口令只在請求本體
+  /// 出現一次，回應不回顯、日誌與審計不留痕；線下的交付管道屬協議之外。
+  /// 訪戶帳戶走這條通路會拿到 2018（他今日沒有可重置的一般密碼，設口令等於把身分
+  /// 升級成普通帳戶，那要等後續那條明確的訪戶升級通路）；持有授予者、操作者自己
+  /// 與刪除終態一律 1001，與詳情、編輯、停用同一句話。
+  Future<StandardAccountPasswordResetReport> resetStandardAccountPassword({
+    required String accountId,
+    required String password,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<StandardAccountPasswordResetReport>(
+      adminAccountPasswordPath(accountId),
+      jsonBody: <String, Object?>{'password': password},
+      decode: StandardAccountPasswordResetReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

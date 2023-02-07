@@ -2,7 +2,7 @@
 ///
 /// 釘的是合同而不是畫面：路徑、方法、請求欄位集合（沒有也不准出現角色／類型／
 /// 狀態／活動標識欄位）、回應必填欄位與「沒有 roles 這一格」的形態、未知新欄位的
-/// 容忍，以及機器碼 2017 的數值對應。口令只進請求、永不進回應——斷言同時確認
+/// 容忍，以及機器碼 2017 與 2018 的數值對應。口令只進請求、永不進回應——斷言同時確認
 /// 模型層也沒有格子可以存它。
 library;
 
@@ -462,7 +462,7 @@ void main() {
       );
     });
 
-    test('本步不新增機器碼：狀態衝突複用 2014，2018 仍無人認領', () async {
+    test('狀態那一側不新增機器碼：衝突複用 2014，2018 由憑據重置那一步認領', () async {
       final ServerApi stale = apiWithHandler(
         (http.Request request) async => http.Response(
           '{"code":2014,"message":"x","request_id":"r-s"}',
@@ -479,8 +479,140 @@ void main() {
       );
       expect(conflict.machineCode, 2014);
       expect(conflict.knownCode, ApiMachineCode.adminStatusConflict);
-      expect(ApiMachineCode.fromValue(2018), isNull);
+      // 2018 不是「無人認領」了：它是憑據重置那條通路對訪戶目標的獨立結論，
+      // 由下一組測試認領；這裡只確認狀態那一側仍然只有 2014 那一句。
+      expect(
+        ApiMachineCode.fromValue(2018),
+        ApiMachineCode.guestUpgradeRequired,
+      );
       expect(ApiMachineCode.fromValue(2019), isNull);
+    });
+  });
+
+  group('憑據重置子資源端點', () {
+    test('adminAccountPasswordPath 落在普通帳戶那條路徑族且轉義標識', () {
+      expect(
+        adminAccountPasswordPath(_firstId),
+        '$kAdminAccountsPath/$_firstId/password',
+      );
+      // 與管理員那條同形但分屬兩組端點：前綴必須是 /admin/accounts，不是 /root/admins。
+      expect(
+        adminAccountPasswordPath(_firstId),
+        isNot(equals(rootAdminPasswordPath(_firstId))),
+      );
+      expect(
+        adminAccountPasswordPath('a/b'),
+        '$kAdminAccountsPath/a%2Fb/password',
+      );
+    });
+
+    test('resetStandardAccountPassword 發 PUT，本體恰好 password 一欄', () async {
+      final List<http.Request> sent = <http.Request>[];
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        sent.add(request);
+        return http.Response(_resetBody, 200, headers: _jsonHeaders);
+      });
+      final StandardAccountPasswordResetReport report = await api
+          .resetStandardAccountPassword(
+            accountId: _firstId,
+            password: '一次性重置口令',
+          );
+      expect(sent.single.method, 'PUT');
+      expect(sent.single.url.path, adminAccountPasswordPath(_firstId));
+      final Map<String, Object?> body =
+          jsonDecode(sent.single.body) as Map<String, Object?>;
+      expect(body.keys.toSet(), <String>{'password'});
+      // 刻意沒有依據值：也沒有狀態、旗標、類型、角色與活動的格子。
+      for (final String forbidden in <String>[
+        'expected_password',
+        'expected_status',
+        'status',
+        'display_name',
+        'must_change_password',
+        'account_type',
+        'roles',
+        'subject_kind',
+        'account_id',
+        'activity_id',
+        'reason',
+        'password_hash',
+      ]) {
+        expect(body, isNot(contains(forbidden)));
+      }
+      expect(report.revokedSessions, 2);
+      expect(report.account.mustChangePassword, isTrue);
+      expect(report.account.status, 'active');
+    });
+
+    test('撤銷數量是必填合同欄：缺席判違例，未知新欄位容忍', () {
+      // 缺席讀成 0 等於對操作者謊報「沒有別人因此被登出」，而那正是重置最要緊的一半效果。
+      expect(
+        () => StandardAccountPasswordResetReport.decode(
+          jsonDecode(
+            '{"account":{'
+            '"account_id":"01a0e000-0000-7000-8000-0000000000aa",'
+            '"login_name":"alpha.player","display_name":"阿爾法",'
+            '"account_type":"standard","status":"active",'
+            '"must_change_password":true,'
+            '"created_at":"2026-10-02T08:00:00.000Z"},'
+            '"request_id":"r-p"}',
+          ) as Map<String, Object?>,
+        ),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+      final String tolerantBody =
+          '${_resetBody.substring(0, _resetBody.length - 1)},"future_field":{"a":1}}';
+      final StandardAccountPasswordResetReport tolerant =
+          StandardAccountPasswordResetReport.decode(
+            jsonDecode(tolerantBody) as Map<String, Object?>,
+          );
+      expect(tolerant.revokedSessions, 2);
+      expect(tolerant.requestId, 'r-reset');
+      expect(
+        () => StandardAccountPasswordResetReport.decode(
+          jsonDecode('{"revoked_sessions":1,"request_id":"r"}')
+              as Map<String, Object?>,
+        ),
+        throwsA(isA<ApiResponseShapeException>()),
+      );
+    });
+
+    test('2018 有自己的語意：它不是 1001、不是 1004、也不是 2011', () async {
+      final ServerApi guest = apiWithHandler(
+        (http.Request request) async => http.Response(
+          '{"code":2018,"message":"x","request_id":"r-g"}',
+          403,
+          headers: _jsonHeaders,
+        ),
+      );
+      final ApiError refused = await captureCreateFailure(
+        () => guest.resetStandardAccountPassword(
+          accountId: _firstId,
+          password: '一次性重置口令',
+        ),
+      );
+      expect(refused.machineCode, 2018);
+      expect(refused.knownCode, ApiMachineCode.guestUpgradeRequired);
+      expect(refused.knownCode, isNot(ApiMachineCode.notFound));
+      expect(refused.knownCode, isNot(ApiMachineCode.permissionDenied));
+
+      // 口令不合規走 1004 並點名 password：那句話的處置是改口令，不是等升級通路。
+      final ServerApi invalid = apiWithHandler(
+        (http.Request request) async => http.Response(
+          '{"code":1004,"message":"x","details":{"invalid_field":"password"},'
+          '"request_id":"r-b"}',
+          400,
+          headers: _jsonHeaders,
+        ),
+      );
+      final ApiError bad = await captureCreateFailure(
+        () => invalid.resetStandardAccountPassword(
+          accountId: _firstId,
+          password: '',
+        ),
+      );
+      expect(bad.knownCode, ApiMachineCode.invalidBody);
+      expect(bad.details?['invalid_field'], 'password');
     });
   });
 }
@@ -522,3 +654,12 @@ const String _statusBody =
     '"created_at":"2026-10-02T08:00:00.000Z",'
     '"disabled_at":"2026-10-03T09:30:00.000Z"},'
     '"revoked_sessions":3,"request_id":"r-status"}';
+
+/// 憑據重置成功的合同樣本：account 是「重置之後」的現值（must_change_password 恆為真、
+/// status 保持原樣），revoked_sessions 必填。回應裡沒有任何口令格子。
+const String _resetBody =
+    '{"account":{"account_id":"01a0e000-0000-7000-8000-0000000000aa",'
+    '"login_name":"alpha.player","display_name":"服務端的現在顯示名",'
+    '"account_type":"standard","status":"active","must_change_password":true,'
+    '"created_at":"2026-10-02T08:00:00.000Z"},'
+    '"revoked_sessions":2,"request_id":"r-reset"}';

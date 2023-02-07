@@ -43,6 +43,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
         l10n.errorCodeAccountPolicyModeUnavailable,
       ApiMachineCode.accountCreationDisabled =>
         l10n.errorCodeAccountCreationDisabled,
+      ApiMachineCode.guestUpgradeRequired => l10n.errorCodeGuestUpgradeRequired,
     };
   }
 
