@@ -791,6 +791,63 @@ class CreatedStandardAccountReport {
   final String requestId;
 }
 
+/// 匿名自註冊普通帳戶的成功結果（`POST /auth/register`）。
+///
+/// 全部是可展示的身分事實，與管理員建號的 [CreatedStandardAccountReport] 分兩個型別
+/// 而不共用，是因為後端合同就真的不同：這裡 [mustChangePassword] 恆為 false——口令由
+/// 本人自選、選完即可直接登入，「註冊後立即可用」正是既定語意；那一側則恆為 true
+/// （管理員代選的一次性初始口令）。界面一律轉述伺服器回傳的值，不把自己當成事實來源。
+/// 兩側都沒有 roles 欄位（普通帳戶不帶任何伺服器級授予，回應不描述一件不存在的事），
+/// 也沒有任何活動欄位：「已建立」不等於「已加入活動」。未知新欄位照「只增不刪」容忍，
+/// 缺必填欄位則判合同違例，不降級成預設值。
+class SelfRegisterReport {
+  /// 以已驗證的欄位建立結果。
+  const SelfRegisterReport({
+    required this.accountId,
+    required this.loginName,
+    required this.displayName,
+    required this.status,
+    required this.mustChangePassword,
+    required this.createdAt,
+    required this.requestId,
+  });
+
+  /// 從自註冊回應的 JSON 建立結果。
+  static SelfRegisterReport decode(Map<String, Object?> json) {
+    return SelfRegisterReport(
+      accountId: _requireText(json, 'account_id'),
+      loginName: _requireText(json, 'login_name'),
+      displayName: _requireText(json, 'display_name'),
+      status: _requireText(json, 'status'),
+      mustChangePassword: _requireBool(json, 'must_change_password'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 新帳戶的穩定標識（UUIDv7 字串）——此刻得到的只是一枚 Account 標識，
+  /// 不意味著任何 Activity Profile 或活動資產存在。
+  final String accountId;
+
+  /// 登入名原始寫法（保留大小寫，僅供展示）。
+  final String loginName;
+
+  /// 顯示名稱。
+  final String displayName;
+
+  /// 帳戶狀態原字串（日後多一種狀態時本行不牽連整份回應）。
+  final String status;
+
+  /// 是否仍欠「首次登入必須改密」（自註冊由本人自選口令，合同恆為 false；值仍取自伺服器回應）。
+  final bool mustChangePassword;
+
+  /// 建立時刻（UTC，取自伺服器時鐘）。
+  final DateTime createdAt;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
 /// 管理員單筆資料：目錄的一行、詳情與編輯結果共用的形状（同一筆資料在不同回應裡必須同源）。
 ///
 /// 可缺席的三個欄位各有其人：

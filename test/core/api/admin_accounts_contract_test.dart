@@ -485,7 +485,10 @@ void main() {
         ApiMachineCode.fromValue(2018),
         ApiMachineCode.guestUpgradeRequired,
       );
-      expect(ApiMachineCode.fromValue(2019), isNull);
+      expect(
+        ApiMachineCode.fromValue(2019),
+        ApiMachineCode.selfRegisterNameTaken,
+      );
     });
   });
 

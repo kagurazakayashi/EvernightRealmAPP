@@ -1,4 +1,4 @@
-/// Navigator 路由表的測試：五個頂層上下文加登入頁共六條登記路由；
+/// Navigator 路由表的測試：五個頂層上下文加登入頁與註冊頁共七條登記路由；
 /// 受保護上下文未登入時一律換入登入頁，已登入才看得到佔位頁面本身，
 /// 未登記路由走統一回退，頁面標題與說明隨介面語言改變。
 library;
@@ -67,12 +67,13 @@ void main() {
   }
 
   group('路由表登記範圍', () {
-    test('登記五個頂層上下文與登入頁，路由名稱與文件一致', () {
+    test('登記五個頂層上下文與登入、註冊兩條門外通路，路由名稱與文件一致', () {
       expect(AppRouter.routes.keys, <String>[
         ...NavContext.allRouteNames,
         kLoginRoute,
+        kRegisterRoute,
       ]);
-      expect(AppRouter.routes.length, 6);
+      expect(AppRouter.routes.length, 7);
     });
 
     test('啟動後的第一個畫面是伺服器入口層，且為根路由', () {

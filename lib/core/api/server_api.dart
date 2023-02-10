@@ -47,6 +47,14 @@ const String kRootInitStatusPath = '/root/init-status';
 /// 而 `/root` 那一整段屬 Root 面。路徑本身不透露任何策略細節。
 const String kAuthCapabilitiesPath = '/auth/capabilities';
 
+/// 匿名自註冊端點路徑：POST 一條路徑做一件事（建立一個可立即登入的普通帳戶）。
+///
+/// 與 [kAuthLoginPath] 分屬兩件事：登入是「拿已有憑據換一枚會話」，自註冊是
+/// 「在策略放開時新建一筆普通帳戶」。同樣掛在 `/auth` 首段下——它是門外的人要走的通路。
+/// 本方法成功不簽發會話、不下發 Cookie（見 [ServerApi.register]），因此呼叫端用
+/// [ApiClient.post] 而非 captureCookie 那一條：註冊只把人送進目錄，登入另走 [ServerApi.login]。
+const String kAuthRegisterPath = '/auth/register';
+
 /// 帳戶建立策略端點路徑：GET（／HEAD）是現讀三份值與對外答案，PUT 是整份寫入。
 ///
 /// 一條路徑、一份單例文件：這裡沒有目標標識、也沒有「只改某一欄」的子路徑——
@@ -270,6 +278,36 @@ class ServerApi {
     return LoginExchange(
       report: result.value,
       sessionSecret: extractSessionCookie(result.setCookie),
+    );
+  }
+
+  /// 匿名自註冊為普通帳戶：POST `/auth/register`。
+  ///
+  /// 「此刻准不准自註冊」由後端在寫入那一刻現讀策略並校驗生效模式決定（判定發生在
+  /// 交易裡）：呼叫端不預讀、也預讀不到——[entryCapabilities] 那個入口答案只決定界面
+  /// 「要不要顯示這扇門」，從不代替提交時的二次判定。開關關閉回 2017、模式對應的准入
+  /// 流程尚未上線回 2016、登入名已被佔用回 2019（與需要已認證主體的 2012 分開）、
+  /// 口令或登入名不合規回 1004 並點名是哪個欄位、來源被限流回 2006 並附 Retry-After。
+  ///
+  /// 三個入參只有登入名、顯示名與本人自選口令，沒有也不需要任何角色／類型／狀態欄位：
+  /// 「建的是普通帳戶」由「打到哪個端點」決定，請求本體多帶會被後端打成 1004。
+  /// 成功不帶回任何會話材料（本路徑不簽發 Cookie），因此走 [ApiClient.post] 而非
+  /// captureCookie 那一條；口令只在這一次調用裡存在，呼叫端不得把它存進任何狀態或緩存。
+  Future<SelfRegisterReport> register({
+    required String loginName,
+    required String displayName,
+    required String password,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<SelfRegisterReport>(
+      kAuthRegisterPath,
+      jsonBody: <String, Object?>{
+        'login_name': loginName,
+        'display_name': displayName,
+        'password': password,
+      },
+      decode: SelfRegisterReport.decode,
+      acceptLanguage: acceptLanguage,
     );
   }
 

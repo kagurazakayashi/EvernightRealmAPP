@@ -1,4 +1,5 @@
-/// Navigator 路由表：登記五個頂層導航上下文與登入頁，並為受保護上下文掛上會話閘。
+/// Navigator 路由表：登記五個頂層導航上下文與登入、自註冊兩條取得身份的通路，
+/// 並為受保護上下文掛上會話閘。
 ///
 /// 各身份內部頁面等對應後端能力開發時再逐條加入；未登記的路由由
 /// [AppRouter.onUnknownRoute] 統一回退，不猜測目標頁面。
@@ -17,6 +18,7 @@ import 'package:flutter/material.dart';
 import '../core/session/session_controller.dart';
 import '../features/admin/admin_console_page.dart';
 import '../features/auth/login_page.dart';
+import '../features/auth/register_page.dart';
 import '../features/npc/npc_console_page.dart';
 import '../features/player/player_surface_page.dart';
 import '../features/root_console/root_console_page.dart';
@@ -33,6 +35,14 @@ import 'widgets/not_wired_view.dart';
 /// 刻意不進 [NavContext]：那五個值是「身分上下文」，登入不是一種身份，
 /// 而是取得身份的通路。
 const String kLoginRoute = '/login';
+
+/// 匿名自註冊頁的路由名稱。
+///
+/// 與 [kLoginRoute] 同類：都是「取得身份的通路」，不是一種身份，因此不進 [NavContext]，
+/// 也不進受保護清單——會話閘的語意是「未登入者只看登入頁」，而自註冊恰恰是
+/// 未登入者要做的事。入口層是否呈現這扇門由伺服器的登入前能力（sign_up_open）決定，
+/// 路由本身只保證「這條路存在且不需會話」，能否真的建成仍由後端在提交時現讀策略判定。
+const String kRegisterRoute = '/register';
 
 /// 應用殼的路由表。
 abstract final class AppRouter {
@@ -120,6 +130,10 @@ abstract final class AppRouter {
       kLoginRoute: (BuildContext context) => AppShell(
         title: AppLocalizations.of(context).loginTitle,
         child: const LoginPage(),
+      ),
+      kRegisterRoute: (BuildContext context) => AppShell(
+        title: AppLocalizations.of(context).registerTitle,
+        child: const RegisterPage(),
       ),
     };
   }

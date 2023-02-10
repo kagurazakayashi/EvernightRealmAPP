@@ -33,6 +33,13 @@ const String initializedBody =
     '{"config_exists":true,"root_initialized":true,"env_override":false,'
     '"request_id":"r-init-2"}';
 
+/// 中性入口能力回應（自註冊入口預設關閉）。
+///
+/// 同一頁上另有會自動查准入的自註冊入口卡；本卡只關心自己的狀態端點，故給那條通路
+/// 一份合法且關閉的回應，使其不影響本卡的請求計數、也不在外層拋解碼例外。
+const String neutralCapsBody =
+    '{"sign_up_open":false,"guest_open":false,"request_id":"r-caps-neutral"}';
+
 /// 一台隨測試擺佈的假伺服器，加上它被問過的每一次請求。
 class _Fixture {
   /// 以回應決定方式建立。
@@ -60,18 +67,28 @@ class _Fixture {
   /// 每趟請求的本體。
   final List<String> bodies = <String>[];
 
-  /// 依本卡片的合同決定回應；其餘路徑一律回存活內容，讓探測區保持中立。
-  String respond(String path) =>
-      path == kRootInitStatusPath ? bodyFor(path) : healthBody;
+  /// 依本卡片的合同決定回應；其餘路徑一律回中立內容，讓同頁其他卡不干擾本卡計數。
+  String respond(String path) {
+    if (path == kRootInitStatusPath) {
+      return bodyFor(path);
+    }
+    if (path == kAuthCapabilitiesPath) {
+      return neutralCapsBody;
+    }
+    return healthBody;
+  }
 
   /// 組裝成一份可掛進應用樹的測試應用。
   Future<Widget> mount(ServerAddressSettings settings) async {
     final ServerApi api = ServerApi(
       config: ServerApiConfig(source: settings),
       client: MockClient((http.Request request) async {
-        hits++;
-        methods.add(request.method);
-        bodies.add(request.body);
+        // 只計本卡的狀態端點：入口能力等同頁其他卡的自動查詢不計入本卡的hits／methods。
+        if (request.url.path == kRootInitStatusPath) {
+          hits++;
+          methods.add(request.method);
+          bodies.add(request.body);
+        }
         return http.Response(
           respond(request.url.path),
           status,
