@@ -1,4 +1,5 @@
-/// Navigator 路由表：登記五個頂層導航上下文與登入、自註冊兩條取得身份的通路，
+/// Navigator 路由表：登記五個頂層導航上下文，以及登入、自註冊、查本人申請狀態三條
+/// 取得身份的通路，
 /// 並為受保護上下文掛上會話閘。
 ///
 /// 各身份內部頁面等對應後端能力開發時再逐條加入；未登記的路由由
@@ -17,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../core/session/session_controller.dart';
 import '../features/admin/admin_console_page.dart';
+import '../features/auth/application_status_page.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/npc/npc_console_page.dart';
@@ -43,6 +45,17 @@ const String kLoginRoute = '/login';
 /// 未登入者要做的事。入口層是否呈現這扇門由伺服器的登入前能力（sign_up_open）決定，
 /// 路由本身只保證「這條路存在且不需會話」，能否真的建成仍由後端在提交時現讀策略判定。
 const String kRegisterRoute = '/register';
+
+/// 申請人查本人待審批狀態頁的路由名稱。
+///
+/// 與 [kLoginRoute]、[kRegisterRoute] 同類：都是「取得身份的通路」上的一段，
+/// 不是一種身份，因此不進 [NavContext]，也不進受保護清單。
+///
+/// 它之所以必須是一條獨立的路徑而不是登入後的一頁：待審批的人沒有一枚能碰普通業務的
+/// 會話（後端那條通路刻意不簽發 Cookie），而他依然有權利知道自己那份申請怎麼樣了。
+/// 每一次查詢都要重新交憑據，因此這一頁不假裝「記得您是誰」——沒有本地狀態、
+/// 沒有自動重查，刷新與離開都不留下任何可被複用的東西。
+const String kApplicationStatusRoute = '/application-status';
 
 /// 應用殼的路由表。
 abstract final class AppRouter {
@@ -134,6 +147,10 @@ abstract final class AppRouter {
       kRegisterRoute: (BuildContext context) => AppShell(
         title: AppLocalizations.of(context).registerTitle,
         child: const RegisterPage(),
+      ),
+      kApplicationStatusRoute: (BuildContext context) => AppShell(
+        title: AppLocalizations.of(context).applicationStatusTitle,
+        child: const ApplicationStatusPage(),
       ),
     };
   }

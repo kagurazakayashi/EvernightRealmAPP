@@ -848,6 +848,52 @@ class SelfRegisterReport {
   final String requestId;
 }
 
+/// 申請人查本人待審批申請狀態的結果（POST `/auth/registration-status`）。
+///
+/// 這是整份合同裡最窄的一種回應，而「窄」是要害不是省事：
+///
+/// * 沒有 `account_id`、也沒有 `display_name`：申請人查的是「我那份申請怎麼樣了」，
+///   一個可被轉述的標識對這句話沒有幫助，少一欄就少一處能被拿到別處用的東西。
+/// * 沒有審核人是誰、沒有拒絕理由、沒有「排到第幾位」：那些屬伺服器的內部狀態，
+///   而其中「為什麼被拒」連審批那一步都還沒落地。
+/// * `reviewed_at` 可缺席：還沒有任何人做過決定時，缺席是事實的缺席，
+///   界面不得拿提交時刻或當前時刻冒充一個決定時刻。
+///
+/// [outcome] 保留原字串（`pending`／`approved`／`rejected`）：後端只增不刪，
+/// 日後多一種結局時本模型不牽連整份回應；界面據值分流，認不得的值如實說
+/// 「查到的結果無法辨認」，不猜成「還在等」也不猜成「已批准」。
+class ApplicationStatusReport {
+  /// 以已驗證的欄位建立結果。
+  const ApplicationStatusReport({
+    required this.outcome,
+    required this.submittedAt,
+    required this.reviewedAt,
+    required this.requestId,
+  });
+
+  /// 從狀態查詢回應的 JSON 建立結果。
+  static ApplicationStatusReport decode(Map<String, Object?> json) {
+    return ApplicationStatusReport(
+      outcome: _requireText(json, 'outcome'),
+      submittedAt: _requireUtcTime(json, 'submitted_at'),
+      reviewedAt: _optionalUtcTime(json, 'reviewed_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 申請結局的原字串。
+  final String outcome;
+
+  /// 申請提交時刻（UTC，即帳戶建立時刻）。
+  final DateTime submittedAt;
+
+  /// 審核做出決定的時刻（UTC）；`null` 代表還沒有決定。
+  final DateTime? reviewedAt;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
 /// 管理員單筆資料：目錄的一行、詳情與編輯結果共用的形状（同一筆資料在不同回應裡必須同源）。
 ///
 /// 可缺席的三個欄位各有其人：

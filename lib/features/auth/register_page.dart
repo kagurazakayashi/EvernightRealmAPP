@@ -3,8 +3,16 @@
 /// 這一頁只走後端已發布的一條端點（`POST /auth/register`），它是登入前入口能力
 /// （`sign_up_open`）放開後才在入口層出現的通路；能不能建由後端在寫入那一刻現讀策略
 /// 並校驗生效模式決定——界面不預讀、也預讀不到那筆結論（入口能力只決定「要不要顯示這扇門」，
-/// 從不代替提交時的二次判定）。開關關閉、模式未落地、名字被佔用、寫法不合規、來源被限流
+/// 從不代替提交時的二次判定）。開關關閉、模式尚未落地、名字被佔用、寫法不合規、來源被限流
 /// 各自回不同的機器碼，這一頁照實轉述，不把它們合併成一句「註冊失敗」。
+///
+/// 提交成功後講的是伺服器回傳的那個 `status`，不是這一頁的假設：
+/// * `active`——開放自註冊的既定語意，口令是本人自選的，現在就能去登入；
+/// * `pending`——這臺伺服器要管理員先批准。摘要因此改口為「申請已提交，尚未獲准登入」，
+///   不再擺「前往登入」那顆按鈕（按下去只會換來一句「憑據無效」），改成導向本人的申請
+///   狀態查詢頁。界面不知道、也不該猜生效模式是哪一個：匿名入口從不透露模式名字，
+///   「可用還是等待」這句話只有寫入那一刻的伺服器有資格說。
+/// * 其他值（合同日後多出來的狀態）——不猜成可用、也不猜成等待，如實說認不得。
 ///
 /// 呈現上守住的幾條界線：
 /// * 請求本體只有登入名、顯示名與自選口令三個欄位：後端合同裡沒有角色／類型／狀態／活動
@@ -14,9 +22,9 @@
 ///   成功後三個欄位一律清空。回應本體也不含口令（合同就沒有這個欄位）。
 /// * 自註冊建的按定義是普通帳戶：不帶任何伺服器級授予、沒有活動身份與資產。「已建立」
 ///   不等於「已加入活動」，成功摘要把這件事講在第一線。
-/// * 註冊成功刻意不簽發會話：口令由本人自選（`must_change_password` 恆為 false），
-///   因此「現在就能用這組口令去登入」是既定語意——登入仍走 `/auth/login` 那條既有認證邊界，
-///   這一頁不複製第二套憑據分發，只把人送進目錄並交出「前往登入」的下一步。
+/// * 註冊成功刻意不簽發會話：這一頁既不寫 Cookie 也不保存令牌，登入仍走 `/auth/login`
+///   那條既有認證邊界——包括待審批在內，這一頁不複製第二套憑據分發，
+///   只把人送進目錄並交出對應的下一步（去登入，或去查本人的申請狀態）。
 ///
 /// 內容為不滾動的 Column：垂直滾動由應用殼統一承擔。
 library;
@@ -59,6 +67,9 @@ class RegisterPage extends StatefulWidget {
 
   /// 「前往登入」按鈕的測試識別鍵。
   static const Key goSignInKey = ValueKey<String>('register-go-signin');
+
+  /// 「查詢我的申請狀態」按鈕的測試識別鍵（待審批那一支摘要唯一的那顆寫入後導航按鈕）。
+  static const Key checkStatusKey = ValueKey<String>('register-check-status');
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -271,6 +282,8 @@ class _RegisterPageState extends State<RegisterPage> {
             child: _CreatedSummary(
               report: created,
               onGoSignIn: () => Navigator.of(context).pushNamed(kLoginRoute),
+              onCheckStatus: () =>
+                  Navigator.of(context).pushNamed(kApplicationStatusRoute),
             ),
           ),
       ],
@@ -278,10 +291,19 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 }
 
-/// 註冊成功摘要：點名伺服器回傳的事實，把「現在就能登入」與「還沒有活動」講在第一線。
+/// 註冊／提交成功摘要：點名伺服器回傳的事實，先把「能不能登入」講在第一線。
+///
+/// 這張卡講哪一句，依據只有一個：回應裡的 `status`。界面不預讀模式、也不猜——
+/// `active` 說「現在就能用這組口令登入」，`pending` 說「申請已提交、尚未獲准登入」，
+/// 其餘值（合同日後多出來的狀態）如實說認不得。兩種情況下「還沒有活動身份與資產」都成立，
+/// 所以那句照常留著：已建立、甚至已批准，都不等於被誰邀請進某個活動。
 class _CreatedSummary extends StatelessWidget {
-  /// 以成功結果與「前往登入」回呼建立。
-  const _CreatedSummary({required this.report, required this.onGoSignIn});
+  /// 以成功結果與兩條導航回呼建立。
+  const _CreatedSummary({
+    required this.report,
+    required this.onGoSignIn,
+    required this.onCheckStatus,
+  });
 
   /// 自註冊成功回應裡的可展示事實。
   final SelfRegisterReport report;
@@ -289,10 +311,20 @@ class _CreatedSummary extends StatelessWidget {
   /// 按下「前往登入」的回呼：走既有 `/auth/login` 通路，這一頁不簽發任何會話。
   final VoidCallback onGoSignIn;
 
+  /// 按下「查詢我的申請狀態」的回呼：通往本人的受限狀態通路（每次都重新驗憑據）。
+  final VoidCallback onCheckStatus;
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ThemeData theme = Theme.of(context);
+    // 三種結局各自成句；判定的輸入是伺服器回傳的原字串，不是本地假設。
+    final bool pending = report.status == 'pending';
+    final bool known = pending || report.status == 'active';
+    final TextStyle? noteStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
     return Container(
       key: RegisterPage.createdKey,
       padding: const EdgeInsets.all(12),
@@ -304,8 +336,10 @@ class _CreatedSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            // 「帳戶已建立」的對象是伺服器回傳的登入名原值。
-            l10n.registerCreatedTitle(report.loginName),
+            // 標題點名的是伺服器回傳的登入名原值；待審批時說的是「申請已提交」。
+            pending
+                ? l10n.registerPendingTitle(report.loginName)
+                : l10n.registerCreatedTitle(report.loginName),
             style: theme.textTheme.titleSmall,
           ),
           const SizedBox(height: 6),
@@ -318,7 +352,10 @@ class _CreatedSummary extends StatelessWidget {
           ),
           Text(
             l10n.labelValuePair(
-              l10n.adminListCreatedLabel,
+              // 同一個時刻，兩種說法：open 時它是「建立於」，approval 時它是「提交於」。
+              pending
+                  ? l10n.applicationStatusSubmittedLabel
+                  : l10n.adminListCreatedLabel,
               _formatUtcMinute(report.createdAt),
             ),
             style: theme.textTheme.bodySmall,
@@ -331,30 +368,37 @@ class _CreatedSummary extends StatelessWidget {
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 6),
-          Text(
-            // 旗標取自伺服器回應而不是本地假設：自註冊由本人自選口令，合同上恆為 false，
-            // 界面仍只轉述讀到的值。真出現預期外的 true（未來的其他通路），也講誠實的那一句。
-            report.mustChangePassword
-                ? l10n.adminProvisionOneTimePasswordReminder
-                : l10n.registerUsableNowNote,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          // 第一句永遠是「你現在能不能進去」，其次才是「你還欠什麼」。
+          if (pending)
+            Text(l10n.registerPendingNote, style: noteStyle)
+          else if (!known)
+            Text(l10n.applicationStatusUnknownNote, style: noteStyle)
+          else
+            Text(
+              // 旗標取自伺服器回應而不是本地假設：自註冊由本人自選口令，合同上恆為 false，
+              // 界面仍只轉述讀到的值。真出現預期外的 true（未來的其他通路），也講誠實的那一句。
+              report.mustChangePassword
+                  ? l10n.adminProvisionOneTimePasswordReminder
+                  : l10n.registerUsableNowNote,
+              style: noteStyle,
             ),
-          ),
           const SizedBox(height: 4),
-          Text(
-            l10n.registerNoActivityNotice,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
+          Text(l10n.registerNoActivityNotice, style: noteStyle),
           const SizedBox(height: 10),
           SizedBox(
             height: 40,
             child: FilledButton(
-              key: RegisterPage.goSignInKey,
-              onPressed: onGoSignIn,
-              child: Text(l10n.registerGoSignInAction),
+              // 待審批的人不擺「前往登入」：按下去只換來一句「憑據無效」，
+              // 那是一條注定失敗的路。要給的出口是查本人的申請狀態。
+              key: pending
+                  ? RegisterPage.checkStatusKey
+                  : RegisterPage.goSignInKey,
+              onPressed: pending ? onCheckStatus : onGoSignIn,
+              child: Text(
+                pending
+                    ? l10n.registerCheckStatusAction
+                    : l10n.registerGoSignInAction,
+              ),
             ),
           ),
         ],

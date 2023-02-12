@@ -55,6 +55,14 @@ const String kAuthCapabilitiesPath = '/auth/capabilities';
 /// [ApiClient.post] 而非 captureCookie 那一條：註冊只把人送進目錄，登入另走 [ServerApi.login]。
 const String kAuthRegisterPath = '/auth/register';
 
+/// 申請人查本人待審批狀態的端點路徑：POST 一條路徑做一件事（驗證憑據、回報結局）。
+///
+/// 它刻意是 POST 而不是 GET：這條通路每次都要交登入名與口令，而秘密不進 URL
+/// （GET 能被預取、能被快取、位址欄一貼就是一份憑據副本）。它與 [kAuthRegisterPath]
+/// 同屬「還站在門外的人」要走的通路，因此也掛在 `/auth` 首段下。
+/// 成功同樣不簽發會話、不下發 Cookie（見 [ServerApi.applicationStatus]）。
+const String kAuthRegistrationStatusPath = '/auth/registration-status';
+
 /// 帳戶建立策略端點路徑：GET（／HEAD）是現讀三份值與對外答案，PUT 是整份寫入。
 ///
 /// 一條路徑、一份單例文件：這裡沒有目標標識、也沒有「只改某一欄」的子路徑——
@@ -307,6 +315,33 @@ class ServerApi {
         'password': password,
       },
       decode: SelfRegisterReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 申請人查本人申請狀態：POST `/auth/registration-status`。
+  ///
+  /// 這是一條「驗證憑據但不換發會話」的通路：待審批的人不能登入，也不該拿到一枚
+  /// 能碰普通業務的憑據，所以他每次想知道「我的申請怎麼樣了」都要重新交一次登入名與口令。
+  /// 成功不寫 Set-Cookie、回應裡沒有任何會話材料（因此走 [ApiClient.post] 而非
+  /// captureCookie 那一條），也沒有需要壽命與撤銷邊界的臨時狀態證明——關掉頁面就什麼都不剩。
+  ///
+  /// 失敗形態與登入端點同形：查無此名、訪客帳戶、口令不符都是 2001（這條通路
+  /// 對「誰的名字存在」不新增信號）；來源被限流 2006 並附 Retry-After；
+  /// 憑據有效但這一筆根本不走審批通路 2020（處置是去登入，不是再查一次）。
+  /// 回應只有申請人自己的三個事實：結局、提交時刻、決定時刻（後者只在已決定時出現）。
+  Future<ApplicationStatusReport> applicationStatus({
+    required String loginName,
+    required String password,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<ApplicationStatusReport>(
+      kAuthRegistrationStatusPath,
+      jsonBody: <String, Object?>{
+        'login_name': loginName,
+        'password': password,
+      },
+      decode: ApplicationStatusReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

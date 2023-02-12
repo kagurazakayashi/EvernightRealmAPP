@@ -67,13 +67,14 @@ void main() {
   }
 
   group('路由表登記範圍', () {
-    test('登記五個頂層上下文與登入、註冊兩條門外通路，路由名稱與文件一致', () {
+    test('登記五個頂層上下文與登入、註冊、查本人申請狀態三條門外通路，路由名稱與文件一致', () {
       expect(AppRouter.routes.keys, <String>[
         ...NavContext.allRouteNames,
         kLoginRoute,
         kRegisterRoute,
+        kApplicationStatusRoute,
       ]);
-      expect(AppRouter.routes.length, 7);
+      expect(AppRouter.routes.length, 8);
     });
 
     test('啟動後的第一個畫面是伺服器入口層，且為根路由', () {

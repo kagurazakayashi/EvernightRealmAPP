@@ -205,23 +205,44 @@ void main() {
       expect(find.text(l10n.accountPolicyStaleRejectedNotice), findsNothing);
     });
 
-    testWidgets('現值是選不了的模式時如實顯示那個名字，兩個選項都未選', (WidgetTester tester) async {
+    testWidgets('現值是選不了的模式時如實顯示那個名字，三個選項都未選', (WidgetTester tester) async {
+      // invite 仍是「名字被批准、通路未上線」的那一個（R2-012 只把 approval 搬進可選清單）。
       final _Fixture fixture = _Fixture()
-        ..readBody = _policyJson(mode: 'approval');
+        ..readBody = _policyJson(mode: 'invite');
       await pump(tester, fixture);
 
       expect(
-        find.text(l10n.accountPolicyModeExternalNotice('approval')),
+        find.text(l10n.accountPolicyModeExternalNotice('invite')),
         findsOneWidget,
       );
-      final ChoiceChip closed = tester.widget<ChoiceChip>(
-        find.byKey(AccountPolicyCard.modeClosedKey),
+      for (final Key key in <Key>[
+        AccountPolicyCard.modeClosedKey,
+        AccountPolicyCard.modeOpenKey,
+        AccountPolicyCard.modeApprovalKey,
+      ]) {
+        final ChoiceChip chip = tester.widget<ChoiceChip>(find.byKey(key));
+        expect(chip.selected, isFalse, reason: '$key 不該被預填成選中');
+      }
+    });
+
+    testWidgets('approval 選得也讀得：現值是它時那顆 chip 被選中並多講一句它做什麼', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture()
+        ..readBody = _policyJson(mode: 'approval', signUpOpen: true);
+      await pump(tester, fixture);
+
+      final ChoiceChip approval = tester.widget<ChoiceChip>(
+        find.byKey(AccountPolicyCard.modeApprovalKey),
       );
-      final ChoiceChip open = tester.widget<ChoiceChip>(
-        find.byKey(AccountPolicyCard.modeOpenKey),
+      expect(approval.selected, isTrue);
+      // 選中時多講一句：收申請、但一份也不放行，而且切模式不動歷史——
+      // 這一句擋的是把 approval 誤讀成「註冊被關掉了」或「等會兒會自己通過」。
+      expect(find.byKey(AccountPolicyCard.approvalHintKey), findsOneWidget);
+      expect(
+        find.text(l10n.accountPolicyModeExternalNotice('approval')),
+        findsNothing,
       );
-      expect(closed.selected, isFalse);
-      expect(open.selected, isFalse);
     });
   });
 
@@ -275,6 +296,48 @@ void main() {
         find.byKey(AccountPolicyCard.adminCreateKey),
       );
       expect(adminSwitch.value, isFalse);
+    });
+
+    testWidgets('選 approval 後保存：PUT 帶的就是 approval，不是被頂成 closed 或 open', (
+      WidgetTester tester,
+    ) async {
+      // 這一條釘的是這張卡最容易被寫壞的地方：它交的是完整的三份值，
+      // 清單少一個模式就等於 Root 為了改別欄而保存時，悄悄把伺服器的審批模式頂掉。
+      final _Fixture fixture = _Fixture()
+        ..writeBody = _policyJson(
+          adminCreate: true,
+          mode: 'approval',
+          guest: false,
+          signUpOpen: true,
+          guestOpen: false,
+        );
+      await pump(tester, fixture);
+
+      await tester.tap(find.byKey(AccountPolicyCard.adminCreateKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(AccountPolicyCard.modeApprovalKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(AccountPolicyCard.submitKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(AccountPolicyCard.confirmKey));
+      await tester.pumpAndSettle();
+
+      expect(fixture.writes.single['self_register_mode'], 'approval');
+      expect(fixture.writes.single['admin_create_standard'], isTrue);
+      // 成功後現值以回應為準：模式仍是 approval，對外答案那一列這時是開。
+      final ChoiceChip approval = tester.widget<ChoiceChip>(
+        find.byKey(AccountPolicyCard.modeApprovalKey),
+      );
+      expect(approval.selected, isTrue);
+      expect(
+        find.text(
+          l10n.accountPolicyEntryLabel(
+            l10n.accountPolicyOpenWord,
+            l10n.accountPolicyClosedWord,
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('2016 另成一句，且三個值回到上一份伺服器真相', (WidgetTester tester) async {

@@ -14,9 +14,13 @@
 ///   所以這句話要顯示在同一張卡上，而不是讓 Root 去猜功能壞了。
 /// * 例外講在介面上：`admin_create_standard` 從不套到 Root 開設管理員與本機憑據命令。
 ///   這一句不是修辭——少了它，關掉開關的人會以為自己能讓整個伺服器開不出任何人。
-/// * 模式只給兩個選項（closed／open）。服務端現值若是 `approval`、`invite` 或未來
-///   多出的名字，卡上如實顯示那個原字並說明「本版本選不了它」，不預填、不降級成 closed；
-///   直接送出那種值的請求由後端以 2016 拒絕，界面據此另成一句，與 1004 分開。
+/// * 模式選項與後端「本版本寫得進」那份清單同步：`closed`、`open` 與 `approval`
+///   （後者收待審批的申請，見自助註冊與本人狀態查詢）。少列一個能寫的模式不是保守，
+///   而是會害人——這張卡交的是完整的三份值，Root 為了改別欄而保存時就會把服務端原本的
+///   `approval` 頂成自己清單上的某一個，等於悄悄關掉審批。
+/// * 現值是這張卡給不出的名字（`invite` 或未來多出的那一個）時如實顯示那個原字並說明
+///   「本版本選不了它」，不預填、不降級成 closed；直接送出那種值的請求由後端以 2016 拒絕，
+///   界面據此另成一句，與 1004 分開。
 library;
 
 import 'package:flutter/material.dart';
@@ -57,6 +61,16 @@ class AccountPolicyCard extends StatefulWidget {
 
   /// 自註冊模式 open 選項識別鍵。
   static const Key modeOpenKey = ValueKey<String>('account-policy-mode-open');
+
+  /// 自註冊模式 approval 選項識別鍵（收待審批的申請）。
+  static const Key modeApprovalKey = ValueKey<String>(
+    'account-policy-mode-approval',
+  );
+
+  /// 選中 approval 時的補充說明識別鍵。
+  static const Key approvalHintKey = ValueKey<String>(
+    'account-policy-approval-hint',
+  );
 
   /// 現值為不可選模式時的說明識別鍵。
   static const Key modeExternalKey = ValueKey<String>(
@@ -372,9 +386,28 @@ class _AccountPolicyCardState extends State<AccountPolicyCard> {
                   ? null
                   : (_) => setState(() => _mode = 'open'),
             ),
+            ChoiceChip(
+              key: AccountPolicyCard.modeApprovalKey,
+              label: Text(l10n.accountPolicyModeApprovalLabel),
+              selected: _mode == 'approval',
+              onSelected: _saving
+                  ? null
+                  : (_) => setState(() => _mode = 'approval'),
+            ),
           ],
         ),
-        // 現值不是這兩個名字時如實說出那個名字：不預填、不降級成 closed。
+        // 選了 approval 就多講一句它真正會做什麼、不會做什麼：這一句是這顆按鈕最容易
+        // 被誤讀成「註冊關掉了」的地方，而它實際上是「照常收，但一個也不放行」。
+        if (_mode == 'approval')
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              l10n.accountPolicyApprovalHint,
+              key: AccountPolicyCard.approvalHintKey,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        // 現值不是這張卡給得出的名字時如實說出那個名字：不預填、不降級成 closed。
         if (!_isWritableMode) ...<Widget>[
           const SizedBox(height: 4),
           Text(
@@ -443,8 +476,13 @@ class _AccountPolicyCardState extends State<AccountPolicyCard> {
     );
   }
 
-  /// 現值是否是本版本可選的兩個模式之一（判定只依這份清單，不另猜一份）。
-  bool get _isWritableMode => _mode == 'closed' || _mode == 'open';
+  /// 現值是否是本版本可選的模式之一（判定只依這張卡的選項清單，不另猜一份）。
+  ///
+  /// 這份清單必須與後端「模式寫得進」的那一側同步：少一個就會做出上面頭注寫的那件壞事
+  /// （保存時把服務端記錄的模式頂掉）。日後 invite 落地時，這裡要多一顆 ChoiceChip，
+  /// 而那同時也是這張卡唯一需要跟著改的地方。
+  bool get _isWritableMode =>
+      _mode == 'closed' || _mode == 'open' || _mode == 'approval';
 
   /// 布林的另一種說法：界面用詞由 ARB 給，不在這裡寫死「開／關」。
   String _word(AppLocalizations l10n, bool open) {
