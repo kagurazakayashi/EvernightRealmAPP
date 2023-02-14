@@ -1159,6 +1159,177 @@ class StandardAccountPasswordResetReport {
   final String requestId;
 }
 
+/// 註冊申請名冊的一行：`GET /admin/registrations` 的行，也是決定之後回顯的形狀。
+///
+/// 六格就是「審核一個人需要的全部依據」：他是誰（標識與兩個名字）、他在審批鏈的哪一站
+/// （status）、他等了多久（submitted_at）與有沒有已經落地的決定（reviewed_at）。
+/// 回應裡不會有的東西：口令與任何憑據材料、登入名的內部正規化鍵、角色與授予、活動與資產
+/// ——那些對「要不要放行這個人」不構成依據，多一格就多一個可外流的格子。
+/// 也沒有「審核人是誰」與「為什麼拒」：後端今日根本沒有那兩格（決定者的身分只存在伺服器端
+/// 審計裡，而理由文本不落庫），介面因此無處可顯示，也不該本地捏造一句。
+///
+/// [status] 與 [reviewedAt] 的配對是後端的事實：`pending` 恆無決定時刻、`rejected` 必帶；
+/// 決定成功後回顯的那一筆可能是 `active`（批准）或 `rejected`（拒絕）——
+/// 前者的意思是「他已經離開這本書、進普通帳戶目錄那一側」，界面據此把行收掉而不是本地改寫。
+class RegistrationApplicationReport {
+  /// 以已驗證的欄位建立一筆申請資料。
+  const RegistrationApplicationReport({
+    required this.accountId,
+    required this.loginName,
+    required this.displayName,
+    required this.status,
+    required this.submittedAt,
+    required this.reviewedAt,
+  });
+
+  /// 從 JSON 單項建立一筆申請資料。
+  static RegistrationApplicationReport decode(Map<String, Object?> json) {
+    return RegistrationApplicationReport(
+      accountId: _requireText(json, 'account_id'),
+      loginName: _requireText(json, 'login_name'),
+      displayName: _requireText(json, 'display_name'),
+      status: _requireText(json, 'status'),
+      submittedAt: _requireUtcTime(json, 'submitted_at'),
+      // 缺席就是「還沒有任何人做過決定」：不得拿提交時刻或當前時刻冒充一個決定時刻。
+      reviewedAt: _optionalUtcTime(json, 'reviewed_at'),
+    );
+  }
+
+  /// 申請人的穩定帳戶標識（決定就是按它下的）。
+  final String accountId;
+
+  /// 登入名原始寫法（僅供展示與確認對話框點名，不是授權依據）。
+  final String loginName;
+
+  /// 顯示名稱。
+  final String displayName;
+
+  /// 狀態原字串（這本名冊可能出現的是 pending 與 rejected；未知值原樣保留）。
+  final String status;
+
+  /// 申請提交時刻（UTC，即帳戶建立時刻）。
+  final DateTime submittedAt;
+
+  /// 審核做出決定的時刻（UTC）；`null` 代表還沒有人做過決定。
+  final DateTime? reviewedAt;
+
+  /// 是否還在等著被決定（只有這一格為真時才有一顆可以按的按鈕）。
+  ///
+  /// 認的是服務端回傳的原字串而不是「沒有決定時刻」：一個曾被批准此後被停用的人
+  /// 也帶著決定時刻，但他早就不在這本名冊上了。
+  bool get isPending => status == 'pending';
+
+  /// 是否已被拒絕（只認原字串；未知值既不算等待也不算被拒）。
+  bool get isRejected => status == 'rejected';
+}
+
+/// `GET /admin/registrations` 的成功回應：註冊申請名冊的一頁，含分頁回顯與篩選後總數。
+///
+/// 與 [StandardAccountDirectoryReport] 同一形態但各是各型別：兩本名冊的範圍規則不同
+/// （一本按「可以打理的普通帳戶」列、另一本按「走審批通路的申請」列），
+/// 混成一個型別遲早有人拿錯那份回顯去算頁，也把「列得到＝可編輯」這層誤解帶進來。
+/// 分頁三元組一律取伺服器回顯：客戶端不拿本頁筆數冒充總數、也不自行排序。
+class RegistrationRosterReport {
+  /// 以已驗證的欄位建立一頁名冊。
+  const RegistrationRosterReport({
+    required this.applications,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.requestId,
+  });
+
+  /// 從 `/admin/registrations` 的 JSON 回應建立一頁名冊。
+  static RegistrationRosterReport decode(Map<String, Object?> json) {
+    final Object? raw = json['applications'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('applications 不是清單');
+    }
+    final List<RegistrationApplicationReport> items =
+        <RegistrationApplicationReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('applications 項不是物件');
+      }
+      items.add(RegistrationApplicationReport.decode(item));
+    }
+    return RegistrationRosterReport(
+      applications: items,
+      page: _requireInt(json, 'page'),
+      pageSize: _requireInt(json, 'page_size'),
+      total: _requireInt(json, 'total'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本頁的行（依後端給出的順序，最新提交的在前）。
+  final List<RegistrationApplicationReport> applications;
+
+  /// 本頁頁碼（1 起算，後端回顯）。
+  final int page;
+
+  /// 本頁尺寸（後端回顯）。
+  final int pageSize;
+
+  /// 符合篩選條件的總筆數（不是全表數，也不是本頁數）。
+  final int total;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 總頁數至少為 1：零筆申請時第 1 頁就是那個「空但存在」的頁。
+  int get totalPages => total == 0 ? 1 : (total + pageSize - 1) ~/ pageSize;
+
+  /// 是否還有後頁；由伺服器回顯的頁碼與總數判定，客戶端不自算第二份真相。
+  bool get hasMore => page < totalPages;
+}
+
+/// `PUT /admin/registrations/{account_id}/decision` 的成功回應：決定之後的現值與本次落地的那顆。
+///
+/// [application] 是「寫入之後的資料庫現值」（後端在交易內重讀），不是請求本體的迴音：
+/// 界面顯示的當前資料必須來自服務端保存的結果。批准時它的 status 是 `active`——
+/// 那一筆自此不在名冊上（普通帳戶目錄那一側接手），界面要收掉這一行而不是自己留一份。
+/// [decision] 回顯的是本次落地的那個決定（`approve`／`reject`），讓成功句能講出
+/// 「你批准了這一份」而不是「操作完成」這種無所指的話；它不是憑據、也不是個人資料。
+/// 這一格刻意不叫 `revoked_sessions` 之類的數字：審批不動任何會話——
+/// 被批准的人能不能進去由他自己交口令那條既有的登入通路決定，那一步不在本回應裡。
+class RegistrationDecisionReport {
+  /// 以已驗證的欄位建立單次審批決定回應。
+  const RegistrationDecisionReport({
+    required this.application,
+    required this.decision,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立審批決定結果。
+  static RegistrationDecisionReport decode(Map<String, Object?> json) {
+    final Object? raw = json['application'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('application 不是物件');
+    }
+    return RegistrationDecisionReport(
+      application: RegistrationApplicationReport.decode(raw),
+      decision: _requireText(json, 'decision'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 決定之後的單筆申請現值。
+  final RegistrationApplicationReport application;
+
+  /// 本次落地的決定原字串（approve|reject，未知值原樣保留）。
+  final String decision;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 是否落地的是批准（只認服務端回顯的原字串，不認本地按下的是哪顆按鈕）。
+  bool get isApproved => decision == 'approve';
+
+  /// 是否落地的是拒絕。
+  bool get isRejected => decision == 'reject';
+}
+
 class AdminAccountReport {
   /// 以已驗證的欄位建立單筆管理員資料。
   const AdminAccountReport({

@@ -120,8 +120,26 @@ String adminAccountStatusPath(String accountId) =>
 String adminAccountPasswordPath(String accountId) =>
     '${adminAccountItemPath(accountId)}/password';
 
-/// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。
+/// 註冊申請名冊的集合端點路徑：GET（／HEAD）分頁列出走審批通路的申請。
 ///
+/// 這本名冊與 [kAdminAccountsPath] 那本目錄是兩句話，各有各的範圍條件：
+/// 這一頁列的是「還在等決定的申請」與「已被拒絕的申請」，而普通帳戶目錄按定義把
+/// 那兩態排在門外。批准過的人不在這本書上——他進的是普通帳戶目錄那一側。
+/// 讀它需要伺服器級管理權：站在門外的人只有一條「交憑據查自己結局」的路
+/// （[kAuthRegistrationStatusPath]），沒有任何一格可以翻別人的申請。
+const String kAdminRegistrationsPath = '/admin/registrations';
+
+/// 註冊申請「審批決定」子資源的路徑：PUT 唯一方法，動的是那一個決定。
+///
+/// 與普通帳戶那兩條子資源（[adminAccountStatusPath]／[adminAccountPasswordPath]）同形：
+/// 「做決定」在協定層只有一個入口，讀名冊本來就在父路徑上，不在這裡開第二份讀法。
+/// 目標在路徑上、不在本體欄位裡：本體只有 decision 一格，沒有任何 account_id、role、
+/// status、password 或 reason 的格子可填（多帶即 1004）。標識經 [Uri.encodeComponent]
+/// 轉義後拼接，與其餘子資源同一防呆理由。
+String adminRegistrationDecisionPath(String accountId) =>
+    '$kAdminRegistrationsPath/${Uri.encodeComponent(accountId)}/decision';
+
+/// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。///
 /// 目標在路徑上而不是本體欄位裡：編輯請求的本體只有「新值」與「提交所依據的現值」，
 /// 沒有任何 account_id 之類的格子可以填。標識經 [Uri.encodeComponent] 轉義後拼接
 /// （UUIDv7 本來是 URL 安全字串，轉義是對「呼叫端傳了別的東西」的防呆，不是修飾）。
@@ -650,6 +668,71 @@ class ServerApi {
       adminAccountPasswordPath(accountId),
       jsonBody: <String, Object?>{'password': password},
       decode: StandardAccountPasswordResetReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取註冊申請名冊的一頁：GET `/admin/registrations`。
+  ///
+  /// 這本名冊列的是「走審批通路的申請」：還在等決定的（pending）與已經被拒絕的（rejected）。
+  /// 被批准的人不在這裡——他帶著決定時刻離開了審批鏈，此後的停用、重置與改名都在
+  /// 普通帳戶目錄那一側（[standardAccountsDirectory]）。
+  /// 三個引數是本端點僅有的篩選（頁碼、每頁筆數、狀態）加一段名稱關鍵字：
+  /// 「列誰的申請」由後端按解析出的受信主體決定（只有伺服器級管理權讀得到），
+  /// 非法取值一律 1004 並點出是哪個參數，超出總數的合法頁碼則回空清單與真實總數。
+  /// 行裡只有審核需要的六格：沒有口令、沒有憑據雜湊、沒有角色，也沒有「審核人是誰」
+  /// 與「為什麼拒」——後端今日沒有那兩格，介面無處可顯示。
+  Future<RegistrationRosterReport> registrationRoster({
+    int page = 1,
+    int pageSize = 20,
+    String status = 'all',
+    String query = '',
+    String? acceptLanguage,
+  }) {
+    final buffer = StringBuffer(kAdminRegistrationsPath)
+      ..write('?page=')
+      ..write(page)
+      ..write('&page_size=')
+      ..write(pageSize)
+      ..write('&status=')
+      ..write(Uri.encodeComponent(status));
+    // 空關鍵字不發參數：後端把「沒帶」與「帶了但全是空白」收斂成同一句話（不篩選），
+    // 但界面不必因此多送一個無意義的 `q=`。
+    if (query.trim().isNotEmpty) {
+      buffer
+        ..write('&q=')
+        ..write(Uri.encodeComponent(query));
+    }
+    return apiClient.get(
+      buffer.toString(),
+      decode: RegistrationRosterReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 對一筆待審批申請做出批准或拒絕：PUT `/admin/registrations/{account_id}/decision`。
+  ///
+  /// 白名單只有 `decision` 一欄（`approve`／`reject`），而且刻意沒有 expected_* 依據值：
+  /// 一筆還沒被決定的申請，其現值就是「pending」這個詞本身，放進本體只會多出一格
+  /// 「填錯就注定落敗」的欄位；真正的併發控制在後端那道 `status='pending'` 的條件上。
+  /// 因此這裡沒有 2013／2014 那種「你依據的現值已過期」的結論——兩人同時按下時只有
+  /// 先提交的那一次生效，後到的拿到 2021（409）「這份申請已經有過決定」，
+  /// 整個操作不發生，先前那個決定也不會被蓋掉；處置是重讀名冊，不是把那顆按鈕再點一次。
+  ///
+  /// 批准的效果是「這個人從此刻起可以經既有登入通路用他自選的口令進去」，而且只此一件：
+  /// 不帶任何伺服器級授予、不簽發也不會撤銷任何會話（回應裡沒有一枚憑據，也不下 Cookie），
+  /// 也不解除任何獨立的停用或首次改密義務。拒絕則保留那一筆申請與它的登入名佔用，
+  /// 且今日沒有任何通路能把已做過的決定改判。多帶任何其他欄位（角色、狀態、口令、理由）
+  /// 都會被後端打成 1004；結果不明（逾時、連線中斷）時不得自動補發。
+  Future<RegistrationDecisionReport> reviewRegistration({
+    required String accountId,
+    required String decision,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<RegistrationDecisionReport>(
+      adminRegistrationDecisionPath(accountId),
+      jsonBody: <String, Object?>{'decision': decision},
+      decode: RegistrationDecisionReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

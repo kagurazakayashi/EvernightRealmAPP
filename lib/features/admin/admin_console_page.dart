@@ -1,7 +1,7 @@
 /// 管理員端頁面。
 ///
 /// 管理員以玩家身份進入活動時會切到玩家端上下文，管理操作與玩家操作上下文分離。
-/// 本頁接線的伺服器級能力目前有三項，且後端只認「持有 server_admin 的受信主體」：
+/// 本頁接線的伺服器級能力目前有四項，且後端只認「持有 server_admin 的受信主體」：
 ///
 /// * 建立普通帳戶（[StandardAccountProvisionCard]）——受伺服器「管理員建立普通帳戶」
 ///   開關約束，開關關閉時由服務端在提交那一刻回話，界面不預讀、不猜。
@@ -9,8 +9,11 @@
 ///   答案全部取自服務端回應；這本目錄列不到管理員，也列不到 Root。
 /// * 單筆詳情與顯示名編輯（[StandardAccountProfileCard]）——底稿按標識重讀，
 ///   保存走白名單＋compare-and-set；憑據、狀態與安全狀態不在這一頁可改。
+/// * 註冊申請的審批（[RegistrationReviewCard]）——另一本名冊：列的是還在等決定的申請
+///   與已被拒絕的申請，而上面那本目錄按定義把這兩態排在門外。批准只能批出一個
+///   不帶任何伺服器級授予的普通帳戶，界面沒有一格可以填角色，也沒有一格可以填理由。
 ///
-/// 其餘管理端能力仍然沒有實作：普通帳戶的停用／重置／刪除、改角色、活動管理、名冊、
+/// 其餘管理端能力仍然沒有實作：普通帳戶的刪除、改角色、活動管理、名冊、
 /// 資產與聊天都不在今天後端的端點裡，因此本頁以一行如實說明收尾，
 /// 而不是擺一組按了不會有任何事的按鈕。
 /// 目錄與詳情都是「資料變化後重新取服務端結果」：本頁只持有被選中的標識與一個重載計數，
@@ -25,6 +28,7 @@ import '../../app/nav_context_labels.dart';
 import '../../core/api/server_api.dart';
 import '../../core/api/server_models.dart';
 import '../../l10n/app_localizations.dart';
+import 'registration_review_view.dart';
 import 'standard_account_directory_view.dart';
 import 'standard_account_profile_view.dart';
 import 'standard_account_provision_view.dart';
@@ -88,6 +92,11 @@ class _AdminConsolePageState extends State<AdminConsolePage> {
               onSaved: () => setState(() => _reloadToken++),
             ),
           ],
+          const SizedBox(height: 24),
+          // 另一本名冊：等審批的申請與已被拒絕的申請。它與上面那本目錄互斥
+          // （同一個人不可能同時列在兩本書的範圍裡），因此各自重讀各自的伺服器真相，
+          // 不共用本地那一份「我以為他現在是什麼」。
+          RegistrationReviewCard(api: api),
           const SizedBox(height: 24),
           Text(
             l10n.adminConsoleRemainingNotice,

@@ -102,8 +102,14 @@ class _Fixture {
     return ServerApi(
       config: ServerApiConfig(source: settings),
       client: MockClient((http.Request request) async {
-        final bool onItem = request.url.path.startsWith('$kAdminAccountsPath/');
-        if (request.method == 'GET' && !onItem) {
+        // 這臺假後端按「路徑恰好是目錄那條」計數，而不是「任何不是子路徑的 GET」：
+        // 同一張管理端頁面現在還掛著另一本名冊（註冊申請名冊，GET /admin/registrations），
+        // 攬總的寫法會把它的讀取趟數算進目錄頭上，那條「進頁只讀一趟目錄」的斷言
+        // 就變成在測別人。子路徑（單筆詳情）與另一本名冊各自分流。
+        final String path = request.url.path;
+        final bool onDirectory = path == kAdminAccountsPath;
+        final bool onItem = path.startsWith('$kAdminAccountsPath/');
+        if (request.method == 'GET' && onDirectory) {
           directoryCalls++;
           lastListQuery = Map<String, String>.from(request.url.queryParameters);
           return _reply(
@@ -111,9 +117,15 @@ class _Fixture {
             _directoryBodyOverride ?? _directoryPage(),
           );
         }
-        if (request.method == 'GET') {
+        if (request.method == 'GET' && onItem) {
           detailRequests.add(request);
           return _reply(detailStatus, _detailBodyOverride ?? _detailRecord());
+        }
+        if (request.method == 'GET') {
+          // 其餘讀取（另一本名冊）如實回空清單：本檔的斷言對象不是它，
+          // 但也不能讓它拿到一份會被誤當目錄回應的本體。
+          return _reply(200, '{"applications":[],"page":1,"page_size":20,'
+              '"total":0,"request_id":"r-other"}');
         }
         writes.add(request);
         if (_holdNextWrite) {
