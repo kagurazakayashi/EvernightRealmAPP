@@ -1730,3 +1730,197 @@ class EntryCapabilitiesReport {
   /// 本次請求的關聯 ID。
   final String requestId;
 }
+
+/// 名冊一行、簽發回顯與撤銷回顯共用的邀請碼資料（同一筆資料在不同回應裡的形狀必須同源）。
+///
+/// 這就是一枚碼能被展示的全部依據：它是誰（code_id 與標籤）、此刻算哪種狀態（status 是後端
+/// 依注入時鐘派生的原字串）、額度用了多少（used_count／max_uses 與派生的 remaining）、何時簽的、
+/// 何時過期（缺席即永不過期）、何時被撤銷（缺席即尚未撤銷）。不含也不可能含：明文碼、驗證材料哈希、
+/// 任何帳戶資料、任何會話材料、任何角色。status 保留原字串而不收緊成列舉——後端日後多一種派生取值時，
+/// 界面原樣顯示、也不冒充那是「可操作」的狀態（撤銷按鈕只由「尚未 revoked」這個事實決定）。
+class InviteCodeReport {
+  /// 以已驗證的欄位建立一枚邀請碼的可展示資料。
+  const InviteCodeReport({
+    required this.codeId,
+    required this.label,
+    required this.status,
+    required this.maxUses,
+    required this.usedCount,
+    required this.remaining,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.revokedAt,
+  });
+
+  /// 從 JSON 單項建立一枚邀請碼資料。
+  static InviteCodeReport decode(Map<String, Object?> json) {
+    return InviteCodeReport(
+      codeId: _requireText(json, 'code_id'),
+      label: _requireText(json, 'label'),
+      status: _requireText(json, 'status'),
+      maxUses: _requireInt(json, 'max_uses'),
+      usedCount: _requireInt(json, 'used_count'),
+      remaining: _requireInt(json, 'remaining'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      // 缺席是「永不過期」這個事實本身，不是查不到的時刻；不拿 epoch 或當前時刻冒充一個到期。
+      expiresAt: _optionalUtcTime(json, 'expires_at'),
+      // 缺席是「尚未被撤銷」；非缺席即「撤銷於何時」。撤銷是單向終態，沒有回頭路。
+      revokedAt: _optionalUtcTime(json, 'revoked_at'),
+    );
+  }
+
+  /// 邀請碼的穩定標識（撤銷就是按它下的）。
+  final String codeId;
+
+  /// 標籤（原字串，僅供展示與確認對話框點名，不承載任何秘密）。
+  final String label;
+
+  /// 後端派生的狀態原字串（active|expired|exhausted|revoked；未知值原樣保留）。
+  final String status;
+
+  /// 額度上限（>= 1；1 即單次碼）。
+  final int maxUses;
+
+  /// 已被核銷的次數。
+  final int usedCount;
+
+  /// 剩餘額度（由後端派生，界面不自己減）。
+  final int remaining;
+
+  /// 簽發時刻（UTC）。
+  final DateTime createdAt;
+
+  /// 到期時刻（UTC）；`null` 代表永不過期。
+  final DateTime? expiresAt;
+
+  /// 撤銷時刻（UTC）；`null` 代表尚未被撤銷。
+  final DateTime? revokedAt;
+
+  /// 是否已被撤銷（只認服務端回傳的原字串；被撤銷的目標不再擺那顆按鈕）。
+  bool get isRevoked => status == 'revoked';
+}
+
+/// `GET /root/invite-codes` 的成功回應：邀請碼名冊的一頁，含分頁回顯與篩選後總數。
+///
+/// 與 [RegistrationRosterReport] 同一形態但各是各型別（一本按「走審批通路的申請」列、一本按
+/// 「Root 簽發的准入憑證」列，範圍與處置都不同）。分頁三元組一律取伺服器回顯：客戶端不拿本頁
+/// 筆數冒充總數、也不自行排序。
+class InviteCodeRosterReport {
+  /// 以已驗證的欄位建立一頁名冊。
+  const InviteCodeRosterReport({
+    required this.invites,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.requestId,
+  });
+
+  /// 從 `/root/invite-codes` 的 JSON 回應建立一頁名冊。
+  static InviteCodeRosterReport decode(Map<String, Object?> json) {
+    final Object? raw = json['invites'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('invites 不是清單');
+    }
+    final List<InviteCodeReport> items = <InviteCodeReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('invites 項不是物件');
+      }
+      items.add(InviteCodeReport.decode(item));
+    }
+    return InviteCodeRosterReport(
+      invites: items,
+      page: _requireInt(json, 'page'),
+      pageSize: _requireInt(json, 'page_size'),
+      total: _requireInt(json, 'total'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本頁的行（依後端給出的順序，最新簽發的在前）。
+  final List<InviteCodeReport> invites;
+
+  /// 本頁頁碼（1 起算，後端回顯）。
+  final int page;
+
+  /// 本頁尺寸（後端回顯）。
+  final int pageSize;
+
+  /// 符合篩選條件的總筆數（不是全表數，也不是本頁數）。
+  final int total;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 總頁數至少為 1：零枚碼時第 1 頁就是那個「空但存在」的頁。
+  int get totalPages => total == 0 ? 1 : (total + pageSize - 1) ~/ pageSize;
+
+  /// 是否還有後頁；由伺服器回顯的頁碼與總數判定，客戶端不自算第二份真相。
+  bool get hasMore => page < totalPages;
+}
+
+/// `POST /root/invite-codes` 的成功回應：一次性明文碼，加上落庫後的那一行可展示資料。
+///
+/// [code] 是全鏈路唯一允許出現明文碼的一格，僅這一次；[invite] 是名冊那一行的形狀，讓界面拿到
+/// 簽發結果就能直接把它並入列表。丟了這枚 code 就得重新簽發一枚——庫裡只有它的驗證材料，沒有任何
+/// 回應能把 code 再讀回來。
+class IssuedInviteCodeReport {
+  /// 以已驗證的欄位建立一次簽發結果。
+  const IssuedInviteCodeReport({
+    required this.code,
+    required this.invite,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立簽發結果。
+  static IssuedInviteCodeReport decode(Map<String, Object?> json) {
+    final Object? raw = json['invite'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('invite 不是物件');
+    }
+    return IssuedInviteCodeReport(
+      code: _requireText(json, 'code'),
+      invite: InviteCodeReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 一次性明文碼（只在簽發這一次出現；不得寫日誌、不得再顯示於名冊）。
+  final String code;
+
+  /// 簽發後的資料庫現值（同一行的可展示資料）。
+  final InviteCodeReport invite;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `DELETE /root/invite-codes/{code_id}` 的成功回應：撤銷之後的那一行現值。
+///
+/// [invite] 是「寫入之後的資料庫現值」（後端在交易內重讀），派生成 revoked、帶著撤銷時刻；它不含
+/// 明文碼——撤銷不是一個把秘密翻出來的動作。結果不明時不得自動補發（對一枚已撤銷的碼是 2022，不是重試）。
+class InviteCodeMutationReport {
+  /// 以已驗證的欄位建立一次撤銷結果。
+  const InviteCodeMutationReport({
+    required this.invite,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立撤銷結果。
+  static InviteCodeMutationReport decode(Map<String, Object?> json) {
+    final Object? raw = json['invite'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('invite 不是物件');
+    }
+    return InviteCodeMutationReport(
+      invite: InviteCodeReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 撤銷後的單枚邀請碼現值。
+  final InviteCodeReport invite;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}

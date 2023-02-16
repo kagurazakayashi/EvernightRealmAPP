@@ -139,6 +139,21 @@ const String kAdminRegistrationsPath = '/admin/registrations';
 String adminRegistrationDecisionPath(String accountId) =>
     '$kAdminRegistrationsPath/${Uri.encodeComponent(accountId)}/decision';
 
+/// Root 管理「伺服器級註冊邀請碼」的集合端點路徑：GET（／HEAD）是分頁名冊，POST 是簽發。
+///
+/// 這組端點全部經 NeedRoot 判定（與 [kRootAccountPolicyPath] 同側）：邀請碼是建立普通帳戶的
+/// 准入憑證，「誰能拿這張路條」本身就是伺服器級的准入決定，不是管理員的日常打理範圍。
+/// 本版本 invite 模式仍未落地、也沒有核銷端點，所以名冊裡一枚「有效」的碼此刻還換不出帳戶。
+const String kRootInviteCodesPath = '/root/invite-codes';
+
+/// 單枚邀請碼「撤銷」端點的路徑：DELETE 唯一方法，動的是把這枚碼叫停。
+///
+/// 與 [rootAdminItemPath] 的刪除同一形態：撤銷是單向終態、正當性錨在「它此刻還沒被撤銷」這條
+/// 狀態機守衛上，本體不帶任何依據值。目標在路徑上、經 [Uri.encodeComponent] 轉義；這裡刻意
+/// 沒有單筆讀法——名冊一行就是管理一枚碼需要的全部資料，而明文碼在簽發之後根本讀不回來。
+String rootInviteCodeItemPath(String codeId) =>
+    '$kRootInviteCodesPath/${Uri.encodeComponent(codeId)}';
+
 /// 單筆管理員端點的路徑前綴：GET（／HEAD）是詳情，PUT 是以白名單編輯非安全資料。///
 /// 目標在路徑上而不是本體欄位裡：編輯請求的本體只有「新值」與「提交所依據的現值」，
 /// 沒有任何 account_id 之類的格子可以填。標識經 [Uri.encodeComponent] 轉義後拼接
@@ -927,6 +942,90 @@ class ServerApi {
     return apiClient.get(
       kAuthCapabilitiesPath,
       decode: EntryCapabilitiesReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀取邀請碼名冊的一頁：GET `/root/invite-codes`（只有 Root 讀得到）。
+  ///
+  /// 分頁與狀態／標籤篩選是本端點僅有的引數；「列哪幾行、每行算哪種狀態」都由後端按受信主體
+  /// 與注入時鐘決定，客戶端不自行排序、也不自己派生狀態（那會造出第二套真相，與名冊那一格打架）。
+  /// 空關鍵字不發 `q=`。回應裡永不含明文碼；讀不到時一律丟 [ApiError]，不降級成「一本空名冊」。
+  Future<InviteCodeRosterReport> inviteCodeRoster({
+    int page = 1,
+    int pageSize = 20,
+    String status = 'all',
+    String query = '',
+    String? acceptLanguage,
+  }) {
+    final buffer = StringBuffer(kRootInviteCodesPath)
+      ..write('?page=')
+      ..write(page)
+      ..write('&page_size=')
+      ..write(pageSize)
+      ..write('&status=')
+      ..write(Uri.encodeComponent(status));
+    if (query.trim().isNotEmpty) {
+      buffer
+        ..write('&q=')
+        ..write(Uri.encodeComponent(query));
+    }
+    return apiClient.get(
+      buffer.toString(),
+      decode: InviteCodeRosterReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 簽發一枚邀請碼：POST `/root/invite-codes`（只有 Root 能簽）。
+  ///
+  /// 白名單只有 label／max_uses／expires_at：本體裡沒有角色、帳戶類型、活動標識或口令的格子
+  /// （多帶即 1004）——一枚註冊邀請碼按定義只能換來一個普通帳戶。max_uses 缺席即後端預設單次、
+  /// expires_at 缺席即永不過期；兩樣要交時交正規值，否則後端以 1004 點名對應欄位。
+  ///
+  /// 成功回應的 `code` 是這枚碼的明文，而且是全鏈路唯一一次露出：庫裡只存它的驗證材料，
+  /// 之後任何讀法（含名冊、含撤銷回顯）都拿不回來。丟了就重新簽發一枚。結果不明時絕不
+  /// 自動補發（重發簽發是又簽一枚新碼）。
+  Future<IssuedInviteCodeReport> issueInviteCode({
+    required String label,
+    int? maxUses,
+    String? expiresAt,
+    String? acceptLanguage,
+  }) {
+    final body = <String, Object?>{'label': label};
+    // 缺席不發該欄：讓後端的預設值生效（額度單次、有效期永不過期），而不是界面先填一個
+    // 再假裝那是操作者的決定。
+    if (maxUses != null) {
+      body['max_uses'] = maxUses;
+    }
+    if (expiresAt != null && expiresAt.isNotEmpty) {
+      body['expires_at'] = expiresAt;
+    }
+    return apiClient.post<IssuedInviteCodeReport>(
+      kRootInviteCodesPath,
+      jsonBody: body,
+      decode: IssuedInviteCodeReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 撤銷一枚邀請碼：DELETE `/root/invite-codes/{code_id}`（只有 Root 能撤）。
+  ///
+  /// 本體是空的、刻意沒有依據值欄位：撤銷的正當性錨在「它此刻還沒被撤銷」這條狀態機守衛上，
+  /// Root 對一枚未撤銷碼的「現行撤銷時刻」拿不出任何可交的東西。因此第二次撤銷回的是 2022
+  /// 「這枚碼已經被撤銷」，整個操作不發生，先前那次撤銷也不會被改；處置是重讀名冊，不是把
+  /// 那顆按鈕再點一次，結果不明時也不自動補發。
+  ///
+  /// 撤銷擋住的是「這枚碼此後還能不能被核銷」，不是一個已合法建出來的帳戶——它不撤會話、
+  /// 不改帳戶、也不動已核銷的次數（那是留住的歷史）。成功回應是撤銷後的資料庫現值（派生成
+  /// revoked、帶撤銷時刻），仍不含明文碼。
+  Future<InviteCodeMutationReport> revokeInviteCode({
+    required String codeId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.delete(
+      rootInviteCodeItemPath(codeId),
+      decode: InviteCodeMutationReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

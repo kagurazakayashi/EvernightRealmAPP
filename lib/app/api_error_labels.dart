@@ -48,6 +48,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
         l10n.errorCodeSelfRegisterNameTaken,
       ApiMachineCode.notAnApplication => l10n.errorCodeNotAnApplication,
       ApiMachineCode.applicationDecided => l10n.errorCodeApplicationDecided,
+      ApiMachineCode.inviteAlreadyRevoked => l10n.errorCodeInviteAlreadyRevoked,
     };
   }
 
