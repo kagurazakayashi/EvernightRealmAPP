@@ -352,7 +352,7 @@ class _Fixture {
           return _json(
             '{"admin_create_standard":false,"self_register_mode":"closed",'
             '"guest_enabled":false,'
-            '"entry":{"sign_up_open":false,"guest_open":false},'
+            '"entry":{"sign_up_open":false,"invite_code_required":false,"guest_open":false},'
             '"request_id":"r-policy"}',
             200,
           );

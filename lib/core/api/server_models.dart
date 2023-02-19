@@ -1609,16 +1609,20 @@ class AdminDeleteReport {
   final String requestId;
 }
 
-/// 登入前界面可見的兩個入口答案（`/auth/capabilities` 的本體，也嵌在策略回應裡）。
+/// 登入前界面可見的三個入口答案（`/auth/capabilities` 的本體，也嵌在策略回應裡）。
 ///
-/// 只有兩個布林，是刻意的：模式名字、最後修改時刻、管理員建號開關都不在這個合同裡，
+/// 只有三個布林，是刻意的：模式名字、最後修改時刻、管理員建號開關都不在這個合同裡，
 /// 因此界面無法把「這台伺服器打算怎麼做准入」講給還站在門外的人聽。
-/// 兩個值是「策略說要開」與「那條通路真的存在」的合成結果，所以策略被存成放開而通路
+/// 三個值是「策略說要開」與「那條通路真的存在」的合成結果，所以策略被存成放開而通路
 /// 還沒上線時，這裡照樣是 `false`——界面據此不得顯示任何按下必然失敗的入口。
+/// [inviteCodeRequired] 只在生效模式確為 invite 時為真：它講的是「這一趟自行註冊要不要帶一枚碼」
+/// 這一件可執行的小事，讓共享的匿名註冊表單決定要不要顯示邀請碼欄位，而不是把模式名字本身外洩
+/// （開放／核准／關閉三种都回 false）。它只是顯示依據，不是准入——寫入那一刻由後端現讀策略重判。
 class AccountEntryCapabilities {
   /// 以已驗證的欄位建立對外入口答案。
   const AccountEntryCapabilities({
     required this.signUpOpen,
+    required this.inviteCodeRequired,
     required this.guestOpen,
   });
 
@@ -1626,12 +1630,16 @@ class AccountEntryCapabilities {
   static AccountEntryCapabilities decode(Map<String, Object?> json) {
     return AccountEntryCapabilities(
       signUpOpen: _requireBool(json, 'sign_up_open'),
+      inviteCodeRequired: _requireBool(json, 'invite_code_required'),
       guestOpen: _requireBool(json, 'guest_open'),
     );
   }
 
   /// 用戶自註冊入口對外是否開放。
   final bool signUpOpen;
+
+  /// 自行註冊是否此刻需要一枚邀請碼（invite 模式）。
+  final bool inviteCodeRequired;
 
   /// 訪客（臨時帳戶）入口對外是否開放。
   final bool guestOpen;
@@ -1700,12 +1708,17 @@ class AccountPolicyReport {
       selfRegisterMode == 'approval' ||
       selfRegisterMode == 'invite';
 
-  /// 模式是否為本版本可寫入的兩個名字之一。
+  /// 模式是否為本版本可寫入的名字之一。
   ///
   /// 判定只依這條清單，界面不得另猜一份：後端放行哪個模式是它那一側的登記，
-  /// 這裡只是「不要讓 Root 選一個必然被打成 2016 的值」。
+  /// 這裡只是「不要讓 Root 選一個必然被打成 2016 的值」。四個名字（closed／open／
+  /// approval／invite）的准入通路如今都已落地——開放建號、收待審批申請、以及拿一枚有效碼
+  /// 原子核銷換出普通帳戶——所以四者都寫得進；這一格翻真的同時，界面才能「允許有效配置選擇」invite。
   bool get isWritableMode =>
-      selfRegisterMode == 'closed' || selfRegisterMode == 'open';
+      selfRegisterMode == 'closed' ||
+      selfRegisterMode == 'open' ||
+      selfRegisterMode == 'approval' ||
+      selfRegisterMode == 'invite';
 }
 
 /// `GET /auth/capabilities` 的成功回應：兩個對外布林加關聯 ID。

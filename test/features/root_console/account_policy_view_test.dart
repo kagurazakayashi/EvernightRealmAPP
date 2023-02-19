@@ -33,6 +33,7 @@ String _policyJson({
   String mode = 'closed',
   bool guest = false,
   bool signUpOpen = false,
+  bool inviteCodeRequired = false,
   bool guestOpen = false,
 }) {
   return jsonEncode(<String, Object?>{
@@ -42,6 +43,7 @@ String _policyJson({
     'updated_at': '2026-10-03T09:00:00.000Z',
     'entry': <String, Object?>{
       'sign_up_open': signUpOpen,
+      'invite_code_required': inviteCodeRequired,
       'guest_open': guestOpen,
     },
     'request_id': 'r-policy',
@@ -205,24 +207,50 @@ void main() {
       expect(find.text(l10n.accountPolicyStaleRejectedNotice), findsNothing);
     });
 
-    testWidgets('現值是選不了的模式時如實顯示那個名字，三個選項都未選', (WidgetTester tester) async {
-      // invite 仍是「名字被批准、通路未上線」的那一個（R2-012 只把 approval 搬進可選清單）。
+    testWidgets('現值是四個名字之外的模式時如實顯示那個名字，四顆選項都未選', (WidgetTester tester) async {
+      // 四個已批准名字之外的值（未來後端多出的那一個）：如實顯示那個原字並說「本版本選不了它」，
+      // 不預填、不降級成 closed。invite 已入可選清單，不再是這一格的對象。
       final _Fixture fixture = _Fixture()
-        ..readBody = _policyJson(mode: 'invite');
+        ..readBody = _policyJson(mode: 'future_mode');
       await pump(tester, fixture);
 
       expect(
-        find.text(l10n.accountPolicyModeExternalNotice('invite')),
+        find.text(l10n.accountPolicyModeExternalNotice('future_mode')),
         findsOneWidget,
       );
       for (final Key key in <Key>[
         AccountPolicyCard.modeClosedKey,
         AccountPolicyCard.modeOpenKey,
         AccountPolicyCard.modeApprovalKey,
+        AccountPolicyCard.modeInviteKey,
       ]) {
         final ChoiceChip chip = tester.widget<ChoiceChip>(find.byKey(key));
         expect(chip.selected, isFalse, reason: '$key 不該被預填成選中');
       }
+    });
+
+    testWidgets('invite 選得也讀得：現值是它時那顆 chip 被選中並多講一句它做什麼', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture()
+        ..readBody = _policyJson(
+          mode: 'invite',
+          signUpOpen: true,
+          inviteCodeRequired: true,
+        );
+      await pump(tester, fixture);
+
+      final ChoiceChip invite = tester.widget<ChoiceChip>(
+        find.byKey(AccountPolicyCard.modeInviteKey),
+      );
+      expect(invite.selected, isTrue);
+      // 選中時多講一句：只有持有效碼者可自行註冊、碼不帶角色、換出可立即登入的普通帳戶——
+      // 這一格現值如今是「選得了」的那一側，因此不再出現「本版本選不了它」那句。
+      expect(find.byKey(AccountPolicyCard.inviteHintKey), findsOneWidget);
+      expect(
+        find.text(l10n.accountPolicyModeExternalNotice('invite')),
+        findsNothing,
+      );
     });
 
     testWidgets('approval 選得也讀得：現值是它時那顆 chip 被選中並多講一句它做什麼', (

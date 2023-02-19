@@ -138,6 +138,55 @@ void main() {
         'password',
       });
     });
+
+    test('invite 模式帶碼：本體多一格 invite_code 且原值遞交', () async {
+      late String capturedBody;
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        capturedBody = request.body;
+        return jsonStatus(registerSuccessBody, 201);
+      });
+      await api.register(
+        loginName: 'inv.it.ee',
+        displayName: '受邀者',
+        password: 'pw12345678',
+        inviteCode: 'AbCdEfGhIjKlMnOpQrStUv',
+      );
+
+      final Map<String, Object?> decoded = jsonMapOf(capturedBody);
+      expect(decoded.keys.toSet(), <String>{
+        'login_name',
+        'display_name',
+        'password',
+        'invite_code',
+      });
+      expect(decoded['invite_code'], 'AbCdEfGhIjKlMnOpQrStUv');
+    });
+
+    test('不帶碼（開放／核准）：缺席就不發這一格，而非發一個空字串', () async {
+      late String capturedBody;
+      final ServerApi api = apiWithHandler((http.Request request) async {
+        capturedBody = request.body;
+        return jsonStatus(registerSuccessBody, 201);
+      });
+      await api.register(
+        loginName: 'open.user',
+        displayName: '開放者',
+        password: 'pw12345678',
+        inviteCode: '',
+      );
+
+      final Map<String, Object?> decoded = jsonMapOf(capturedBody);
+      expect(
+        decoded.containsKey('invite_code'),
+        isFalse,
+        reason: '空字串等於不帶碼：不該把一個 invite_code 空格送進本體',
+      );
+      expect(
+        capturedBody,
+        isNot(contains('invite_code')),
+        reason: '明文邀请码不得出现在不帶碼的本體裡',
+      );
+    });
   });
 
   group('register 錯誤對映', () {
@@ -183,6 +232,25 @@ void main() {
       expect(error.knownCode, isNot(ApiMachineCode.accountCreationDisabled));
     });
 
+    test(
+      '2023 invite 碼被拒 → inviteCodeRejected，與 2017/2019/2022 都可判別且不可重試',
+      () async {
+        final ApiError error = await failure(
+          403,
+          '{"code":2023,"message":"...","request_id":"r"}',
+        );
+        expect(error.machineCode, 2023);
+        expect(error.knownCode, ApiMachineCode.inviteCodeRejected);
+        // 四個 403／業務碼各成一句：准入被策略關（2017）、名字被佔（2019）、Root 撤銷（2022）
+        // 都不是「你帶的碼不對」這一句。
+        expect(error.knownCode, isNot(ApiMachineCode.accountCreationDisabled));
+        expect(error.knownCode, isNot(ApiMachineCode.selfRegisterNameTaken));
+        expect(error.knownCode, isNot(ApiMachineCode.inviteAlreadyRevoked));
+        // 原樣重發同一枚無效碼不會變好——處置是去要一枚新的有效碼，故不可重試。
+        expect(error.retryable, isFalse);
+      },
+    );
+
     test('2006 限流 → loginThrottled，標為可重試（處置是等一會兒）', () async {
       final ApiError error = await failure(
         429,
@@ -222,12 +290,13 @@ void main() {
   });
 
   group('登入前入口能力 sign_up_open', () {
-    test('GET /auth/capabilities 只讀兩個布林', () async {
+    test('GET /auth/capabilities 只讀三個布林', () async {
       final List<http.Request> sent = <http.Request>[];
       final ServerApi api = apiWithHandler((http.Request request) async {
         sent.add(request);
         return jsonOk(
-          '{"sign_up_open":true,"guest_open":false,"request_id":"r"}',
+          '{"sign_up_open":true,"invite_code_required":true,'
+          '"guest_open":false,"request_id":"r"}',
         );
       });
 
@@ -235,6 +304,7 @@ void main() {
       expect(sent.single.method, 'GET');
       expect(sent.single.url.path, kAuthCapabilitiesPath);
       expect(report.entry.signUpOpen, isTrue);
+      expect(report.entry.inviteCodeRequired, isTrue);
       expect(report.entry.guestOpen, isFalse);
     });
 
@@ -242,6 +312,7 @@ void main() {
       expect(
         () => EntryCapabilitiesReport.decode(<String, Object?>{
           'sign_up_open': true,
+          'guest_open': false,
           'request_id': 'r',
         }),
         throwsA(isA<ApiResponseShapeException>()),

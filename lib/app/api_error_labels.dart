@@ -49,6 +49,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.notAnApplication => l10n.errorCodeNotAnApplication,
       ApiMachineCode.applicationDecided => l10n.errorCodeApplicationDecided,
       ApiMachineCode.inviteAlreadyRevoked => l10n.errorCodeInviteAlreadyRevoked,
+      ApiMachineCode.inviteCodeRejected => l10n.errorCodeInviteCodeRejected,
     };
   }
 

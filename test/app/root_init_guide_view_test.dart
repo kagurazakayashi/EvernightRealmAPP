@@ -38,7 +38,8 @@ const String initializedBody =
 /// 同一頁上另有會自動查准入的自註冊入口卡；本卡只關心自己的狀態端點，故給那條通路
 /// 一份合法且關閉的回應，使其不影響本卡的請求計數、也不在外層拋解碼例外。
 const String neutralCapsBody =
-    '{"sign_up_open":false,"guest_open":false,"request_id":"r-caps-neutral"}';
+    '{"sign_up_open":false,"invite_code_required":false,"guest_open":false,'
+    '"request_id":"r-caps-neutral"}';
 
 /// 一台隨測試擺佈的假伺服器，加上它被問過的每一次請求。
 class _Fixture {

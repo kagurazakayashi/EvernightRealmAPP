@@ -29,9 +29,10 @@ import '../../support/test_session.dart';
 /// 測試固定以繁體中文呈現；斷言用的期望文字取自同一份資源。
 const Locale _locale = Locale('zh', 'TW');
 
-/// 一則入口能力回應：只問 `sign_up_open`，另一個格子恆為關以保持中立。
-String capsBody({required bool signUpOpen}) =>
-    '{"sign_up_open":$signUpOpen,"guest_open":false,'
+/// 一則入口能力回應：只問 `sign_up_open`，其餘格子恆為關以保持中立。
+String capsBody({required bool signUpOpen, bool inviteCodeRequired = false}) =>
+    '{"sign_up_open":$signUpOpen,'
+    '"invite_code_required":$inviteCodeRequired,"guest_open":false,'
     '"request_id":"r-caps"}';
 
 /// 統一錯誤信封。
@@ -326,9 +327,10 @@ void main() {
       expect(caps.single.url.path, kAuthCapabilitiesPath);
       // GET 沒有本體，因此也無處夾帶任何自報身分；這恰是入口合同「只進不出」的一面。
       expect(caps.single.body, isEmpty);
-      // 回話僅兩格布林：卡片不讀也不顯示任何模式名字、閾值或帳戶清單。
+      // 回話僅三個布林：卡片不讀也不顯示任何模式名字、閾值或帳戶清單。
       expect(jsonDecode(capsBody(signUpOpen: true)).keys.toSet(), <String>{
         'sign_up_open',
+        'invite_code_required',
         'guest_open',
         'request_id',
       });

@@ -15,11 +15,13 @@
 /// * 其他值（合同日後多出來的狀態）——不猜成可用、也不猜成等待，如實說認不得。
 ///
 /// 呈現上守住的幾條界線：
-/// * 請求本體只有登入名、顯示名與自選口令三個欄位：後端合同裡沒有角色／類型／狀態／活動
-///   標識的格子，這一頁因此也不放任何這類控件；把自己「註冊成管理員」在協定層就沒有一個
-///   可以填的地方（多帶即 1004）。
+/// * 請求本體只有登入名、顯示名與自選口令三個必填欄位，外加一個「依模式才用到」的邀請碼：
+///   後端合同裡沒有角色／類型／狀態／活動標識的格子，這一頁因此也不放任何這類控件；把自己
+///   「註冊成管理員」在協定層就沒有一個可以填的地方（多帶即 1004）。邀請碼欄位只在
+///   `/auth/capabilities` 回報 `invite_code_required`（invite 模式）時才出現並遞交，開放／核准
+///   模式不顯示、也不發這一格；它是短暫停留的秘密，成功後连同口令一起清空，不進 URL、歷史或日誌。
 /// * 口令不在本層留下任何痕跡：只在這一次送交的參數裡存在，不寫進狀態、不顯示、不進日誌；
-///   成功後三個欄位一律清空。回應本體也不含口令（合同就沒有這個欄位）。
+///   成功後各欄一律清空。回應本體也不含口令（合同就沒有這個欄位）。
 /// * 自註冊建的按定義是普通帳戶：不帶任何伺服器級授予、沒有活動身份與資產。「已建立」
 ///   不等於「已加入活動」，成功摘要把這件事講在第一線。
 /// * 註冊成功刻意不簽發會話：這一頁既不寫 Cookie 也不保存令牌，登入仍走 `/auth/login`
@@ -56,6 +58,9 @@ class RegisterPage extends StatefulWidget {
   /// 口令輸入框的測試識別鍵。
   static const Key passwordKey = ValueKey<String>('register-password');
 
+  /// 邀請碼輸入框的測試識別鍵（只在 `/auth/capabilities` 回報需要碼時才出現）。
+  static const Key inviteCodeKey = ValueKey<String>('register-invite-code');
+
   /// 提交按鈕的測試識別鍵。
   static const Key submitKey = ValueKey<String>('register-submit');
 
@@ -79,20 +84,58 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _loginName = TextEditingController();
   final TextEditingController _displayName = TextEditingController();
   final TextEditingController _password = TextEditingController();
+  final TextEditingController _inviteCode = TextEditingController();
 
   _SubmitPhase _phase = _SubmitPhase.idle;
+
+  /// 此刻自行註冊要不要帶一枚邀請碼——唯一來源是 `/auth/capabilities` 的 `invite_code_required`。
+  ///
+  /// 預設 false（查不出來＝不知道＝先按不需要顯示，不憑空擺一格要人填）。它只決定要不要顯示
+  /// 邀請碼欄位，永遠不是准入：寫入那一刻後端現讀策略重判，前端瞞不過「invite 缺碼即 2023」那道檢查。
+  /// 模式中途被 Root 改掉時，下一次載入這份答案就跟隨新值，表單因此重新顯示或收起這一欄。
+  bool _inviteCodeRequired = false;
 
   /// 一行提示：本地校驗與失敗轉述共用同一條；成功後清空。
   String? _notice;
 
-  /// 最近一次註冊成功的結果（可展示事實，不含任何口令）。
+  /// 最近一次註冊成功的結果（可展示事實，不含任何口令或邀請碼）。
   SelfRegisterReport? _created;
+
+  @override
+  void initState() {
+    super.initState();
+    // 入口答案現讀放到第一幀之後：AppScope.of(context) 經 dependOnInheritedWidgetOfExactType，
+    // 在 initState 同步階段存取 InheritedWidget 是框架禁止的（依賴尚未就緒）。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCapabilities());
+  }
+
+  /// 匿名讀一次入口答案，只为決定邀請碼欄位該不該出現。
+  ///
+  /// 這是一次「顯示用」的讀取，失敗就照實退回首選的 false（不顯示這一欄），不猜成 true 去逼問一筆
+  /// 或許根本不需要的輸入；也不因為讀到舊答案就拒絕提交——真正判准入的仍是提交時伺服器的現讀。
+  Future<void> _loadCapabilities() async {
+    try {
+      final EntryCapabilitiesReport report = await AppScope.of(context).api
+          .entryCapabilities(acceptLanguage: _acceptLanguage);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _inviteCodeRequired = report.entry.inviteCodeRequired);
+    } on ApiError {
+      // 查不出來＝不知道此刻要不要碼：保守地不顯示這一欄。後端仍會在提交時如實判定 invite 缺碼。
+      if (!mounted) {
+        return;
+      }
+      setState(() => _inviteCodeRequired = false);
+    }
+  }
 
   @override
   void dispose() {
     _loginName.dispose();
     _displayName.dispose();
     _password.dispose();
+    _inviteCode.dispose();
     super.dispose();
   }
 
@@ -114,7 +157,12 @@ class _RegisterPageState extends State<RegisterPage> {
     final String loginName = _loginName.text.trim();
     final String displayName = _displayName.text.trim();
     final String password = _password.text;
-    if (loginName.isEmpty || displayName.isEmpty || password.isEmpty) {
+    final String inviteCode = _inviteCode.text.trim();
+    final bool needInvite = _inviteCodeRequired;
+    if (loginName.isEmpty ||
+        displayName.isEmpty ||
+        password.isEmpty ||
+        (needInvite && inviteCode.isEmpty)) {
       setState(() => _notice = l10n.registerFormIncompleteNotice);
       return;
     }
@@ -128,16 +176,19 @@ class _RegisterPageState extends State<RegisterPage> {
         loginName: loginName,
         displayName: displayName,
         password: password,
+        // 只在需要碼的模式遞交這一欄；其餘模式不發這個欄位（後端也不看它）。
+        inviteCode: needInvite ? inviteCode : null,
         acceptLanguage: _acceptLanguage,
       );
       if (!mounted) {
         return;
       }
-      // 成功後三個欄位一律清空：留著口令等於把自選憑據多留在記憶體裡一會兒，
-      // 留著登入名只會讓「再點一次」變成拿同一個名字撞第二次（2019）。
+      // 成功後四個輸入欄一律清空：留口令＝把自選憑據多留一會兒，留邀請碼＝讓它多停在一處
+      // 可能被人翻看的狀態，留登入名只會讓「再點一次」變成拿同一個名字撞第二次（2019）。
       _loginName.clear();
       _displayName.clear();
       _password.clear();
+      _inviteCode.clear();
       setState(() {
         _phase = _SubmitPhase.idle;
         _created = report;
@@ -236,6 +287,25 @@ class _RegisterPageState extends State<RegisterPage> {
                     isDense: true,
                   ),
                 ),
+                // 只在此刻生效的模式要求帶碼時才出現這一欄：它由 `/auth/capabilities` 的
+                // invite_code_required 決定，開放／核准模式下不顯示、也不發這一格。
+                if (_inviteCodeRequired) ...<Widget>[
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: RegisterPage.inviteCodeKey,
+                    controller: _inviteCode,
+                    enabled: !submitting,
+                    maxLines: 1,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      labelText: l10n.registerInviteCodeLabel,
+                      helperText: l10n.registerInviteCodeHint,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 40,

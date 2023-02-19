@@ -328,16 +328,21 @@ class ServerApi {
   /// 交易裡）：呼叫端不預讀、也預讀不到——[entryCapabilities] 那個入口答案只決定界面
   /// 「要不要顯示這扇門」，從不代替提交時的二次判定。開關關閉回 2017、模式對應的准入
   /// 流程尚未上線回 2016、登入名已被佔用回 2019（與需要已認證主體的 2012 分開）、
-  /// 口令或登入名不合規回 1004 並點名是哪個欄位、來源被限流回 2006 並附 Retry-After。
+  /// 口令或登入名不合規回 1004 並點名是哪個欄位、來源被限流回 2006 並附 Retry-After、
+  /// 邀請碼模式下一枚換不出帳戶的碼（缺／壞／過期／撤銷／用盡）回 2023（不區分原因）。
   ///
-  /// 三個入參只有登入名、顯示名與本人自選口令，沒有也不需要任何角色／類型／狀態欄位：
-  /// 「建的是普通帳戶」由「打到哪個端點」決定，請求本體多帶會被後端打成 1004。
+  /// 入參是登入名、顯示名、本人自選口令，外加一個「依模式才用到」的 [inviteCode]：
+  /// 沒有任何角色／類型／狀態欄位——「建的是普通帳戶」由「打到哪個端點」決定。
+  /// [inviteCode] 只在 `/auth/capabilities` 回報需要碼（invite 模式）時由表單遞進來；
+  /// 其餘模式不發這個欄位（缺席＝後端不讀它、也不核銷任何一枚碼）。它是短暫停留的秘密：
+  /// 只在這次呼叫的請求本體裡存在，呼叫端不得把它寫進 URL、瀏覽器歷史、狀態或緩存。
   /// 成功不帶回任何會話材料（本路徑不簽發 Cookie），因此走 [ApiClient.post] 而非
   /// captureCookie 那一條；口令只在這一次調用裡存在，呼叫端不得把它存進任何狀態或緩存。
   Future<SelfRegisterReport> register({
     required String loginName,
     required String displayName,
     required String password,
+    String? inviteCode,
     String? acceptLanguage,
   }) {
     return apiClient.post<SelfRegisterReport>(
@@ -346,6 +351,9 @@ class ServerApi {
         'login_name': loginName,
         'display_name': displayName,
         'password': password,
+        // 缺席＝不帶這個欄位（開放／核准模式不看碼）；帶值才進本體，供 invite 模式核銷。
+        if (inviteCode != null && inviteCode.isNotEmpty)
+          'invite_code': inviteCode,
       },
       decode: SelfRegisterReport.decode,
       acceptLanguage: acceptLanguage,
@@ -932,11 +940,12 @@ class ServerApi {
     );
   }
 
-  /// 讀取登入前界面的兩個入口答案：GET `/auth/capabilities`（匿名可讀）。
+  /// 讀取登入前界面的三個入口答案：GET `/auth/capabilities`（匿名可讀）。
   ///
-  /// 這是尚未登入的界面唯一被允許詢問的准入資訊：回應只有兩個布林加關聯 ID，
-  /// 不含模式名字、修改時刻、建號開關、帳戶清單或任何閾值。呼叫端必須把查不出來
-  /// 當成「不知道」處理（不顯示任何入口），而不是猜一個答案——猜「開」會露出一個
+  /// 這是尚未登入的界面唯一被允許詢問的准入資訊：回應只有三個布林加關聯 ID，
+  /// 不含模式名字、修改時刻、建號開關、帳戶清單或任何閾值。第三個布林 [AccountEntryCapabilities.inviteCodeRequired]
+  /// 只講「這一趟自行註冊要不要帶一枚碼」，讓共享註冊表單決定要不要顯示邀請碼欄位。
+  /// 呼叫端必須把查不出來當成「不知道」處理（不顯示任何入口），而不是猜一個答案——猜「開」會露出一個
   /// 按下去必然失敗的入口，猜「關」也會讓一次故障看起來像 Root 做了決定。
   Future<EntryCapabilitiesReport> entryCapabilities({String? acceptLanguage}) {
     return apiClient.get(

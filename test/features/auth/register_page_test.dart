@@ -132,6 +132,16 @@ class _Fixture {
   }
 }
 
+/// 匯總目前畫面上所有 Text 的文字，供「不得出現某串」的掃描。
+String _allText(WidgetTester tester) {
+  final StringBuffer buffer = StringBuffer();
+  for (final Text widget in tester.widgetList<Text>(find.byType(Text))) {
+    buffer.write(widget.data ?? '');
+    buffer.write('\n');
+  }
+  return buffer.toString();
+}
+
 void main() {
   late AppLocalizations l10n;
 
@@ -206,6 +216,106 @@ void main() {
         find.byKey(RegisterPage.submitKey),
       );
       expect(button.onPressed, isNull);
+    });
+  });
+
+  group('邀請碼模式形態', () {
+    // 一則「要求帶碼」的入口能力回應：只有 invite_code_required 被點亮時表單才多一格。
+    const StubResponse capsInviteRequired = (
+      status: 200,
+      body:
+          '{"sign_up_open":true,"invite_code_required":true,'
+          '"guest_open":false,"request_id":"r-caps"}',
+      headers: <String, String>{},
+    );
+    const StubResponse registerOk = (
+      status: 201,
+      body: registerSuccessBody,
+      headers: <String, String>{},
+    );
+    const String invitePlaintext = 'AbCdEfGhIjKlMnOpQrStUv';
+
+    testWidgets('要求帶碼時才出現邀請碼欄；提交把它放進本體、成功後清空且不回顯', (WidgetTester tester) async {
+      final _Fixture fixture = _Fixture(
+        reply: _Fixture.ok(<String, StubResponse>{
+          kAuthCapabilitiesPath: capsInviteRequired,
+          kAuthRegisterPath: registerOk,
+        }),
+      );
+      await pump(tester, fixture);
+      await gotoRegister(tester);
+      // post-frame 現讀入口答案回來後才決定要不要顯示這一格。
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(RegisterPage.inviteCodeKey), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(RegisterPage.loginNameKey),
+        'inv.it.ee',
+      );
+      await tester.enterText(find.byKey(RegisterPage.displayNameKey), '受邀者');
+      await tester.enterText(
+        find.byKey(RegisterPage.passwordKey),
+        _fakePassword,
+      );
+      await tester.enterText(
+        find.byKey(RegisterPage.inviteCodeKey),
+        invitePlaintext,
+      );
+      await tester.tap(find.byKey(RegisterPage.submitKey));
+      await tester.pumpAndSettle();
+
+      final List<http.Request> posts = fixture.to(kAuthRegisterPath);
+      expect(posts, hasLength(1));
+      final Map<String, Object?> sent =
+          jsonDecode(posts.single.body) as Map<String, Object?>;
+      expect(sent['invite_code'], invitePlaintext);
+
+      // 成功摘要出現；明文碼既不在任何提示文字、也不在被顯示的摘要裡。
+      expect(find.byKey(RegisterPage.createdKey), findsOneWidget);
+      final String notice = _allText(tester);
+      expect(notice, isNot(contains(invitePlaintext)));
+      // 成功後整張表單退出編輯態、換成摘要：邀請碼欄不再挂载，明文碼因此不會留在畫面上任何一處。
+      expect(find.byKey(RegisterPage.inviteCodeKey), findsNothing);
+    });
+
+    testWidgets('入口能力沒點亮要求碼時不出現這一格，提交也不發 invite_code', (
+      WidgetTester tester,
+    ) async {
+      final _Fixture fixture = _Fixture(
+        reply: _Fixture.ok(<String, StubResponse>{
+          kAuthCapabilitiesPath: const (
+            status: 200,
+            body:
+                '{"sign_up_open":true,"invite_code_required":false,'
+                '"guest_open":false,"request_id":"r-caps"}',
+            headers: <String, String>{},
+          ),
+          kAuthRegisterPath: registerOk,
+        }),
+      );
+      await pump(tester, fixture);
+      await gotoRegister(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(RegisterPage.inviteCodeKey), findsNothing);
+
+      await tester.enterText(
+        find.byKey(RegisterPage.loginNameKey),
+        'open.user',
+      );
+      await tester.enterText(find.byKey(RegisterPage.displayNameKey), '開放者');
+      await tester.enterText(
+        find.byKey(RegisterPage.passwordKey),
+        _fakePassword,
+      );
+      await tester.tap(find.byKey(RegisterPage.submitKey));
+      await tester.pumpAndSettle();
+
+      expect(
+        fixture.to(kAuthRegisterPath).single.body,
+        isNot(contains('invite_code')),
+      );
     });
   });
 

@@ -22,6 +22,7 @@ String _policyBody({
   bool guest = false,
   String? updatedAt = '2026-10-03T09:00:00.000Z',
   bool signUpOpen = false,
+  bool inviteCodeRequired = false,
   bool guestOpen = false,
 }) {
   final Map<String, Object?> body = <String, Object?>{
@@ -30,6 +31,7 @@ String _policyBody({
     'guest_enabled': guest,
     'entry': <String, Object?>{
       'sign_up_open': signUpOpen,
+      'invite_code_required': inviteCodeRequired,
       'guest_open': guestOpen,
     },
     'request_id': 'r-policy',
@@ -83,15 +85,34 @@ void main() {
       expect(report.updatedAt, isNull);
     });
 
-    test('模式原字保留：未知名字不降級成 closed，並被標為本版本不可選', () async {
-      final ServerApi api = apiWithHandler(
+    test('已落地模式保留原字且標為本版本可選：approval 與 invite 都寫得進', () async {
+      final ServerApi approvalApi = apiWithHandler(
         (http.Request request) async => jsonOk(_policyBody(mode: 'approval')),
       );
+      final AccountPolicyReport approval = await approvalApi.accountPolicy();
+      expect(approval.selfRegisterMode, 'approval');
+      expect(approval.isKnownMode, isTrue);
+      expect(approval.isWritableMode, isTrue);
 
+      final ServerApi inviteApi = apiWithHandler(
+        (http.Request request) async => jsonOk(_policyBody(mode: 'invite')),
+      );
+      final AccountPolicyReport invite = await inviteApi.accountPolicy();
+      expect(invite.selfRegisterMode, 'invite');
+      expect(invite.isKnownMode, isTrue);
+      expect(invite.isWritableMode, isTrue);
+    });
+
+    test('界面還認不得的模式名字保留原字、標為不可選，不降級成 closed', () async {
+      // 四個已批准名字之外的值（未來後端多出的那一個）：原字帶回、isKnownMode 假、不可選，
+      // 界面據此顯示那個原字並說明「本版本選不了它」，而不是默默當成 closed。
+      final ServerApi api = apiWithHandler(
+        (http.Request request) async =>
+            jsonOk(_policyBody(mode: 'future_mode')),
+      );
       final AccountPolicyReport report = await api.accountPolicy();
-
-      expect(report.selfRegisterMode, 'approval');
-      expect(report.isKnownMode, isTrue);
+      expect(report.selfRegisterMode, 'future_mode');
+      expect(report.isKnownMode, isFalse);
       expect(report.isWritableMode, isFalse);
     });
 
@@ -205,12 +226,13 @@ void main() {
       expect(ApiMachineCode.accountPolicyModeUnavailable.value, 2016);
     });
 
-    test('對外入口端點走 /auth/capabilities，只有兩個布林加關聯 ID', () async {
+    test('對外入口端點走 /auth/capabilities，只有三個布林加關聯 ID', () async {
       final List<String> asked = <String>[];
       final ServerApi api = apiWithHandler((http.Request request) async {
         asked.add(request.url.path);
         return jsonOk(
-          '{"sign_up_open":false,"guest_open":false,"request_id":"r-entry"}',
+          '{"sign_up_open":false,"invite_code_required":false,'
+          '"guest_open":false,"request_id":"r-entry"}',
         );
       });
 
@@ -218,6 +240,7 @@ void main() {
 
       expect(asked, <String>[kAuthCapabilitiesPath]);
       expect(report.entry.signUpOpen, isFalse);
+      expect(report.entry.inviteCodeRequired, isFalse);
       expect(report.entry.guestOpen, isFalse);
       expect(report.requestId, 'r-entry');
     });
