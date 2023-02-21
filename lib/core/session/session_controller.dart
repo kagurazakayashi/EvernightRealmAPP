@@ -202,6 +202,7 @@ class ActiveSession {
     required this.accountId,
     required this.deviceId,
     required this.expiresAt,
+    this.accountType,
     this.mustChangePassword = false,
     this.roles = const <String>[],
   });
@@ -211,6 +212,7 @@ class ActiveSession {
     : this(
         subjectKind: report.subjectKind,
         accountId: report.accountId,
+        accountType: report.accountType,
         deviceId: report.deviceId,
         expiresAt: report.expiresAt,
         mustChangePassword: report.mustChangePassword,
@@ -222,6 +224,7 @@ class ActiveSession {
     : this(
         subjectKind: report.subjectKind,
         accountId: report.accountId,
+        accountType: report.accountType,
         deviceId: report.deviceId,
         expiresAt: report.expiresAt,
         mustChangePassword: report.mustChangePassword,
@@ -240,12 +243,17 @@ class ActiveSession {
   /// 於是這裡只能沿用既有事實，不能憑空當成「沒有角色」。
   /// 界面的入口因此不會因為一次換密而閃掉；真正的權限判定仍在服務端逐請求現讀，
   /// 這裡保留的清單多留一會兒不會讓任何端點放行。
+  ///
+  /// [previousAccountType] 同理沿用：帳戶類型是主體自己的事實（普通帳戶不會因為
+  /// 換了一枚秘密就變成訪客，反之亦然），而輪換回應不帶這一欄。
   ActiveSession.fromRotation(
     RotationReport report, {
     List<String> previousRoles = const <String>[],
+    AuthAccountType? previousAccountType,
   }) : this(
          subjectKind: report.subjectKind,
          accountId: report.accountId,
+         accountType: previousAccountType,
          deviceId: report.deviceId,
          expiresAt: report.expiresAt,
          roles: previousRoles,
@@ -256,6 +264,12 @@ class ActiveSession {
 
   /// 帳戶標識；Root 主體為 `null`。
   final String? accountId;
+
+  /// 帳戶類型（普通帳戶或訪客）；Root 主體與未帶這一欄的舊版服務端為 `null`。
+  ///
+  /// 它只來自 `/auth/login`、`/auth/guest` 與 `/auth/session` 的伺服器回應，
+  /// 本層不自創判定。界面拿它決定「這是一份臨時身分」這句話要不要講。
+  final AuthAccountType? accountType;
 
   /// 可安全展示與保存的設備標識。
   final String deviceId;
@@ -278,6 +292,12 @@ class ActiveSession {
 
   /// 是否為伺服器級管理員（據後端真實授予，不據任何自報欄位）。
   bool get isServerAdmin => roles.contains(kServerAdminRole);
+
+  /// 是否為訪客（臨時）帳戶：只由伺服器回報的 `account_type` 決定。
+  ///
+  /// 缺席（服務端未帶這一欄）與 `standard` 在這裡都是 false：未知不等於確認，
+  /// 界面因此不會對著一個沒被告知過的類別宣稱「您是訪客」。
+  bool get isGuest => accountType == AuthAccountType.guest;
 }
 
 /// 會話狀態控制器（可訂閱）。
@@ -633,6 +653,7 @@ class SessionController extends ChangeNotifier {
       _active = ActiveSession.fromRotation(
         report,
         previousRoles: _active?.roles ?? const <String>[],
+        previousAccountType: _active?.accountType,
       );
       _lastStorageFailure = null;
       // 剛換發的新秘密即刻生效：本端與伺服器又對上了，狀態回到已登入。
@@ -659,6 +680,7 @@ class SessionController extends ChangeNotifier {
     _active = ActiveSession.fromRotation(
       report,
       previousRoles: _active?.roles ?? const <String>[],
+      previousAccountType: _active?.accountType,
     );
     // 與瀏覽器形態同理：換發成功即證明這枚會話可用，狀態回到已登入。
     _status = SessionStatus.signedIn;

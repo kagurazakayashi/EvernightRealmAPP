@@ -8,14 +8,16 @@ import 'package:evernightrealm/core/api/server_models.dart';
 import 'package:evernightrealm/core/session/session_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-LoginReport _login({String? roles}) => LoginReport.decode(<String, Object?>{
-  'subject_kind': 'account',
-  'account_id': 'acct-1',
-  'device_id': 'device-1',
-  'expires_at': '2026-10-02T10:00:00.000Z',
-  if (roles != null) 'roles': <String>[roles],
-  'request_id': 'r-1',
-});
+LoginReport _login({String? roles, String? accountType}) =>
+    LoginReport.decode(<String, Object?>{
+      'subject_kind': 'account',
+      'account_id': 'acct-1',
+      'device_id': 'device-1',
+      'expires_at': '2026-10-02T10:00:00.000Z',
+      if (roles != null) 'roles': <String>[roles],
+      'account_type': ?accountType,
+      'request_id': 'r-1',
+    });
 
 CurrentSessionReport _session({List<String> roles = const <String>[]}) =>
     CurrentSessionReport.decode(<String, Object?>{
@@ -84,5 +86,60 @@ void main() {
     );
     expect(future.roles, <String>['activity_owner']);
     expect(future.isServerAdmin, isFalse);
+  });
+
+  test('訪客類型只來自伺服器回應；輪換沿用、缺席時是未知而不是普通帳戶', () {
+    final ActiveSession guest = ActiveSession.fromLogin(
+      _login(accountType: 'guest'),
+    );
+    expect(guest.isGuest, isTrue);
+    expect(guest.accountType, AuthAccountType.guest);
+    // 訪客按定義不帶授予：就算有人在回應裡塞了 roles，isServerAdmin 那句仍由 roles 說話，
+    // 兩格各自獨立，界面不會因為「他是訪客」就宣稱他有或沒有某種授予。
+    expect(
+      ActiveSession.fromLogin(_login(accountType: 'guest')).roles,
+      isEmpty,
+    );
+
+    // 欄位缺席（這一版服務端沒告訴我們）：未知，既不冒充訪客也不冒充普通帳戶。
+    final ActiveSession unknown = ActiveSession.fromLogin(_login());
+    expect(unknown.accountType, isNull);
+    expect(unknown.isGuest, isFalse);
+
+    final RotationReport rotated = RotationReport.decode(<String, Object?>{
+      'subject_kind': 'account',
+      'account_id': 'acct-1',
+      'device_id': 'device-1',
+      'rotation_seq': 2,
+      'expires_at': '2026-10-02T10:00:00.000Z',
+      'request_id': 'r-3',
+    });
+    // 輪換換的是秘密不是身分：類型必須沿用，否則一次換密就把訪客唸成普通帳戶。
+    expect(
+      ActiveSession.fromRotation(
+        rotated,
+        previousAccountType: guest.accountType,
+      ).isGuest,
+      isTrue,
+    );
+    expect(ActiveSession.fromRotation(rotated).isGuest, isFalse);
+
+    // 刷新／重開之後走 /auth/session：那一欄是界面還認得臨時身分的唯一依據。
+    expect(
+      ActiveSession.fromCurrentSession(
+        CurrentSessionReport.decode(<String, Object?>{
+          'subject_kind': 'account',
+          'account_id': 'acct-1',
+          'account_type': 'guest',
+          'device_id': 'device-1',
+          'rotation_seq': 1,
+          'created_at': '2026-10-02T09:00:00.000Z',
+          'last_active_at': '2026-10-02T09:30:00.000Z',
+          'expires_at': '2026-10-02T10:00:00.000Z',
+          'request_id': 'r-2',
+        }),
+      ).isGuest,
+      isTrue,
+    );
   });
 }

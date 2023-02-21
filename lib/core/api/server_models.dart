@@ -342,6 +342,52 @@ String? _optionalAccountId(Map<String, Object?> json, AuthSubjectKind kind) {
   return value;
 }
 
+/// 認証合同發布的帳戶類型（值與後端 `account_type` 欄位逐字一致）。
+///
+/// 它回答的是「這個已認證的帳戶是哪一類人」，而 [AuthSubjectKind] 回答的是
+/// 「這枚會話綁的是帳戶還是 Root」——兩格問的是不同的事，混成一格就讀不出
+/// 「他是一位帶著有效會話的訪客」。
+enum AuthAccountType {
+  /// 普通帳戶：帶一般憑據（口令），可由本人反覆用以登入。
+  standard,
+
+  /// 訪客帳戶：按定義沒有任何憑據，其存在只綁在手上的會話。
+  guest,
+}
+
+/// 嚴格讀取可選的帳戶類型。
+///
+/// 三個方向各自成句，而且都不猜：
+/// * Root 主體不該帶這一欄（他不在 accounts 表裡）——帶了就是合同違例，
+///   而不是「默默當成沒有」，那會讓一欄寫壞的資料被讀成一個正當事實；
+/// * 欄位缺席回 `null`：那是「這一版服務端沒告訴我是哪一類」，不是「他一定是普通帳戶」。
+///   界面拿到 null 時沿用舊的呈現（不宣稱訪客），拿到 guest 時才改口；
+/// * 出現但不是已發布的兩個值之一即失敗：第三類主體的含義未知，
+///   猜成任何一類都是替伺服器編一個它沒說過的決定（與 [AuthSubjectKind] 同一取向）。
+AuthAccountType? _optionalAccountType(
+  Map<String, Object?> json,
+  AuthSubjectKind kind,
+) {
+  final Object? value = json['account_type'];
+  if (kind == AuthSubjectKind.root) {
+    if (value != null) {
+      throw ApiResponseShapeException('root 主體不該攜帶 account_type');
+    }
+    return null;
+  }
+  if (value == null) {
+    return null;
+  }
+  if (value is! String) {
+    throw ApiResponseShapeException('account_type 需為字串');
+  }
+  return switch (value) {
+    'standard' => AuthAccountType.standard,
+    'guest' => AuthAccountType.guest,
+    _ => throw ApiResponseShapeException('account_type 值 $value 不在合同內'),
+  };
+}
+
 /// `/auth/login` 與 `/auth/root/login` 的成功回應。
 ///
 /// 合同裡沒有會話秘密：它只出現在 `Set-Cookie` 標頭（原生客戶端由此讀取，
@@ -354,6 +400,7 @@ class LoginReport {
     required this.deviceId,
     required this.expiresAt,
     required this.requestId,
+    this.accountType,
     this.mustChangePassword = false,
     this.roles = const <String>[],
   });
@@ -364,6 +411,7 @@ class LoginReport {
     return LoginReport(
       subjectKind: kind,
       accountId: _optionalAccountId(json, kind),
+      accountType: _optionalAccountType(json, kind),
       deviceId: _requireText(json, 'device_id'),
       expiresAt: _requireUtcTime(json, 'expires_at'),
       requestId: _requireText(json, 'request_id'),
@@ -377,6 +425,13 @@ class LoginReport {
 
   /// 帳戶標識（UUIDv7 字串）；Root 主體為 `null`。
   final String? accountId;
+
+  /// 帳戶類型（standard|guest）；Root 主體或舊版服務端未帶這一欄時為 `null`。
+  ///
+  /// 它是「這一趟是不是臨時受限身分」的伺服器權威答案，界面據此決定摘要卡講
+  /// 訪客還是講普通帳戶。它不是權限的依據：每一次判定的真相仍在服務端，
+  /// 把這一欄改成任何樣子都不會讓任何一個端點多放行一件事。
+  final AuthAccountType? accountType;
 
   /// 用戶可見的設備標識（洩露也換不來操作能力，可安全展示與保存）。
   final String deviceId;
@@ -401,6 +456,10 @@ class LoginReport {
 
   /// 是否被後端認定為伺服器級管理員（据真實授予，不是據自報欄位）。
   bool get isServerAdmin => roles.contains(kServerAdminRole);
+
+  /// 是否為訪客（臨時）帳戶：只由伺服器回報的 `account_type` 決定，
+  /// 缺席時如實是 false（未知不等於確認）。
+  bool get isGuest => accountType == AuthAccountType.guest;
 }
 
 /// `/auth/session` 的成功回應：當前會話的事實，比登入回應多帶建立與最近活動時刻。
@@ -415,6 +474,7 @@ class CurrentSessionReport {
     required this.lastActiveAt,
     required this.expiresAt,
     required this.requestId,
+    this.accountType,
     this.mustChangePassword = false,
     this.roles = const <String>[],
   });
@@ -425,6 +485,7 @@ class CurrentSessionReport {
     return CurrentSessionReport(
       subjectKind: kind,
       accountId: _optionalAccountId(json, kind),
+      accountType: _optionalAccountType(json, kind),
       deviceId: _requireText(json, 'device_id'),
       rotationSeq: _requireInt(json, 'rotation_seq'),
       createdAt: _requireUtcTime(json, 'created_at'),
@@ -441,6 +502,12 @@ class CurrentSessionReport {
 
   /// 帳戶標識；Root 主體為 `null`。
   final String? accountId;
+
+  /// 帳戶類型（standard|guest）；Root 主體或舊版服務端未帶這一欄時為 `null`。
+  ///
+  /// 這一端點是「刷新與重開之後還認不認得自己是訪客」的唯一依據：少了它，
+  /// 恢復過來的會話會被唸成普通帳戶，而那是一句不準確的話。
+  final AuthAccountType? accountType;
 
   /// 用戶可見的設備標識。
   final String deviceId;
@@ -479,6 +546,9 @@ class CurrentSessionReport {
 
   /// 是否被後端認定為伺服器級管理員（據真實授予；自報欄位在合同裡根本不存在）。
   bool get isServerAdmin => roles.contains(kServerAdminRole);
+
+  /// 是否為訪客（臨時）帳戶：只由伺服器回報的 `account_type` 決定，缺席時如實是 false。
+  bool get isGuest => accountType == AuthAccountType.guest;
 }
 
 /// `POST /auth/password/change` 的成功回應：一次本人改密的結果。

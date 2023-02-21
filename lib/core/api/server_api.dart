@@ -55,6 +55,16 @@ const String kAuthCapabilitiesPath = '/auth/capabilities';
 /// [ApiClient.post] 而非 captureCookie 那一條：註冊只把人送進目錄，登入另走 [ServerApi.login]。
 const String kAuthRegisterPath = '/auth/register';
 
+/// 訪客進入端點路徑：POST 一條路徑做一件事（換得一個臨時受限身分與一枚會話）。
+///
+/// 與 [kAuthRegisterPath] 分屬兩條准入通路：自註冊建的是「帶口令、之後用口令登入」的
+/// 普通帳戶，而訪客按定義沒有任何憑據，因此這一步必須同時簽發會話——他手上除了這枚憑據
+/// 沒有第二樣東西可以證明自己是誰。會話的壽命、到期、撤銷與裝置名額全部由後端按
+/// 普通帳戶同一條規則給出，這裡沒有一枚特殊 Cookie。
+/// 請求本體只有一格可選的暱稱（展示用，不是憑據、也不是登入名）：
+/// 登入名一律由伺服器產生，協定層沒有一格能自報身分或佔住某個真人将来想用的名字。
+const String kAuthGuestPath = '/auth/guest';
+
 /// 申請人查本人待審批狀態的端點路徑：POST 一條路徑做一件事（驗證憑據、回報結局）。
 ///
 /// 它刻意是 POST 而不是 GET：這條通路每次都要交登入名與口令，而秘密不進 URL
@@ -313,6 +323,43 @@ class ServerApi {
         .postCapturingCookie(
           kAuthRootLoginPath,
           jsonBody: <String, Object?>{'password': password},
+          decode: LoginReport.decode,
+          acceptLanguage: acceptLanguage,
+        );
+    return LoginExchange(
+      report: result.value,
+      sessionSecret: extractSessionCookie(result.setCookie),
+    );
+  }
+
+  /// 訪客以臨時受限身分進入：POST `/auth/guest`。
+  ///
+  /// 「此刻准不准放訪客」由後端在寫入那一刻現讀帳戶建立策略決定（判定發生在交易裡）：
+  /// [entryCapabilities] 的 `guest_open` 只決定界面要不要顯示這扇門，從不代替提交時的
+  /// 二次判定。開關關著回 2017（與自註冊共用同一句「這條帳戶建立通路此刻被策略關閉」）、
+  /// 來源的嘗試預算用盡回 2006 並附 Retry-After、暱稱不合規回 1004 並點名 nickname 欄位。
+  ///
+  /// [nickname] 是本人自報的展示用暱稱，可留空——留空時由伺服器產生一個臨時編號。
+  /// 它不是憑據、不承擔唯一性（两个人可以同名），呼叫端不得拿它做任何身份判定：
+  /// 「凭暱稱找回這一趟」在這裡根本沒有對應的通路。
+  ///
+  /// 與 [register] 相反，這一條**會**簽發會話：訪客沒有任何口令可之後用它登入，
+  /// 所以建號與簽發在同一筆交易裡完成。秘密的來路與去向與 [login] 逐字相同
+  /// （Web 由 HttpOnly Cookie 代管、原生端由 [LoginExchange.sessionSecret] 交給會話層
+  /// 的安全儲存），回應本體不含任何憑據材料。
+  Future<LoginExchange> guestEnter({
+    String? nickname,
+    String? acceptLanguage,
+  }) async {
+    final String trimmed = (nickname ?? '').trim();
+    final ({LoginReport value, String? setCookie}) result = await apiClient
+        .postCapturingCookie(
+          kAuthGuestPath,
+          jsonBody: <String, Object?>{
+            // 缺席＝不帶這一欄（由伺服器產生臨時編號）；不發空字串，免得界面把
+            // 「我沒想好名字」說成「我要一個空名字」。
+            if (trimmed.isNotEmpty) 'nickname': trimmed,
+          },
           decode: LoginReport.decode,
           acceptLanguage: acceptLanguage,
         );

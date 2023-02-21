@@ -67,6 +67,9 @@ class SessionSummaryView extends StatefulWidget {
   /// 本機儲存異常說明的測試識別鍵。
   static const Key storageNoteKey = ValueKey<String>('session-storage-note');
 
+  /// 訪客（臨時身分）說明行的測試識別鍵。
+  static const Key guestNoticeKey = ValueKey<String>('session-guest-notice');
+
   @override
   State<SessionSummaryView> createState() => _SessionSummaryViewState();
 }
@@ -337,13 +340,16 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
       Text(
         l10n.labelValuePair(
           l10n.sessionSubjectLabel,
-          // 三個檔位全部取自伺服器現讀回應：Root 由主體類別判定，
+          // 四個檔位全部取自伺服器現讀回應：Root 由主體類別判定，
           // 「伺服器管理員」只在他確實持有後端授予的 server_admin 時出現，
-          // 其餘帳戶仍是普通帳戶。本地不因「剛在表單選過 Root」就宣稱任何身份。
+          // 訪客由 account_type 判定，其餘帳戶仍是普通帳戶。本地不因「剛在表單選過 Root」
+          // 就宣稱任何身份，也不因「剛才按的是訪客」就把沒帶這一欄的舊服務端唸成訪客。
           active.isRoot
               ? l10n.sessionSubjectRoot
               : active.isServerAdmin
               ? l10n.sessionSubjectServerAdmin
+              : active.isGuest
+              ? l10n.sessionSubjectGuest
               : l10n.sessionSubjectAccount,
         ),
         style: theme.textTheme.bodySmall,
@@ -374,6 +380,19 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
         Text(
           l10n.sessionStorageFailureNote,
           key: SessionSummaryView.storageNoteKey,
+          style: theme.textTheme.bodySmall,
+        ),
+      );
+    }
+
+    // 訪客：把「這一趟是臨時的、手上這枚會話就是全部」講在身分同一處。
+    // 這句不是勸人快點做什麼，而是說明為什麼這一列沒有改密入口、也為什麼這裡沒有
+    // 「記著暱稱就能回來」那條路——那兩者都不是界面可以承諾的事，它是伺服器的形態。
+    if (active.isGuest) {
+      rows.add(
+        Text(
+          l10n.sessionGuestNotice,
+          key: SessionSummaryView.guestNoticeKey,
           style: theme.textTheme.bodySmall,
         ),
       );
@@ -448,14 +467,19 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
                   child: Text(l10n.sessionDevicesAction),
                 ),
               ),
-            SizedBox(
-              height: 40,
-              child: OutlinedButton(
-                key: SessionSummaryView.passwordChangeKey,
-                onPressed: () => showChangePasswordDialog(context, session),
-                child: Text(l10n.sessionPasswordChangeAction),
+            // 「變更密碼」對訪客不存在：他按定義沒有一般憑據可改（後端的 CHECK 把
+            // must_change_password 凍結為 0，改密端點對他只會回 2001）。這裡不呈現
+            // 一個註定失敗的入口，並把「為什麼沒有」講在同一張卡上——要處置他的身分，
+            // 走的是管理員在普通帳戶目錄裡的核實與決定，不是這一顆按鈕。
+            if (!active.isGuest)
+              SizedBox(
+                height: 40,
+                child: OutlinedButton(
+                  key: SessionSummaryView.passwordChangeKey,
+                  onPressed: () => showChangePasswordDialog(context, session),
+                  child: Text(l10n.sessionPasswordChangeAction),
+                ),
               ),
-            ),
             if (!session.mustChangePassword)
               SizedBox(
                 height: 40,

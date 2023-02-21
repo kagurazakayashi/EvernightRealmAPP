@@ -222,11 +222,13 @@ void main() {
         ),
       );
 
-      // 多幾幀仍只一次：准入的變更靠人回來重查，不是畫面自己縮輪詢。
+      // 多幾幀仍不再成長：准入的變更靠人回來重查，不是畫面自己縮輪詢。
+      // （入口頁現掛兩張入口卡——自註冊與訪客——每張各自查一次，所以基數是卡的數目，
+      //  而這裡要釘的是「停在這個數目上」：any 輪詢都會把它推過去。）
       await tester.pump();
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
-      expect(asks, 1);
+      expect(asks, 2);
     });
 
     testWidgets('按「重新檢查」才再問一次', (WidgetTester tester) async {
@@ -243,14 +245,18 @@ void main() {
           },
         ),
       );
-      expect(asks, 1);
+      // 掛上後的基數只問一次（不輪詢），再按一顆按鈕才多問一次。
+      final int afterMount = asks;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(asks, afterMount);
 
       await tester.ensureVisible(find.byKey(RegisterEntryView.recheckKey));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(RegisterEntryView.recheckKey));
       await tester.pumpAndSettle();
 
-      expect(asks, 2);
+      expect(asks, afterMount + 1);
     });
 
     testWidgets('先查不了再重查成功：由失敗句改口為開放並放出出口', (WidgetTester tester) async {
@@ -263,6 +269,8 @@ void main() {
           settings,
           onCaps: (http.Request request) async {
             asks++;
+            // 只有第一趟（自註冊卡自己發的那次）失敗：入口頁上另一張卡隨後查的是
+            // 另一格（guest_open），不影響這一張由失敗句改口為開放。
             if (asks == 1) {
               throw http.ClientException('offline');
             }
@@ -275,10 +283,11 @@ void main() {
 
       await tester.ensureVisible(find.byKey(RegisterEntryView.recheckKey));
       await tester.pumpAndSettle();
+      final int afterMount = asks;
       await tester.tap(find.byKey(RegisterEntryView.recheckKey));
       await tester.pumpAndSettle();
 
-      expect(asks, 2);
+      expect(asks, afterMount + 1);
       expect(statusLine(tester), l10n.registerEntryOpenHint);
       expect(find.byKey(RegisterEntryView.actionKey), findsOneWidget);
     });
@@ -323,10 +332,14 @@ void main() {
         ),
       );
 
-      expect(caps.single.method, 'GET');
-      expect(caps.single.url.path, kAuthCapabilitiesPath);
-      // GET 沒有本體，因此也無處夾帶任何自報身分；這恰是入口合同「只進不出」的一面。
-      expect(caps.single.body, isEmpty);
+      // 入口頁上每张入口卡都發同一條唯讀 GET：斷言逐條查形態，而不是假裝只有一趟。
+      expect(caps, isNotEmpty);
+      for (final http.Request request in caps) {
+        expect(request.method, 'GET');
+        expect(request.url.path, kAuthCapabilitiesPath);
+        // GET 沒有本體，因此也無處夾帶任何自報身分；這恰是入口合同「只進不出」的一面。
+        expect(request.body, isEmpty);
+      }
       // 回話僅三個布林：卡片不讀也不顯示任何模式名字、閾值或帳戶清單。
       expect(jsonDecode(capsBody(signUpOpen: true)).keys.toSet(), <String>{
         'sign_up_open',
