@@ -2,7 +2,7 @@
 ///
 /// 全部走注入的假傳輸：不碰網路、不落任何真實憑據。這一檔問的是幾件事：
 ///   1. 重置區不按狀態分岔（停用中的目標也合法，因為重置不是解除停用），
-///      但訪客目標按來源出局——界面不擺那顆註定拿 2018 的按鈕，而說一句「等升級通路」；
+///      但訪客目標按來源出局——界面不擺那顆註定拿 2018 的按鈕，而說一句「該走同一張卡上的升級區」；
 ///   2. 確認對話框把三件效果與兩件不會發生講完，取消是一條正經出路（一請求都不發）；
 ///   3. 口令只在請求那一側出現一次：送出即清空、成功與失敗都不回填，
 ///      界面上任何一處都不再出現那串字；
@@ -301,7 +301,9 @@ void main() {
       );
     });
 
-    testWidgets('訪客目標：不長口令欄與按鈕，只說「要等訪客升級功能」那一句', (WidgetTester tester) async {
+    testWidgets('訪客目標：不長口令欄與按鈕，只說「設口令該走這一筆記錄上的升級區」那一句', (
+      WidgetTester tester,
+    ) async {
       await pump(tester, _Fixture(accountType: 'guest'));
       await openProfile(tester);
 
@@ -570,7 +572,7 @@ void main() {
       expect(fixture.resetWrites.length, 1);
     });
 
-    testWidgets('2018 說的是「等訪客升級通路」那一句，與 1001／2011 各說各話', (
+    testWidgets('2018 說的是「改身分該走升級區」那一句，與 1001／2011 各說各話', (
       WidgetTester tester,
     ) async {
       final _Fixture fixture = _Fixture(

@@ -130,6 +130,14 @@ String adminAccountStatusPath(String accountId) =>
 String adminAccountPasswordPath(String accountId) =>
     '${adminAccountItemPath(accountId)}/password';
 
+/// 訪戶「原地升級」子資源的路徑：PUT 唯一方法，動的是這個帳戶是哪一類主體。
+///
+/// 與 `/password` 分成兩條子資源正是為了讓「重置口令」永遠不可能順帶完成一次身分升級
+/// （那條 PUT 的本體連登入名的格子都沒有）；這條動的是比憑據與狀態更高一層的事實，
+/// 目標範圍也更窄——只認「此刻是訪戶且可登入」的人，其餘形態由後端以 2024 回答。
+String adminAccountUpgradePath(String accountId) =>
+    '${adminAccountItemPath(accountId)}/upgrade';
+
 /// 註冊申請名冊的集合端點路徑：GET（／HEAD）分頁列出走審批通路的申請。
 ///
 /// 這本名冊與 [kAdminAccountsPath] 那本目錄是兩句話，各有各的範圍條件：
@@ -738,6 +746,39 @@ class ServerApi {
       adminAccountPasswordPath(accountId),
       jsonBody: <String, Object?>{'password': password},
       decode: StandardAccountPasswordResetReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 管理員把一名可登入的訪戶原地升級成普通帳戶：PUT `/admin/accounts/{account_id}/upgrade`。
+  ///
+  /// 這是在地升級，不是綁定：後端動的是同一行帳戶——穩定標識、建立時刻、顯示名與
+  /// 既有歷史引用全部原樣保留，不新建一筆再刪舊一筆。「綁定到另一個既有正式帳戶」
+  /// 是另一條通路（尚未實作），界面必須把兩者分開講。
+  /// 白名單只有正式登入名與一次性初始口令兩欄：account_type、roles、status、
+  /// must_change_password 之類的宣稱會被後端打成 1004——升級出來的形態恆為
+  /// 「普通帳戶＋可登入＋首次登入必須改密」，由端點決定而不是由請求內容決定。
+  /// 一次成功落地三件事：身分與憑據同一條 UPDATE 轉正、名下全部舊會話同交易撤銷
+  /// （用戶批准的決定：撿到舊臨時憑據的人不自動獲得正式權限，本人要用新口令重新登入）、
+  /// Root 域審計追加一筆（歷史事件照舊描述發生時的訪戶身份，不會被重寫）。
+  /// 結論分流：2024 說「他此刻不是可升級的訪戶」（已轉正或已被停用，重讀現值再決定）、
+  /// 2012 說「那個登入名是別人的」（訪戶一個字都沒被改）、1004 點名欄位、
+  /// 1001 是目標不在目錄、2011 是主體不對——訪戶本人敲這條端點拿到的就是 2011，
+  /// 他不能給自己提升權限。口令與重置同套交付語意：伺服端不生成、不回顯；結果不明時
+  /// 不得自動補發（重複提交對已轉正者是 2024，但那要經過一次完整的現值判定）。
+  Future<StandardAccountUpgradeReport> upgradeGuestAccount({
+    required String accountId,
+    required String loginName,
+    required String password,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<StandardAccountUpgradeReport>(
+      adminAccountUpgradePath(accountId),
+      jsonBody: <String, Object?>{
+        'login_name': loginName,
+        'password': password,
+      },
+      decode: StandardAccountUpgradeReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

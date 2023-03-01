@@ -44,6 +44,7 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.accountCreationDisabled =>
         l10n.errorCodeAccountCreationDisabled,
       ApiMachineCode.guestUpgradeRequired => l10n.errorCodeGuestUpgradeRequired,
+      ApiMachineCode.guestNotUpgradable => l10n.errorCodeGuestNotUpgradable,
       ApiMachineCode.selfRegisterNameTaken =>
         l10n.errorCodeSelfRegisterNameTaken,
       ApiMachineCode.notAnApplication => l10n.errorCodeNotAnApplication,

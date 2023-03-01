@@ -22,7 +22,14 @@
 ///   成功之後口令不再出現在任何一處。「刻意沒有依據值」這條語意要講给操作者聽：
 ///   結果不明時再點一次不是重試，而是又做一次完整重置，所以這裡不擺自動補發。
 ///   訪戶帳戶不在這條通路的職責裡（後端以 2018 拒），界面據服務端讀回的來源欄位
-///   說明「那要等後續那條明確的訪戶升級通路」，而不是讓他按下一顆註定被拒的按鈕。
+///   說明「設口令動的是身分，該走同一張卡上的訪客升級區」，而不是讓他按下一顆註定被拒的按鈕。
+/// * 訪客升級走第四條白名單（`/upgrade` 子資源，本體只有 login_name 與 password 兩欄）：
+///   這是**原地升級**——同一枚帳戶標識、同一個顯示名、同一批歷史記錄，不新建也不綁定；
+///   「綁定到另一個既有正式帳戶」今日沒有通路，界面把兩句話分開講。確認對話框必須唸出
+///   目標與新的正式登入名才准提交；按鈕只對「服務端讀回他是訪客且可登入」出現，
+///   停用中的訪客看到的是處置說明而不是那顆按鈕（後端對兩種形態都回 2024）。
+///   與重置同樣：口令送出前即清空、結果不明不自動補發、成功句的撤銷數量取自 PUT 回應。
+///   本人不能自我升級這句話不由界面承擔——訪戶拿自己的會話敲這條端點，後端回 2011。
 /// * 活動、資產與訊息都不在這一頁：那些模組尚未實作，擺一個空清單或 0 就是假資料。
 library;
 
@@ -169,6 +176,46 @@ class StandardAccountProfileCard extends StatefulWidget {
     'std-account-reset-guest-notice',
   );
 
+  /// 升級區影響範圍說明識別鍵。
+  static const Key upgradeScopeKey = ValueKey<String>(
+    'std-account-upgrade-scope',
+  );
+
+  /// 正式登入名輸入框識別鍵。
+  static const Key upgradeLoginKey = ValueKey<String>(
+    'std-account-upgrade-login',
+  );
+
+  /// 一次性口令輸入框識別鍵。
+  static const Key upgradePasswordFieldKey = ValueKey<String>(
+    'std-account-upgrade-password',
+  );
+
+  /// 升級按鈕識別鍵。
+  static const Key upgradeActionKey = ValueKey<String>(
+    'std-account-upgrade-action',
+  );
+
+  /// 停用中訪客的「此刻不可升級」說明識別鍵。
+  static const Key upgradeUnavailableKey = ValueKey<String>(
+    'std-account-upgrade-unavailable',
+  );
+
+  /// 升級確認對話框的肯定按鈕識別鍵。
+  static const Key upgradeConfirmKey = ValueKey<String>(
+    'std-account-upgrade-confirm',
+  );
+
+  /// 升級確認對話框的取消按鈕識別鍵。
+  static const Key upgradeConfirmCancelKey = ValueKey<String>(
+    'std-account-upgrade-cancel',
+  );
+
+  /// 升級成功摘要識別鍵。
+  static const Key upgradeNoticeKey = ValueKey<String>(
+    'std-account-upgrade-notice',
+  );
+
   @override
   State<StandardAccountProfileCard> createState() =>
       _StandardAccountProfileCardState();
@@ -210,6 +257,17 @@ class _StandardAccountProfileCardState
   /// 重置的成功句：撤銷數量一律取自 PUT 回應，而口令本身不在這句話裡。
   String? _resetNotice;
 
+  /// 升級的兩個輸入：正式登入名與一次性口令。口令與重置同規——
+  /// 只活在這一個控制器裡，在發出請求前就清空（成功與失敗都不留）。
+  final TextEditingController _upgradeLogin = TextEditingController();
+  final TextEditingController _upgradePassword = TextEditingController();
+
+  /// 升級進行中（進行中不再發第二趟，也不與另三條白名單並發——四張卡動的是同一筆）。
+  bool _upgrading = false;
+
+  /// 升級的成功句：撤銷數量取自 PUT 回應；口令不在這句話裡，也不在任何一處再出現。
+  String? _upgradeNotice;
+
   @override
   void initState() {
     super.initState();
@@ -220,6 +278,8 @@ class _StandardAccountProfileCardState
   void dispose() {
     _displayName.dispose();
     _resetPassword.dispose();
+    _upgradeLogin.dispose();
+    _upgradePassword.dispose();
     super.dispose();
   }
 
@@ -240,6 +300,9 @@ class _StandardAccountProfileCardState
       _statusConflicted = false;
       _resetNotice = null;
       _resetPassword.clear();
+      _upgradeNotice = null;
+      _upgradeLogin.clear();
+      _upgradePassword.clear();
     });
     try {
       final StandardAccountDetailReport report = await widget.api
@@ -477,6 +540,128 @@ class _StandardAccountProfileCardState
     };
   }
 
+  /// 升級的確認對話框：原地升級動的是「這個人是哪一類主體」，比改口令與改狀態都重，
+  /// 所以必須唸出目標、新的正式登入名、四件效果與兩件不發生，確認才准提交。
+  /// 「這是就地轉正、不是綁定到另一個帳戶」這句話寫在確認文裡——兩者對操作者是
+  /// 完全不同的處置，混按一次就是一個不可分岔的歷史。取消是一條正經出路。
+  /// 這裡沒有「重試」按鈕的位置：對已轉正者再發一次只會拿到 2024，而那不是結果不明。
+  Future<void> _confirmUpgrade() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null || !profile.isGuest || _upgrading) {
+      return;
+    }
+    final String loginName = _upgradeLogin.text.trim();
+    final String password = _upgradePassword.text;
+    if (loginName.isEmpty || password.trim().isEmpty) {
+      // 本地只擋「明顯沒填」：登入名與口令的域規則由服務端判，界面不抄第二份。
+      setState(() => _notice = l10n.stdAccountUpgradeFormIncompleteNotice);
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(l10n.stdAccountUpgradeConfirmTitle),
+        content: Text(
+          l10n.stdAccountUpgradeConfirmBody(profile.loginName, loginName),
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: StandardAccountProfileCard.upgradeConfirmCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.adminStatusConfirmCancelAction),
+          ),
+          FilledButton(
+            key: StandardAccountProfileCard.upgradeConfirmKey,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.stdAccountUpgradeConfirmOkAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    await _applyUpgrade(loginName, password);
+  }
+
+  /// 提交升級：口令在發出請求前就從輸入框清掉（成功與失敗都不留）；
+  /// 成功展示與撤銷計數一律換成 PUT 回應，目錄跟著重讀；失敗則界面原地不動。
+  Future<void> _applyUpgrade(String loginName, String password) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    setState(() {
+      _upgrading = true;
+      _notice = null;
+      _upgradeNotice = null;
+      _upgradePassword.clear();
+    });
+    try {
+      final StandardAccountUpgradeReport report = await widget.api
+          .upgradeGuestAccount(
+            accountId: profile.accountId,
+            loginName: loginName,
+            password: password,
+            acceptLanguage: _acceptLanguage,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = report.account;
+        _displayName.text = report.account.displayName;
+        _upgradeLogin.clear();
+        _upgrading = false;
+        // 成功句的數字來自回應：「這次讓 N 臺裝置用新憑據重新登入」不許界面自己猜。
+        _upgradeNotice = l10n.stdAccountUpgradeSuccessNotice(
+          report.revokedSessions,
+        );
+      });
+      widget.onSaved?.call();
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _upgrading = false;
+        _notice = _upgradeFailureText(error);
+      });
+    }
+  }
+
+  /// 升級失敗分流：1004 依 `invalid_field` 說對應那一句；2012 與 2024 交給機器碼的
+  /// 專屬句（一個要換名字、一個要重讀現值，處置不同不能混唸）；1001／2011／會話那一簇
+  /// 各說各句；2014（併發兜底）也在通用目錄裡。訪戶本人自我升級在正常界面上到不了這裡
+  /// ——那句話發生在後端；界面這條分流只服务公司級管理員的真實操作。
+  String _upgradeFailureText(ApiError error) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ApiMachineCode? code = error.knownCode;
+    if (code == ApiMachineCode.invalidBody) {
+      final Object? field = error.details?['invalid_field'];
+      return switch (field) {
+        'login_name' => l10n.adminProvisionInvalidLoginNameNotice,
+        'password' => l10n.adminResetInvalidPasswordNotice,
+        _ => apiErrorText(l10n, error),
+      };
+    }
+    return switch (code) {
+      ApiMachineCode.notFound => l10n.stdAccountProfileNotFoundNotice,
+      ApiMachineCode.permissionDenied => l10n.stdAccountProfileDeniedNotice,
+      ApiMachineCode.notAuthenticated ||
+      ApiMachineCode.sessionInvalid ||
+      ApiMachineCode.sessionStale ||
+      ApiMachineCode.passwordChangeRequired =>
+        l10n.adminProfileStaleRejectedNotice,
+      _ => apiErrorText(l10n, error),
+    };
+  }
+
   /// 停用／恢復的確認對話框：先把「動的是誰、影響範圍到哪、這不會發生什麼」講完
   /// 才準提交。取消是一條正經出路（一請求都不發，界面停在上一份伺服器真相）；
   /// 確認才發出 PUT——關掉別人整臺伺服器的登入能力不該有「手滑直达」的路徑。
@@ -681,10 +866,13 @@ class _StandardAccountProfileCardState
     ThemeData theme,
     StandardAccountReport profile,
   ) {
-    // 三條白名單動的是同一筆帳戶：並發提交會讓其中一條的依據值在送出那一刻就過期，
+    // 四條白名單動的是同一筆帳戶：並發提交會讓其中一條的依據值在送出那一刻就過期，
     // 因此這一張卡在任一寫入進行中都停住其餘入口。
     final bool busy =
-        _savePhase == _SavePhase.saving || _statusChanging || _resetting;
+        _savePhase == _SavePhase.saving ||
+        _statusChanging ||
+        _resetting ||
+        _upgrading;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -897,6 +1085,75 @@ class _StandardAccountProfileCardState
                 onPressed: _load,
                 child: Text(l10n.adminProfileReloadAction),
               ),
+            ),
+          ),
+        const Divider(),
+        // 訪客升級：第四條白名單（只有 login_name 與 password 兩欄），只由服務端讀回的
+        // 來源欄位決定出現與否。「原地升級」與「綁定既有帳戶」是兩句話：這一區只做前者
+        // （同一枚標識就地轉正），後者今日沒有通路，說明寫在常駐句裡而不是藏在提示裡。
+        // 停用中的訪客不長那顆按鈕——後端對「已轉正」與「已停用」都回 2024，界面按
+        // 讀回的狀態把處置先講出來（先恢復登入，再決定要不要升級）。
+        if (profile.isGuest) ...<Widget>[
+          Text(
+            l10n.stdAccountUpgradeScopeHint,
+            key: StandardAccountProfileCard.upgradeScopeKey,
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          if (profile.isActive) ...<Widget>[
+            TextField(
+              key: StandardAccountProfileCard.upgradeLoginKey,
+              controller: _upgradeLogin,
+              enabled: !busy,
+              decoration: InputDecoration(
+                labelText: l10n.stdAccountUpgradeLoginNameLabel,
+                isDense: true,
+              ),
+              maxLength: 64,
+            ),
+            TextField(
+              key: StandardAccountProfileCard.upgradePasswordFieldKey,
+              controller: _upgradePassword,
+              enabled: !busy,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: l10n.stdAccountUpgradePasswordFieldLabel,
+                isDense: true,
+              ),
+              textInputAction: TextInputAction.done,
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                key: StandardAccountProfileCard.upgradeActionKey,
+                onPressed: busy ? null : _confirmUpgrade,
+                child: Text(
+                  _upgrading
+                      ? l10n.stdAccountUpgradeWorkingHint
+                      : l10n.stdAccountUpgradeAction,
+                ),
+              ),
+            ),
+          ],
+          if (!profile.isActive)
+            Text(
+              l10n.errorCodeGuestNotUpgradable,
+              key: StandardAccountProfileCard.upgradeUnavailableKey,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+        // 成功句掛在來源條件之外：轉正之後那組訪客控件如實收起，
+        // 但「這次讓 N 臺裝置重新登入」這句話屬於剛完成的那次操作，不跟著消失。
+        if (_upgradeNotice != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _upgradeNotice!,
+              key: StandardAccountProfileCard.upgradeNoticeKey,
+              style: theme.textTheme.bodySmall,
             ),
           ),
         const Divider(),

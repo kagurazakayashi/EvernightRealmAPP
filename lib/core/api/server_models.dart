@@ -1229,6 +1229,51 @@ class StandardAccountPasswordResetReport {
   final String requestId;
 }
 
+/// `PUT /admin/accounts/{account_id}/upgrade` 的成功回應：升級後的資料庫現值與撤銷數量。
+///
+/// 形態與 [StandardAccountPasswordResetReport] 同構但刻意各自獨名：兩條子資源動的
+/// 事實不同（一個換口令、一個連身分一起轉正），合併成一個型別會讓「這次成功的是
+/// 哪件事」在界面層失去出處。
+/// [account] 是升級後的單筆真相：`account_id` 與升級前逐字相同（這是原地升級的
+/// 正面證據）、`account_type` 已是 `standard`、`login_name` 是正式登入名的服務端
+/// 落庫寫法、`must_change_password` 必為 true（交付的永遠是一次性口令，本人首次
+/// 登入必須改掉），而 `display_name` 保持原樣（升級不是改名）。
+/// [revokedSessions] 為這次落庫的舊訪戶會話撤銷數，缺席判合同違例、不降級成 0：
+/// 「讓幾臺裝置必須用新憑據重新登入」是這次操作影響範圍的陳述。那一趟可能早已
+/// 到期，0 是事實而不是失敗。
+/// 回應裡不存在、也不允許出現任何口令或憑據材料——口令只在請求那一側出現一次，
+/// 而舊訪戶的會話秘密本來就無讀法。
+class StandardAccountUpgradeReport {
+  /// 以已驗證的欄位建立單次升級回應。
+  const StandardAccountUpgradeReport({
+    required this.account,
+    required this.revokedSessions,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立升級結果。
+  static StandardAccountUpgradeReport decode(Map<String, Object?> json) {
+    final Object? raw = json['account'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('account 不是物件');
+    }
+    return StandardAccountUpgradeReport(
+      account: StandardAccountReport.decode(raw),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 升級後的單筆普通帳戶資料。
+  final StandardAccountReport account;
+
+  /// 這次撤銷的舊訪戶會話數量（目標早已沒有有效會話時為 0——事實不是失敗）。
+  final int revokedSessions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
 /// 註冊申請名冊的一行：`GET /admin/registrations` 的行，也是決定之後回顯的形狀。
 ///
 /// 六格就是「審核一個人需要的全部依據」：他是誰（標識與兩個名字）、他在審批鏈的哪一站
