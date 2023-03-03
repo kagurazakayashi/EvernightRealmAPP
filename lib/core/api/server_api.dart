@@ -138,6 +138,17 @@ String adminAccountPasswordPath(String accountId) =>
 String adminAccountUpgradePath(String accountId) =>
     '${adminAccountItemPath(accountId)}/upgrade';
 
+/// 訪戶「綁定預檢」子資源的路徑：POST 唯一方法，是一場純只讀的衝突預覽。
+///
+/// 它與 [adminAccountUpgradePath] 那條的分别是本步最要講清的一句話：升級動的是訪戶
+/// 自己那一行（原地轉正，標識存續）；綁定是把訪戶併入**另一個既有正式帳戶**
+/// （存續的是目標那一行）。本倉庫今日只有這條**預覽**通路——綁定的執行動詞屬後續
+/// 步驟，而且按用戶批准的決定只能由目標帳戶持有人以自己的會話發起，管理端永遠
+/// 拿不到「代人完成綁定」的那顆按鈕。「此刻不可綁定」不是錯誤而是 200 預覽本體裡
+/// 的穩定原因記號，所以這條路徑不掛任何新機器碼。
+String adminAccountBindPreflightPath(String accountId) =>
+    '${adminAccountItemPath(accountId)}/bind-preflight';
+
 /// 註冊申請名冊的集合端點路徑：GET（／HEAD）分頁列出走審批通路的申請。
 ///
 /// 這本名冊與 [kAdminAccountsPath] 那本目錄是兩句話，各有各的範圍條件：
@@ -779,6 +790,31 @@ class ServerApi {
         'password': password,
       },
       decode: StandardAccountUpgradeReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 訪戶綁定預檢：POST `/admin/accounts/{account_id}/bind-preflight`。
+  ///
+  /// 這是一條**純只讀**的評估通路（用戶批准的 R2-018 決定：零寫入、不落審計）：
+  /// 本體恰好一欄 `target_account_id`，來源在路徑上、目標在本體裡，一次請求只評估
+  /// 這一個（來源, 目標）配對——沒有「替這個訪戶列出可綁定目標」的讀法，請求形態
+  /// 本身就是反枚舉邊界。用 POST 是因為目標標識是被評估的輸入而不是資源地址，
+  /// 放進查詢串就成了可書籤、可快取的尋人請求。
+  /// 回應的 [StandardAccountBindPreflightReport] 如實帶出可執行性、穩定原因記號、
+  /// 將產生的影響、源會話計數與這份快照運行的資料庫版本；consent_mode 恆為
+  /// `target_self_initiated`——綁定只能由目標持有人自己發起，這份預覽不是任何
+  /// 一半的綁定。拒絕只走既有碼：1001（兩側任一方不在目錄，不可分辨）、2011
+  /// （訪戶本人与其餘非管理主體）、1004（目標標識缺失或不成形）、1002（方法）。
+  Future<StandardAccountBindPreflightReport> guestBindPreflight({
+    required String accountId,
+    required String targetAccountId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<StandardAccountBindPreflightReport>(
+      adminAccountBindPreflightPath(accountId),
+      jsonBody: <String, Object?>{'target_account_id': targetAccountId},
+      decode: StandardAccountBindPreflightReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

@@ -112,6 +112,28 @@ List<String> _optionalTextList(Map<String, Object?> json, String field) {
       .toList(growable: false);
 }
 
+/// 讀取必填的字串清單：缺席判合同違例，不降級成空清單（與 revoked_sessions 同一把尺——
+/// 「回應沒有這一欄」意味著服務端沒有如實報出這一趟的結論，界面不能拿「沒有」冒充事實）。
+/// 元素值一律原樣保留成字串、不收緊成列舉：後端日後多發布一個取值時，前端該有的結果是
+/// 「這一行我不認得、顯示通用句」，而不是整份預覽被判違例、把唯一一条只讀通路堵死。
+List<String> _requireTextList(Map<String, Object?> json, String field) {
+  final Object? value = json[field];
+  if (value == null) {
+    throw ApiResponseShapeException('欄位 $field 缺席');
+  }
+  if (value is! List) {
+    throw ApiResponseShapeException('欄位 $field 不是清單');
+  }
+  return value
+      .map((Object? item) {
+        if (item is! String || item.isEmpty) {
+          throw ApiResponseShapeException('欄位 $field 的項不是非空字串');
+        }
+        return item;
+      })
+      .toList(growable: false);
+}
+
 /// 已發布的伺服器級角色值（與後端 `roles` 欄逐字一致）：Root 之下可執行跨活動維運的主體。
 ///
 /// 它是「可展示事實」的判據，不是權限的依據：每一次判定都在服務端重做，
@@ -1269,6 +1291,96 @@ class StandardAccountUpgradeReport {
 
   /// 這次撤銷的舊訪戶會話數量（目標早已沒有有效會話時為 0——事實不是失敗）。
   final int revokedSessions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 綁定預檢的同意形態唯一穩定值（用戶批准的 R2-018 決定）：綁定必須由目標帳戶持有人
+/// 以自己的已認證會話發起，管理端只拿得到這份純只讀預覽。
+///
+/// 它刻意是常數而不是列舉：表外值在解碼處判合同違例——若哪天出現第二種同意形態，
+/// 那是新產品決定的日子，舊客戶端寧可如實報「我不認識這份回應」，也不能把新形態
+/// 當成舊規則默默放行（與 [AuthAccountType] 對表外值的取向同一口徑）。
+const String kBindPreflightConsentModeTargetSelfInitiated =
+    'target_self_initiated';
+
+/// `POST /admin/accounts/{account_id}/bind-preflight` 的成功回應：訪戶綁定的
+/// **只讀**預檢與衝突預覽——本步沒有綁定執行，跑一百次預覽也不會綁成任何人。
+///
+/// source 與 target 復用 [StandardAccountReport]：預覽不披露這本目錄本來看不見的欄位，
+/// 憑據材料從形狀上就放不進來。executable 是「預覽可執行」的結論而不是綁定的憑據或
+/// 許可。blockers 與 impacts 為必填數組（缺席判合同違例；空 `[]` 是「不擋了／不會有事」
+/// 的事實），值是服務端穩定記號，界面逐記號本地化成句，認不得的記號顯示通用句而不是
+/// 崩潰——合同只增不刪，前端對新記號的正确姿态是不理解但如實承認不理解。
+/// sourceOpenSessions 是源名下尚未標記撤銷的會話行數（綁定執行時將被撤銷的範圍，
+/// 與後端 RevokeAccount 同一把尺）；0 是事實。schemaVersion 說出這份預覽按哪一版
+/// 資料庫跑——預覽天生是會過期的快照，將來的執行步必須重讀版本與全部事實再判定。
+class StandardAccountBindPreflightReport {
+  /// 以已驗證的欄位建立一次綁定預檢的結論。
+  const StandardAccountBindPreflightReport({
+    required this.source,
+    required this.target,
+    required this.executable,
+    required this.blockers,
+    required this.impacts,
+    required this.sourceOpenSessions,
+    required this.schemaVersion,
+    required this.consentMode,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立綁定預檢結論。
+  static StandardAccountBindPreflightReport decode(Map<String, Object?> json) {
+    final Object? source = json['source'];
+    if (source is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('source 不是物件');
+    }
+    final Object? target = json['target'];
+    if (target is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('target 不是物件');
+    }
+    final String consentMode = _requireText(json, 'consent_mode');
+    if (consentMode != kBindPreflightConsentModeTargetSelfInitiated) {
+      throw ApiResponseShapeException('consent_mode 值 $consentMode 不在合同內');
+    }
+    return StandardAccountBindPreflightReport(
+      source: StandardAccountReport.decode(source),
+      target: StandardAccountReport.decode(target),
+      executable: _requireBool(json, 'executable'),
+      blockers: _requireTextList(json, 'blockers'),
+      impacts: _requireTextList(json, 'impacts'),
+      sourceOpenSessions: _requireInt(json, 'source_open_sessions'),
+      schemaVersion: _requireInt(json, 'schema_version'),
+      consentMode: consentMode,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 來源訪戶的單筆資料（目錄詳情同一形狀；標識逐字相同代表讀的就是同一個人）。
+  final StandardAccountReport source;
+
+  /// 目標帳戶的單筆資料（同形；不在目錄的目標根本到不了這份回應——那是一句 1001）。
+  final StandardAccountReport target;
+
+  /// 此刻是否存在一條可安全執行的綁定：所有阻止原因清空才為真。
+  final bool executable;
+
+  /// 阻止原因的穩定記號清單（可執行時為空數組）。
+  final List<String> blockers;
+
+  /// 可執行時將產生的影響記號清單；不可執行時恆為空——不會發生的動作沒有影響可報。
+  final List<String> impacts;
+
+  /// 源名下尚未撤銷的會話數（「綁定將讓 N 臺裝置重新登入」的依據；0 是事實）。
+  final int sourceOpenSessions;
+
+  /// 這份預覽運行時的資料庫 schema 版本（引用登記表覆蓋面隨版本變）。
+  final int schemaVersion;
+
+  /// 同意形態，恆為 [kBindPreflightConsentModeTargetSelfInitiated]：綁定只能由
+  /// 目標本人發起，任何呼叫端都不可能從這份預覽拿到「代替誰同意」的資格。
+  final String consentMode;
 
   /// 本次請求的關聯 ID。
   final String requestId;

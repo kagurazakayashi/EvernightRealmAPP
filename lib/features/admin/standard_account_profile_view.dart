@@ -30,6 +30,13 @@
 ///   停用中的訪客看到的是處置說明而不是那顆按鈕（後端對兩種形態都回 2024）。
 ///   與重置同樣：口令送出前即清空、結果不明不自動補發、成功句的撤銷數量取自 PUT 回應。
 ///   本人不能自我升級這句話不由界面承擔——訪戶拿自己的會話敲這條端點，後端回 2011。
+/// * 綁定預檢是這一張卡上唯一的**純只讀**區（`/bind-preflight`，POST 只帶
+///   target_account_id 一格）：它不寫任何資料、不落任何審計，因此不配確認對話框——
+///   確認框是寫入通路的門。它講的是另一句與「原地升級」相反相成的話：把訪戶併入
+///   **另一個既有正式帳戶**此刻可不可行、被什麼擋著。結果面板第一句永遠是大聲的
+///   「尚未綁定」；即便預覽全綠，界面上也沒有那顆「執行綁定」的按鈕——用戶批准的
+///   決定是綁定只能由目標帳戶持有人以自己的會話發起，今日不存在那樣通路，
+///   而這份預覽對任何人都不是、也不會变成一半的綁定。
 /// * 活動、資產與訊息都不在這一頁：那些模組尚未實作，擺一個空清單或 0 就是假資料。
 library;
 
@@ -216,6 +223,26 @@ class StandardAccountProfileCard extends StatefulWidget {
     'std-account-upgrade-notice',
   );
 
+  /// 綁定預檢區影響範圍說明識別鍵（常駐句：純只讀、未綁定、沒有執行入口）。
+  static const Key bindPreflightScopeKey = ValueKey<String>(
+    'std-account-bind-preflight-scope',
+  );
+
+  /// 綁定預檢目標標識輸入框識別鍵。
+  static const Key bindPreflightTargetKey = ValueKey<String>(
+    'std-account-bind-preflight-target',
+  );
+
+  /// 綁定預檢按鈕識別鍵。
+  static const Key bindPreflightActionKey = ValueKey<String>(
+    'std-account-bind-preflight-action',
+  );
+
+  /// 綁定預檢結果面板識別鍵（「尚未綁定」的顯著標示落在面板第一句）。
+  static const Key bindPreflightResultKey = ValueKey<String>(
+    'std-account-bind-preflight-result',
+  );
+
   @override
   State<StandardAccountProfileCard> createState() =>
       _StandardAccountProfileCardState();
@@ -268,6 +295,17 @@ class _StandardAccountProfileCardState
   /// 升級的成功句：撤銷數量取自 PUT 回應；口令不在這句話裡，也不在任何一處再出現。
   String? _upgradeNotice;
 
+  /// 綁定預檢的目標帳戶標識輸入：一格 UUID 原文，本地只做「空不發請求」。
+  /// 它不是任何寫入的底稿——這條通路沒有寫入。
+  final TextEditingController _bindPreflightTarget = TextEditingController();
+
+  /// 綁定預檢進行中（進行中不再發第二趟，也與四條白名單互斥——同一筆資料不並發操作）。
+  bool _bindPreflighting = false;
+
+  /// 最近一次預檢的結論快照。純只讀預覽：它不綁定任何人，也不是一张可提交的表單；
+  /// 任何寫入成功後一律收起（那份快照描述的事實已經被改變）。
+  StandardAccountBindPreflightReport? _bindPreflight;
+
   @override
   void initState() {
     super.initState();
@@ -280,6 +318,7 @@ class _StandardAccountProfileCardState
     _resetPassword.dispose();
     _upgradeLogin.dispose();
     _upgradePassword.dispose();
+    _bindPreflightTarget.dispose();
     super.dispose();
   }
 
@@ -377,6 +416,8 @@ class _StandardAccountProfileCardState
         _savePhase = _SavePhase.idle;
         _notice = null;
         _savedNotice = l10n.adminProfileSavedNotice(report.account.displayName);
+        // 任何寫入成功都收起那份預覽快照：它描述的事實已經被這一次寫入改變。
+        _bindPreflight = null;
       });
       widget.onSaved?.call();
     } on ApiError catch (error) {
@@ -501,6 +542,7 @@ class _StandardAccountProfileCardState
         _resetNotice = l10n.stdAccountResetSuccessNotice(
           report.revokedSessions,
         );
+        _bindPreflight = null;
       });
       widget.onSaved?.call();
     } on ApiError catch (error) {
@@ -622,6 +664,7 @@ class _StandardAccountProfileCardState
         _upgradeNotice = l10n.stdAccountUpgradeSuccessNotice(
           report.revokedSessions,
         );
+        _bindPreflight = null;
       });
       widget.onSaved?.call();
     } on ApiError catch (error) {
@@ -660,6 +703,184 @@ class _StandardAccountProfileCardState
         l10n.adminProfileStaleRejectedNotice,
       _ => apiErrorText(l10n, error),
     };
+  }
+
+  /// 綁定預檢：讀目標標識、發一趟 POST，結果只是一場**預覽**。
+  ///
+  /// 本地只擋「明顯沒填」：UUID 是否合法、目標在不在目錄、兩側形態合不合，
+  /// 全部由服務端判——界面不抄第二份規則，也不替操作者預筛「誰看起來能綁」。
+  /// 這一顆按鈕不弹確認框：確認框是寫入通路的門（停用、重置、升級都動真資料），
+  /// 而這條通路一個字都不寫，把人再點一次「確認」當安全装置是錯位；
+  /// 代替它的，是結果面板第一句就大聲講明「尚未綁定、這不會執行任何事」。
+  Future<void> _runBindPreflight() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null || !profile.isGuest || _bindPreflighting) {
+      return;
+    }
+    final String targetAccountId = _bindPreflightTarget.text.trim();
+    if (targetAccountId.isEmpty) {
+      // 沒填就一個請求都不發：這條路徑不該成為探測服務端是否在听的脈衝。
+      setState(() => _notice = l10n.stdAccountBindPreflightIncompleteNotice);
+      return;
+    }
+    setState(() {
+      _bindPreflighting = true;
+      _notice = null;
+      // 新的預覽開始跑，舊的那份快照就退場：兩份「上次結論」並存是第三種真相。
+      _bindPreflight = null;
+    });
+    try {
+      final StandardAccountBindPreflightReport report = await widget.api
+          .guestBindPreflight(
+            accountId: profile.accountId,
+            targetAccountId: targetAccountId,
+            acceptLanguage: _acceptLanguage,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _bindPreflighting = false;
+        _bindPreflight = report;
+      });
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _bindPreflighting = false;
+        _notice = _bindPreflightFailureText(error);
+      });
+    }
+  }
+
+  /// 預檢失敗分流：1004 依 `invalid_field` 點名目標標識（改寫法就有用）；
+  /// 1001 說「兩側有一方不在這本目錄裡」（來源或目標、不存在或管理員或已刪除，
+  /// 服務端刻意同句，界面也就同句——把它拆開等於替預覽接上探照燈）；
+  /// 2011 說「這個主體做不了這份預覽」；會話那一簇各說各話。
+  /// 「此刻不可綁定」不在這裡：那是 200 預覽本體裡的 blockers，不是錯誤。
+  String _bindPreflightFailureText(ApiError error) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ApiMachineCode? code = error.knownCode;
+    if (code == ApiMachineCode.invalidBody) {
+      final Object? field = error.details?['invalid_field'];
+      return switch (field) {
+        'target_account_id' => l10n.stdAccountBindPreflightInvalidTargetNotice,
+        _ => apiErrorText(l10n, error),
+      };
+    }
+    return switch (code) {
+      ApiMachineCode.notFound => l10n.stdAccountProfileNotFoundNotice,
+      ApiMachineCode.permissionDenied => l10n.stdAccountProfileDeniedNotice,
+      ApiMachineCode.notAuthenticated ||
+      ApiMachineCode.sessionInvalid ||
+      ApiMachineCode.sessionStale ||
+      ApiMachineCode.passwordChangeRequired =>
+        l10n.adminProfileStaleRejectedNotice,
+      _ => apiErrorText(l10n, error),
+    };
+  }
+
+  /// 把阻止原因的穩定記號換成界面句子。認不得的記號不崩潰也不靜默：
+  /// 顯示通用句並保留原記號——合同只增不刪，新記號抵達的那一天舊界面要能如實
+  /// 承認「這一條我还不認得」，而不是拿舊句子套新事實。
+  String _bindBlockerText(AppLocalizations l10n, String token) {
+    return switch (token) {
+      'same_source_target' => l10n.stdAccountBindPreflightBlockerSame,
+      'source_not_guest' => l10n.stdAccountBindPreflightBlockerSourceNotGuest,
+      'source_not_active' => l10n.stdAccountBindPreflightBlockerSourceNotActive,
+      'source_has_grants' => l10n.stdAccountBindPreflightBlockerSourceHasGrants,
+      'target_not_standard' =>
+        l10n.stdAccountBindPreflightBlockerTargetNotStandard,
+      'target_not_active' => l10n.stdAccountBindPreflightBlockerTargetNotActive,
+      'unknown_references' => l10n.stdAccountBindPreflightBlockerUnknownRefs,
+      _ => l10n.stdAccountBindPreflightUnknownToken(token),
+    };
+  }
+
+  /// 把影響記號換成界面句子；撤銷那條帶回應里的數量（界面不自己猜會話數）。
+  String _bindImpactText(
+    AppLocalizations l10n,
+    String token,
+    StandardAccountBindPreflightReport report,
+  ) {
+    return switch (token) {
+      'revoke_source_sessions' => l10n.stdAccountBindPreflightImpactRevoke(
+        report.sourceOpenSessions,
+      ),
+      'retire_source_account' => l10n.stdAccountBindPreflightImpactRetire,
+      'keep_history_references' =>
+        l10n.stdAccountBindPreflightImpactKeepHistory,
+      'transfer_future_attribution' =>
+        l10n.stdAccountBindPreflightImpactFutureAttribution,
+      'target_unchanged' => l10n.stdAccountBindPreflightImpactTargetUnchanged,
+      _ => l10n.stdAccountBindPreflightUnknownToken(token),
+    };
+  }
+
+  /// 結果面板：第一句就是「尚未綁定」的顯著標示，其後逐條唸原因或影響，
+  /// 收尾固定講兩件事——綁定需目標本人發起且今日沒有入口、這份預覽按哪一版資料庫跑。
+  Widget _bindPreflightResultPanel(
+    ThemeData theme,
+    AppLocalizations l10n,
+    StandardAccountBindPreflightReport report,
+  ) {
+    final List<Widget> lines = <Widget>[
+      Text(
+        l10n.stdAccountBindPreflightNotBoundNotice,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      Text(
+        report.executable
+            ? l10n.stdAccountBindPreflightExecutableHead(
+                report.source.loginName,
+                report.target.loginName,
+              )
+            : l10n.stdAccountBindPreflightBlockedHead(
+                report.source.loginName,
+                report.target.loginName,
+              ),
+        style: theme.textTheme.bodySmall,
+      ),
+    ];
+    for (final String blocker in report.blockers) {
+      lines.add(
+        Text(_bindBlockerText(l10n, blocker), style: theme.textTheme.bodySmall),
+      );
+    }
+    for (final String impact in report.impacts) {
+      lines.add(
+        Text(
+          _bindImpactText(l10n, impact, report),
+          style: theme.textTheme.bodySmall,
+        ),
+      );
+    }
+    lines.add(
+      Text(
+        l10n.stdAccountBindPreflightConsentNote,
+        style: theme.textTheme.bodySmall,
+      ),
+    );
+    lines.add(
+      Text(
+        l10n.stdAccountBindPreflightDataVersion(report.schemaVersion),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        key: StandardAccountProfileCard.bindPreflightResultKey,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: lines,
+      ),
+    );
   }
 
   /// 停用／恢復的確認對話框：先把「動的是誰、影響範圍到哪、這不會發生什麼」講完
@@ -754,6 +975,7 @@ class _StandardAccountProfileCardState
         _statusNotice = report.account.status == 'disabled'
             ? l10n.stdAccountStatusDisabledNotice(report.revokedSessions)
             : l10n.stdAccountStatusRestoredNotice;
+        _bindPreflight = null;
       });
       widget.onSaved?.call();
     } on ApiError catch (error) {
@@ -867,12 +1089,15 @@ class _StandardAccountProfileCardState
     StandardAccountReport profile,
   ) {
     // 四條白名單動的是同一筆帳戶：並發提交會讓其中一條的依據值在送出那一刻就過期，
-    // 因此這一張卡在任一寫入進行中都停住其餘入口。
+    // 因此這一張卡在任一寫入進行中都停住其餘入口。綁定預檢本身是純只讀，
+    // 但它在飛時一樣停住全部入口（含它自己）——同一筆資料的畫面不並發操作，
+    // 而且「預覽正在跑、另一條寫入先落地」會讓那份快照描述一個已不存在的事實。
     final bool busy =
         _savePhase == _SavePhase.saving ||
         _statusChanging ||
         _resetting ||
-        _upgrading;
+        _upgrading ||
+        _bindPreflighting;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1156,6 +1381,46 @@ class _StandardAccountProfileCardState
               style: theme.textTheme.bodySmall,
             ),
           ),
+        // 綁定預檢：純只讀的衝突預覽，只由服務端讀回的來源欄決定出現與否。
+        // 這一區與上面那條「原地升級」白名單是兩句話——升級動的是這一行人自己，
+        // 綁定談的是把這行人併入另一個既有正式帳戶；後者今日在整個產品裡
+        // 沒有執行入口（用戶批准：執行動詞屬目標帳戶持有人自己的會話，屬後續步驟），
+        // 這裡能做的只有「先看清會不會撞在哪」。常駐句、結果面板首句、
+        // 收尾同意句三處都講明尚未綁定；界面不拿這份預覽摆任何「完成綁定」的按鈕。
+        if (profile.isGuest) ...<Widget>[
+          const Divider(),
+          Text(
+            l10n.stdAccountBindPreflightScopeHint,
+            key: StandardAccountProfileCard.bindPreflightScopeKey,
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            key: StandardAccountProfileCard.bindPreflightTargetKey,
+            controller: _bindPreflightTarget,
+            enabled: !busy,
+            decoration: InputDecoration(
+              labelText: l10n.stdAccountBindPreflightTargetLabel,
+              hintText: l10n.stdAccountBindPreflightTargetHint,
+              isDense: true,
+            ),
+            maxLength: 36,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              key: StandardAccountProfileCard.bindPreflightActionKey,
+              onPressed: busy ? null : _runBindPreflight,
+              child: Text(
+                _bindPreflighting
+                    ? l10n.stdAccountBindPreflightWorkingHint
+                    : l10n.stdAccountBindPreflightAction,
+              ),
+            ),
+          ),
+          if (_bindPreflight != null)
+            _bindPreflightResultPanel(theme, l10n, _bindPreflight!),
+        ],
         const Divider(),
         // 登入憑據：第三條白名單（只有 password 一欄）、另一個確認語意。
         // 停用中的目標同樣可以重置（重置不是解除停用），所以這裡不按狀態分岔；
