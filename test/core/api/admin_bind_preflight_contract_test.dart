@@ -245,7 +245,7 @@ void main() {
       expect(report.source.displayName, '待綁旅人');
     });
 
-    test('拒絕只走既有碼：1004 點名欄位、1001 與 2011 各自可判別，且 2025 不屬於任何已收錄值', () async {
+    test('拒絕只走既有碼：1004 點名欄位、1001 與 2011 各自可判別，預檢本身不發新碼', () async {
       final Map<String, ApiMachineCode> probes = <String, ApiMachineCode>{
         '{"code":1004,"message":"bad","details":{"invalid_field":"target_account_id"},'
                 '"request_id":"r-1004"}':
@@ -267,8 +267,19 @@ void main() {
         );
         expect(error.knownCode, probe.value);
       }
-      // 本步不發布新機器碼：2025 不該是任何已收錄的值。
-      expect(ApiMachineCode.fromValue(2025), isNull);
+      // 純只讀的預檢今天仍然只用既有碼：它不簽憑證，所以那兩枚新碼（2025／2026）
+      // 不屬於這一條通路的回答。碼本身已隨著簽發與執行那一步收錄，這裡釘的是
+      // 「預檢不發新碼」這條界線，而不是代碼表。
+      expect(
+        probes.values.toSet(),
+        isNot(contains(ApiMachineCode.bindTicketInvalid)),
+      );
+      expect(
+        probes.values.toSet(),
+        isNot(contains(ApiMachineCode.bindPlanStale)),
+      );
+      expect(ApiMachineCode.fromValue(2025), ApiMachineCode.bindTicketInvalid);
+      expect(ApiMachineCode.fromValue(2026), ApiMachineCode.bindPlanStale);
     });
   });
 }

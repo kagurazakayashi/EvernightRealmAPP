@@ -243,6 +243,31 @@ class StandardAccountProfileCard extends StatefulWidget {
     'std-account-bind-preflight-result',
   );
 
+  /// 綁定憑證簽發區的影響範圍說明識別鍵（常駐句：這一動寫什麼、不寫什麼）。
+  static const Key bindTicketScopeKey = ValueKey<String>(
+    'std-account-bind-ticket-scope',
+  );
+
+  /// 綁定憑證簽發按鈕識別鍵（這一區唯一會寫資料的那顆）。
+  static const Key bindTicketActionKey = ValueKey<String>(
+    'std-account-bind-ticket-action',
+  );
+
+  /// 簽發確認對話框的肯定按鈕識別鍵。
+  static const Key bindTicketConfirmKey = ValueKey<String>(
+    'std-account-bind-ticket-confirm',
+  );
+
+  /// 簽發確認對話框的取消按鈕識別鍵。
+  static const Key bindTicketConfirmCancelKey = ValueKey<String>(
+    'std-account-bind-ticket-confirm-cancel',
+  );
+
+  /// 已簽發憑證的展示面板識別鍵（明文只在這一屏出現這一次）。
+  static const Key bindTicketResultKey = ValueKey<String>(
+    'std-account-bind-ticket-result',
+  );
+
   @override
   State<StandardAccountProfileCard> createState() =>
       _StandardAccountProfileCardState();
@@ -305,6 +330,14 @@ class _StandardAccountProfileCardState
   /// 最近一次預檢的結論快照。純只讀預覽：它不綁定任何人，也不是一张可提交的表單；
   /// 任何寫入成功後一律收起（那份快照描述的事實已經被改變）。
   StandardAccountBindPreflightReport? _bindPreflight;
+
+  /// 綁定憑證簽發進行中（這一動會寫一筆憑證與一筆審計，所以它與四條白名單一樣互斥）。
+  bool _ticketIssuing = false;
+
+  /// 最近一次簽發出來的憑證。它與預覽快照的分別是刻意的：預覽描述的是一份會過期的事實，
+  /// 而這一枚是已經存在的小票——界面展示它一次，離開這一頁就再也讀不回來（庫裡只有哈希）。
+  /// 任何寫入成功後一律收起，避免留下第二處「以為還能拿它做什麼」的畫面。
+  GuestBindTicketReport? _issuedTicket;
 
   @override
   void initState() {
@@ -416,7 +449,8 @@ class _StandardAccountProfileCardState
         _savePhase = _SavePhase.idle;
         _notice = null;
         _savedNotice = l10n.adminProfileSavedNotice(report.account.displayName);
-        // 任何寫入成功都收起那份預覽快照：它描述的事實已經被這一次寫入改變。
+        // 任何寫入成功都收起預覽快照與已簽發的憑證：它們描述的事實已被這一次寫入改變。
+        _issuedTicket = null;
         _bindPreflight = null;
       });
       widget.onSaved?.call();
@@ -542,6 +576,8 @@ class _StandardAccountProfileCardState
         _resetNotice = l10n.stdAccountResetSuccessNotice(
           report.revokedSessions,
         );
+        // 任何寫入成功都收起預覽快照與已簽發的憑證：它們描述的事實已被這一次寫入改變。
+        _issuedTicket = null;
         _bindPreflight = null;
       });
       widget.onSaved?.call();
@@ -664,6 +700,8 @@ class _StandardAccountProfileCardState
         _upgradeNotice = l10n.stdAccountUpgradeSuccessNotice(
           report.revokedSessions,
         );
+        // 任何寫入成功都收起預覽快照與已簽發的憑證：它們描述的事實已被這一次寫入改變。
+        _issuedTicket = null;
         _bindPreflight = null;
       });
       widget.onSaved?.call();
@@ -817,6 +855,162 @@ class _StandardAccountProfileCardState
       'target_unchanged' => l10n.stdAccountBindPreflightImpactTargetUnchanged,
       _ => l10n.stdAccountBindPreflightUnknownToken(token),
     };
+  }
+
+  /// 簽發綁定憑證：把「這份預覽可行」換成一枚限定這一對、15 分鐘、只能用一次的操作憑證。
+  ///
+  /// 目標標識讀的是預檢那一欄——同一格輸入、兩個動作（先預覽、再簽發），
+  /// 不是第二張表單：兩处各放一欄就會出現「預覽的是甲、簽發的是乙」那種拼錯的授權。
+  /// 這一動會寫東西，所以它要確認框（預檢不要）：對話框必須唸出「這枚憑證准了誰、
+  /// 准的是把訪戶併進他」，並明說這不是綁定本身。
+  /// 本地只擋「明顯沒填」；可行性由後端在寫入那一刻重做判定——不可行以 2026 回來，
+  /// 界面不假裝「預覽過就一定發得出」。
+  Future<void> _runBindTicket() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null || !profile.isGuest || _ticketIssuing) {
+      return;
+    }
+    final String targetAccountId = _bindPreflightTarget.text.trim();
+    if (targetAccountId.isEmpty) {
+      setState(() => _notice = l10n.stdAccountBindTicketIncompleteNotice);
+      return;
+    }
+    // 確認文要點名被准的人是誰：預覽剛讀過這一對就拿它的登入名，
+    // 否則退回那枚標識本身——界面不拿「看起來像」冒充「讀過的事實」。
+    final StandardAccountBindPreflightReport? snapshot = _bindPreflight;
+    final String targetName =
+        snapshot != null && snapshot.target.accountId == targetAccountId
+        ? snapshot.target.loginName
+        : targetAccountId;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(l10n.stdAccountBindTicketConfirmTitle),
+        content: Text(l10n.stdAccountBindTicketConfirmBody(targetName)),
+        actions: <Widget>[
+          TextButton(
+            key: StandardAccountProfileCard.bindTicketConfirmCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.adminStatusConfirmCancelAction),
+          ),
+          FilledButton(
+            key: StandardAccountProfileCard.bindTicketConfirmKey,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.stdAccountBindTicketConfirmOkAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    await _applyBindTicket(targetAccountId);
+  }
+
+  /// 發出簽發請求：明文只在成功這一次進到界面（不進任何本地儲存、不進控制器），
+  /// 失敗則界面停在原地——這一步不重發，因為「同一對再簽一枚」在後端是合法動作，
+  /// 讓操作者自己決定要不要再按一次，比悄悄補發一趟誠實。
+  Future<void> _applyBindTicket(String targetAccountId) async {
+    final StandardAccountReport? profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    setState(() {
+      _ticketIssuing = true;
+      _notice = null;
+      _issuedTicket = null;
+    });
+    try {
+      final GuestBindTicketReport report = await widget.api
+          .issueGuestBindTicket(
+            accountId: profile.accountId,
+            targetAccountId: targetAccountId,
+            acceptLanguage: _acceptLanguage,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _ticketIssuing = false;
+        _issuedTicket = report;
+      });
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _ticketIssuing = false;
+        _notice = _bindTicketFailureText(error);
+      });
+    }
+  }
+
+  /// 簽發失敗分流：1004 點名目標標識（改寫法就有用）；2026 交給機器碼的專屬句
+  /// （處置是重跑預檢，不是重按這一顆）；1001／2011 與會話那一簇各說各話。
+  /// 這裡沒有「不可綁定還是 200」那一形——簽發成功本身就承諾了可行。
+  String _bindTicketFailureText(ApiError error) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ApiMachineCode? code = error.knownCode;
+    if (code == ApiMachineCode.invalidBody) {
+      final Object? field = error.details?['invalid_field'];
+      return switch (field) {
+        'target_account_id' => l10n.stdAccountBindPreflightInvalidTargetNotice,
+        _ => apiErrorText(l10n, error),
+      };
+    }
+    return switch (code) {
+      ApiMachineCode.notFound => l10n.stdAccountProfileNotFoundNotice,
+      ApiMachineCode.permissionDenied => l10n.stdAccountProfileDeniedNotice,
+      ApiMachineCode.notAuthenticated ||
+      ApiMachineCode.sessionInvalid ||
+      ApiMachineCode.sessionStale ||
+      ApiMachineCode.passwordChangeRequired =>
+        l10n.adminProfileStaleRejectedNotice,
+      _ => apiErrorText(l10n, error),
+    };
+  }
+
+  /// 已簽發憑證的展示面板：第一句就說明它只在這一個畫面出現一次，離開就再也讀不回來，
+  /// 並把「它不是口令、執行只能由目標本人確認」講在同一屏上。
+  Widget _bindTicketResultPanel(
+    ThemeData theme,
+    AppLocalizations l10n,
+    GuestBindTicketReport report,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        key: StandardAccountProfileCard.bindTicketResultKey,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SelectableText(
+            l10n.stdAccountBindTicketIssuedNotice(
+              report.ticket,
+              report.target.loginName,
+            ),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            l10n.stdAccountBindTicketDeliveryNotice,
+            style: theme.textTheme.bodySmall,
+          ),
+          Text(
+            l10n.stdAccountBindTicketExpiresNotice(
+              report.expiresAt.toUtc().toIso8601String(),
+            ),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 結果面板：第一句就是「尚未綁定」的顯著標示，其後逐條唸原因或影響，
@@ -975,6 +1169,8 @@ class _StandardAccountProfileCardState
         _statusNotice = report.account.status == 'disabled'
             ? l10n.stdAccountStatusDisabledNotice(report.revokedSessions)
             : l10n.stdAccountStatusRestoredNotice;
+        // 任何寫入成功都收起預覽快照與已簽發的憑證：它們描述的事實已被這一次寫入改變。
+        _issuedTicket = null;
         _bindPreflight = null;
       });
       widget.onSaved?.call();
@@ -1097,7 +1293,8 @@ class _StandardAccountProfileCardState
         _statusChanging ||
         _resetting ||
         _upgrading ||
-        _bindPreflighting;
+        _bindPreflighting ||
+        _ticketIssuing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1383,10 +1580,10 @@ class _StandardAccountProfileCardState
           ),
         // 綁定預檢：純只讀的衝突預覽，只由服務端讀回的來源欄決定出現與否。
         // 這一區與上面那條「原地升級」白名單是兩句話——升級動的是這一行人自己，
-        // 綁定談的是把這行人併入另一個既有正式帳戶；後者今日在整個產品裡
-        // 沒有執行入口（用戶批准：執行動詞屬目標帳戶持有人自己的會話，屬後續步驟），
-        // 這裡能做的只有「先看清會不會撞在哪」。常駐句、結果面板首句、
-        // 收尾同意句三處都講明尚未綁定；界面不拿這份預覽摆任何「完成綁定」的按鈕。
+        // 綁定談的是把這行人併入另一個既有正式帳戶；後者的執行動詞只屬於那個目標帳戶
+        // 持有人自己的已認證會話（用戶批准的同意形態），這一側能做到的是「先看清會撞在
+        // 哪裡」與「發一枚小票給他」。常駐句、結果面板首句、收尾同意句三處都講明尚未綁定；
+        // 界面不拿這份預覽摆任何「完成綁定」的按鈕，也不會有那樣一顆。
         if (profile.isGuest) ...<Widget>[
           const Divider(),
           Text(
@@ -1420,6 +1617,29 @@ class _StandardAccountProfileCardState
           ),
           if (_bindPreflight != null)
             _bindPreflightResultPanel(theme, l10n, _bindPreflight!),
+          // 憑證簽發：這一區唯一會寫資料的那顆按鈕。它把「這份預覽可行」換成一枚
+          // 交給目標本人的短期小票——仍然不是綁定（訪戶未退休、會話未撤、留痕未追加），
+          // 界面也沒有、也永遠不會有「代他完成綁定」的那一動。
+          const SizedBox(height: 8),
+          Text(
+            l10n.stdAccountBindTicketScopeHint,
+            key: StandardAccountProfileCard.bindTicketScopeKey,
+            style: theme.textTheme.bodySmall,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              key: StandardAccountProfileCard.bindTicketActionKey,
+              onPressed: busy ? null : _runBindTicket,
+              child: Text(
+                _ticketIssuing
+                    ? l10n.stdAccountBindTicketWorkingHint
+                    : l10n.stdAccountBindTicketAction,
+              ),
+            ),
+          ),
+          if (_issuedTicket != null)
+            _bindTicketResultPanel(theme, l10n, _issuedTicket!),
         ],
         const Divider(),
         // 登入憑據：第三條白名單（只有 password 一欄）、另一個確認語意。

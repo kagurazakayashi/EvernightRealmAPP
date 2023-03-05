@@ -149,6 +149,32 @@ String adminAccountUpgradePath(String accountId) =>
 String adminAccountBindPreflightPath(String accountId) =>
     '${adminAccountItemPath(accountId)}/bind-preflight';
 
+/// 訪戶「綁定憑證簽發」子資源的路徑：POST 唯一方法，是本目錄裡唯一會寫的綁定通路。
+///
+/// 它落的不是綁定而是**一份授權**：一經伺服器級管理員簽發、限定這一對（來源, 目標）、
+/// 15 分鐘內有效、只准核銷一次的操作憑證。這一動把「最後由誰按下執行」交給憑證上那個
+/// 目標帳戶的持有人——管理端到此為止，永遠沒有代人綁定的按鈕（用戶批准的同意形態）。
+/// 與 [adminAccountBindPreflightPath] 的分别是本步最要緊的一句話：那一條零寫入、
+/// 「不可綁定」以 200 帶原因記號回來；這一條會寫，所以不可行的這一對以 2026 被拒，
+/// 而不是回一份 200 加空影響清單（签发成功這件事本身就承諾了可行）。
+String adminAccountBindTicketPath(String accountId) =>
+    '${adminAccountItemPath(accountId)}/bind-ticket';
+
+/// 本人綁定端點的集合路徑：POST 執行綁定、GET（／HEAD）讀自己接住過哪些人。
+///
+/// 這三條通路刻意落在 `/auth` 而不是 `/admin` 之下：那一側全部經 NeedServerAdmin，
+/// 而這一側只承認「憑證上釘著的那個普通正式帳戶本人」。讀的那一頁是「結果待確認」的
+/// 落點——提交成功但回應遺失時，界面对它只能說「待確認」，而這裡讀到的那一行留痕
+/// 才是完成與否的證據（重試同一枚憑證只會拿到 2025，它已被用掉）。
+const String kAuthGuestBindingsPath = '/auth/guest-bindings';
+
+/// 本人的「核銷前預覽」子資源路徑：POST 唯一方法，只讀、不核銷任何東西。
+///
+/// 用 POST 是因為輸入是一段凭據：放進路徑或查詢串就會進訪問日誌、瀏覽器歷史與快取，
+/// 而一枚还没被用掉的小票不該出現在那些地方。它與 [kAuthGuestBindingsPath] 那一條 POST
+/// 的分别是界面上「先展示已驗證的影響、再單獨確認執行」那兩顆按鈕的分别是同一件事。
+const String kAuthGuestBindingsPreviewPath = '/auth/guest-bindings/preview';
+
 /// 註冊申請名冊的集合端點路徑：GET（／HEAD）分頁列出走審批通路的申請。
 ///
 /// 這本名冊與 [kAdminAccountsPath] 那本目錄是兩句話，各有各的範圍條件：
@@ -815,6 +841,81 @@ class ServerApi {
       adminAccountBindPreflightPath(accountId),
       jsonBody: <String, Object?>{'target_account_id': targetAccountId},
       decode: StandardAccountBindPreflightReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 簽發訪戶綁定的操作憑證：POST `/admin/accounts/{account_id}/bind-ticket`。
+  ///
+  /// 這是本目錄裡唯一會寫的綁定通路，但它**不是綁定的一半**：落庫的只有憑證一行與
+  /// Root 域審計一筆——訪戶未退休、會話未撤、留痕未追加（用戶批准的 R2-019 決定）。
+  /// 後端在同一筆交易裡把預檢重做一遍，可行才簽發；不可行以 2026 帶著穩定原因記號回絕
+  /// （不像 [guestBindPreflight] 那樣回 200——簽發成功本身就承諾了可行）。
+  /// 有效期是後端碼內的 15 分鐘常量：請求裡沒有任何格子可以調它，也沒有撤销通路。
+  /// 回應的 [GuestBindTicketReport.ticket] 是憑證明文，只在這一次出現：庫裡存的是它的
+  /// SHA-256，此後任何讀法都拿不回來，因此它也不進本倉庫的任何本地儲存。
+  Future<GuestBindTicketReport> issueGuestBindTicket({
+    required String accountId,
+    required String targetAccountId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<GuestBindTicketReport>(
+      adminAccountBindTicketPath(accountId),
+      jsonBody: <String, Object?>{'target_account_id': targetAccountId},
+      decode: GuestBindTicketReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 本人的核銷前預覽：POST `/auth/guest-bindings/preview`。
+  ///
+  /// 只讀，且不核銷任何東西：同一枚憑證在被用掉之前可以讀任意多次（直到過期）。
+  /// 它回的是**此刻**重做的判定（來源與目標現值、將產生的影響、源會話數、資料庫版本、
+  /// 失效時刻），不是簽發那份快照的回音——界面要讓本人在按下確認之前看見的正是這個。
+  /// 事實已漂或形態變了以 2026 回絕（要請管理員重新預檢並另發一枚），憑證本身用不了
+  /// 以 2025 回絕（不存在、形狀不合、已過期、已核銷、或准的不是你，五者同形一句）。
+  Future<GuestBindClaimPreviewReport> guestBindPreview({
+    required String ticket,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<GuestBindClaimPreviewReport>(
+      kAuthGuestBindingsPreviewPath,
+      jsonBody: <String, Object?>{'ticket': ticket},
+      decode: GuestBindClaimPreviewReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 本人的綁定執行：POST `/auth/guest-bindings`。
+  ///
+  /// 今日唯一的綁定執行入口，而且只能由憑證上的目標本人通過：主體判定先於任何查詢，
+  /// 訪戶、Root 與管理員拿到的是 2011。本體恰好一欄 `ticket`——沒有任何「我以誰的身分」
+  /// 可填，來源與目標都由憑證行釘死，因此「換一個目標重放同一枚憑證」在協議層就沒有格子。
+  /// 成功回應的 [GuestBindResultReport] 帶出留痕標識、退休後的來源現值、原樣的目標現值
+  /// 與这次撤銷的會話數。這是一筆寫入且**刻意不做自動重發**：小票只有一張，
+  /// 按兩次不會變成兩次綁定；回應遺失時的答案是 [guestBindingsList] 讀到的那一行。
+  Future<GuestBindResultReport> guestBindConfirm({
+    required String ticket,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<GuestBindResultReport>(
+      kAuthGuestBindingsPath,
+      jsonBody: <String, Object?>{'ticket': ticket},
+      decode: GuestBindResultReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀回「目標是我」的已完成綁定：GET `/auth/guest-bindings`。
+  ///
+  /// 沒有任何查詢參數、也沒有本體：範圍就是本次憑據換出的那個人，所以這條通路問不出
+  /// 別人的綁定。它也不是管理員那本目錄的替代品——它回答的是「我以自己的會話接住過誰」。
+  /// 界面用它的兩個時刻：一是提交後回應遺失時判定那次綁定到底有沒有落地
+  /// （區分失敗／已完成／結果待確認的依據），二是讓本人看得见歷史解釋的存在。
+  Future<GuestBindingListReport> guestBindingsList({String? acceptLanguage}) {
+    return apiClient.get<GuestBindingListReport>(
+      kAuthGuestBindingsPath,
+      decode: GuestBindingListReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

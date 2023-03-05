@@ -16,6 +16,7 @@ import 'package:evernightrealm/core/api/api_client.dart';
 import 'package:evernightrealm/core/api/server_address.dart';
 import 'package:evernightrealm/core/api/server_address_settings.dart';
 import 'package:evernightrealm/core/api/server_api.dart';
+import 'package:evernightrealm/core/api/server_models.dart';
 import 'package:evernightrealm/core/session/session_controller.dart';
 import 'package:evernightrealm/core/session/session_status.dart';
 import 'package:evernightrealm/features/auth/login_page.dart';
@@ -746,6 +747,101 @@ void main() {
       );
       expect(find.byKey(LoginPage.submitKey), findsOneWidget);
       expect(navigatorKeyMatches(navigator), isTrue);
+    });
+  });
+
+  group('自助綁定訪戶的入口', () {
+    /// 以一份指定身分的登入成果掛上會話卡。
+    ///
+    /// 入口的有無只由伺服器回報的主體事實決定（主體類別、帳戶類型、授予、
+    /// 改密義務），界面不自己猜：這裡把四樣輸入逐一給定，看按鈕出不出現。
+    Future<void> mountSubject(
+      WidgetTester tester, {
+      required AuthSubjectKind subjectKind,
+      String? accountId,
+      AuthAccountType? accountType,
+      List<String> roles = const <String>[],
+      bool mustChangePassword = false,
+    }) async {
+      final ServerAddressSettings settings = await addressesFor();
+      final ServerApi api = apiFor(settings);
+      final SessionController session = await signedInSession(
+        api: api,
+        addresses: settings,
+        persistence: InMemorySessionPersistence(),
+        exchange: LoginExchange(
+          report: LoginReport(
+            subjectKind: subjectKind,
+            accountId: accountId,
+            accountType: accountType,
+            deviceId: 'device-88',
+            expiresAt: DateTime.utc(2026, 10, 2, 3, 4, 5),
+            requestId: 'r-login-bind',
+            roles: roles,
+            mustChangePassword: mustChangePassword,
+          ),
+          sessionSecret: 'tok-bind-1',
+        ),
+      );
+      await mount(tester, settings: settings, api: api, session: session);
+      expect(find.byKey(SessionSummaryView.identityKey), findsOneWidget);
+    }
+
+    testWidgets('普通正式帳戶：入口在場（他是憑證上釘著的那位持有人）', (WidgetTester tester) async {
+      await mountSubject(
+        tester,
+        subjectKind: AuthSubjectKind.account,
+        accountId: 'acct-01',
+        accountType: AuthAccountType.standard,
+      );
+      expect(find.byKey(SessionSummaryView.guestBindKey), findsOneWidget);
+      expect(find.text(l10n.guestBindEntryAction), findsOneWidget);
+    });
+
+    testWidgets('訪客本人：沒有這一顆（他在這條通路上拿 2011，界面不擺註定失敗的入口）', (
+      WidgetTester tester,
+    ) async {
+      await mountSubject(
+        tester,
+        subjectKind: AuthSubjectKind.account,
+        accountId: 'acct-guest',
+        accountType: AuthAccountType.guest,
+      );
+      expect(find.byKey(SessionSummaryView.guestBindKey), findsNothing);
+      expect(find.text(l10n.guestBindEntryAction), findsNothing);
+    });
+
+    testWidgets('Root 主體：沒有這一顆（Root 不是憑證釘著的那位持有人）', (
+      WidgetTester tester,
+    ) async {
+      await mountSubject(tester, subjectKind: AuthSubjectKind.root);
+      expect(find.byKey(SessionSummaryView.guestBindKey), findsNothing);
+    });
+
+    testWidgets('持伺服器級授予的帳戶：沒有這一顆（管理員也代不了目標本人）', (WidgetTester tester) async {
+      await mountSubject(
+        tester,
+        subjectKind: AuthSubjectKind.account,
+        accountId: 'acct-admin',
+        accountType: AuthAccountType.standard,
+        roles: const <String>[kServerAdminRole],
+      );
+      expect(find.byKey(SessionSummaryView.guestBindKey), findsNothing);
+      // 同一份主體事實的其他入口不受影響：這一條只是綁定的入口。
+      expect(find.byKey(SessionSummaryView.passwordChangeKey), findsOneWidget);
+    });
+
+    testWidgets('欠改密的普通帳戶：四條寫入入口一起停住，綁定也不例外', (WidgetTester tester) async {
+      await mountSubject(
+        tester,
+        subjectKind: AuthSubjectKind.account,
+        accountId: 'acct-01',
+        accountType: AuthAccountType.standard,
+        mustChangePassword: true,
+      );
+      expect(find.byKey(SessionSummaryView.guestBindKey), findsNothing);
+      expect(find.byKey(SessionSummaryView.deviceManagerKey), findsNothing);
+      expect(find.byKey(SessionSummaryView.rotateKey), findsNothing);
     });
   });
 }

@@ -25,6 +25,7 @@ import '../app_router.dart';
 import '../nav_context.dart';
 import '../session_scope.dart';
 import 'device_manager_view.dart';
+import 'guest_bind_claim_view.dart';
 import 'password_change_view.dart';
 
 /// 入口層的會話摘要卡。
@@ -69,6 +70,9 @@ class SessionSummaryView extends StatefulWidget {
 
   /// 訪客（臨時身分）說明行的測試識別鍵。
   static const Key guestNoticeKey = ValueKey<String>('session-guest-notice');
+
+  /// 「用憑證綁定訪戶」入口識別鍵（只對普通正式帳戶呈現）。
+  static const Key guestBindKey = ValueKey<String>('session-guest-bind');
 
   @override
   State<SessionSummaryView> createState() => _SessionSummaryViewState();
@@ -478,6 +482,22 @@ class _SessionSummaryViewState extends State<SessionSummaryView> {
                   key: SessionSummaryView.passwordChangeKey,
                   onPressed: () => showChangePasswordDialog(context, session),
                   child: Text(l10n.sessionPasswordChangeAction),
+                ),
+              ),
+            // 「用憑證綁定訪戶」只對普通正式帳戶呈現：訪客本人不能給自己綁定（他在
+            // 這條通路上拿 2011），Root 與持有伺服器級授予的管理員也不是「憑證上釘著的
+            // 那個目標持有人」——那三者都進不了後端那道主體判定，界面就不摆一個註定失敗的
+            // 入口。欠改密時同樣不呈現（2010 在服務端擋著一切寫入）。
+            if (!active.isGuest &&
+                !active.isRoot &&
+                !active.isServerAdmin &&
+                !session.mustChangePassword)
+              SizedBox(
+                height: 40,
+                child: OutlinedButton(
+                  key: SessionSummaryView.guestBindKey,
+                  onPressed: () => showGuestBindDialog(context),
+                  child: Text(l10n.guestBindEntryAction),
                 ),
               ),
             if (!session.mustChangePassword)

@@ -1023,6 +1023,7 @@ class StandardAccountReport {
     required this.createdAt,
     this.lastLoginAt,
     this.disabledAt,
+    this.retiredAt,
   });
 
   /// 從 JSON 單項建立。
@@ -1037,6 +1038,7 @@ class StandardAccountReport {
       createdAt: _requireUtcTime(json, 'created_at'),
       lastLoginAt: _optionalUtcTime(json, 'last_login_at'),
       disabledAt: _optionalUtcTime(json, 'disabled_at'),
+      retiredAt: _optionalUtcTime(json, 'retired_at'),
     );
   }
 
@@ -1052,7 +1054,9 @@ class StandardAccountReport {
   /// 來源類型原字串（standard|guest，未知值原樣保留）。
   final String accountType;
 
-  /// 帳戶狀態原字串（本目錄可能出现的值是 active 與 disabled；deleted 不在範圍內）。
+  /// 帳戶狀態原字串（本目錄可能出現的值是 active、disabled 與 retired；
+  /// deleted 與審批鏈那兩態不在範圍內。retired 是訪戶經綁定進去的終態——
+  /// 它仍被列在本目錄裡正是刻意的：那個人存在過、他已被誰接走要查得到）。
   final String status;
 
   /// 是否仍欠首次改密（只讀展示；解除它的唯一通路是本人改密，本目錄不提供）。
@@ -1066,6 +1070,11 @@ class StandardAccountReport {
 
   /// 進入禁用狀態的時刻（UTC）；可用狀態時欄位缺席，讀成 `null`（不拿零值冒充「停過」）。
   final DateTime? disabledAt;
+
+  /// 經綁定進入退休終態的時刻（UTC）；未退休時欄位缺席，讀成 `null`
+  /// （不拿零值冒充「被綁走過」）。它與 [status] 的 retired 一同讓界面能說出
+  /// 「這個人已被接走、何時接走」，而不是把他當成查無著落的幽靈行。
+  final DateTime? retiredAt;
 
   /// 是否為有效狀態（未知值不冒充有效）。
   bool get isActive => status == 'active';
@@ -1381,6 +1390,332 @@ class StandardAccountBindPreflightReport {
   /// 同意形態，恆為 [kBindPreflightConsentModeTargetSelfInitiated]：綁定只能由
   /// 目標本人發起，任何呼叫端都不可能從這份預覽拿到「代替誰同意」的資格。
   final String consentMode;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `POST /admin/accounts/{account_id}/bind-ticket` 的成功回應：一枚已簽發的綁定操作憑證。
+///
+/// ticket 是本倉庫裡唯一一段「後端交出來的可用凭據」，而且只這一次：庫裡存的是它的
+/// SHA-256，此後任何讀法都拿不回明文，因此本欄位也**刻意不進任何本地儲存**——
+/// 界面把它顯示一次讓人抄走，離開這一頁就再也讀不回來（這不是缺陷，是這枚憑證的定義）。
+/// expiresAt 是失效時刻（後端碼內 15 分鐘），界面據此說出「還來不來得及」而不是猜。
+/// plan 之外的欄位全部是可展示事實：source/target 復用 [StandardAccountReport]，
+/// 沒有任何憑據格子；impacts 恆為數組，是「這一枚准的是會發生這五件事」的合同清單。
+class GuestBindTicketReport {
+  /// 以已驗證的欄位建立一次憑證簽發的結果。
+  const GuestBindTicketReport({
+    required this.ticket,
+    required this.ticketId,
+    required this.source,
+    required this.target,
+    required this.impacts,
+    required this.sourceOpenSessions,
+    required this.schemaVersion,
+    required this.expiresAt,
+    required this.consentMode,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立憑證簽發結果。
+  static GuestBindTicketReport decode(Map<String, Object?> json) {
+    final Object? source = json['source'];
+    if (source is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('source 不是物件');
+    }
+    final Object? target = json['target'];
+    if (target is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('target 不是物件');
+    }
+    final String consentMode = _requireText(json, 'consent_mode');
+    if (consentMode != kBindPreflightConsentModeTargetSelfInitiated) {
+      throw ApiResponseShapeException('consent_mode 值 $consentMode 不在合同內');
+    }
+    return GuestBindTicketReport(
+      ticket: _requireText(json, 'ticket'),
+      ticketId: _requireText(json, 'ticket_id'),
+      source: StandardAccountReport.decode(source),
+      target: StandardAccountReport.decode(target),
+      impacts: _requireTextList(json, 'impacts'),
+      sourceOpenSessions: _requireInt(json, 'source_open_sessions'),
+      schemaVersion: _requireInt(json, 'schema_version'),
+      expiresAt: _requireUtcTime(json, 'expires_at'),
+      consentMode: consentMode,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 憑證明文（22 字元 base64url）：只在這一次回應裡存在，不落任何本地儲存。
+  final String ticket;
+
+  /// 憑證的穩定標識：可展示、可追溯，本身不是秘密。
+  final String ticketId;
+
+  /// 來源訪戶的單筆資料（這枚憑證准的是把他併進去）。
+  final StandardAccountReport source;
+
+  /// 目標帳戶的單筆資料（這枚憑證只能由他的已認證會話用掉）。
+  final StandardAccountReport target;
+
+  /// 將產生的影響記號清單（簽發成功即代表這五件事都可行）。
+  final List<String> impacts;
+
+  /// 源名下尚未撤銷的會話數（與後端 RevokeAccount 同一把尺）；0 是事實。
+  final int sourceOpenSessions;
+
+  /// 簽發時的資料庫 schema 版本（核銷時版本已推進即代表這份計劃過期）。
+  final int schemaVersion;
+
+  /// 憑證失效時刻（UTC）：到期即失效，本步沒有撤銷通路也沒有延期格子。
+  final DateTime expiresAt;
+
+  /// 同意形態，恆為 [kBindPreflightConsentModeTargetSelfInitiated]。
+  final String consentMode;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `POST /auth/guest-bindings/preview` 的成功回應：本人在核銷前看見的那份當前事實。
+///
+/// 它與 [GuestBindTicketReport] 的分别是界面那兩顆按鈕的分别是同一件事：這一條不核銷、
+/// 不寫一行資料，同一枚憑證在被用掉之前可以讀任意多次。source/target 是**此刻**重讀的現值
+/// 而不是簽發時的回音——中間可能過了十分鐘、訪戶可能被停用、庫裡可能多了一張沒接入的引用表。
+/// 不可行的那份計劃走 2026（帶著原因記號）回來，因此本模型不需要 executable 欄位：
+/// 能解碼成功就代表這一份是可執行的。
+class GuestBindClaimPreviewReport {
+  /// 以已驗證的欄位建立一次核銷前預覽。
+  const GuestBindClaimPreviewReport({
+    required this.ticketId,
+    required this.source,
+    required this.target,
+    required this.impacts,
+    required this.sourceOpenSessions,
+    required this.schemaVersion,
+    required this.expiresAt,
+    required this.consentMode,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立核銷前預覽。
+  static GuestBindClaimPreviewReport decode(Map<String, Object?> json) {
+    final Object? source = json['source'];
+    if (source is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('source 不是物件');
+    }
+    final Object? target = json['target'];
+    if (target is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('target 不是物件');
+    }
+    final String consentMode = _requireText(json, 'consent_mode');
+    if (consentMode != kBindPreflightConsentModeTargetSelfInitiated) {
+      throw ApiResponseShapeException('consent_mode 值 $consentMode 不在合同內');
+    }
+    return GuestBindClaimPreviewReport(
+      ticketId: _requireText(json, 'ticket_id'),
+      source: StandardAccountReport.decode(source),
+      target: StandardAccountReport.decode(target),
+      impacts: _requireTextList(json, 'impacts'),
+      sourceOpenSessions: _requireInt(json, 'source_open_sessions'),
+      schemaVersion: _requireInt(json, 'schema_version'),
+      expiresAt: _requireUtcTime(json, 'expires_at'),
+      consentMode: consentMode,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 這枚憑證的穩定標識（回應不回顯明文：它已被用過一次的机会只留給確認那一步）。
+  final String ticketId;
+
+  /// 來源訪戶此刻的現值（本人要清楚自己接住的是哪一個人）。
+  final StandardAccountReport source;
+
+  /// 目標帳戶——也就是「我」——此刻的現值。
+  final StandardAccountReport target;
+
+  /// 已驗證的影響記號清單：界面逐條本地化成句，認不得的記號走通用句。
+  final List<String> impacts;
+
+  /// 源名下尚未撤銷的會話數（按下確認後會被登出的範圍）；0 是事實。
+  final int sourceOpenSessions;
+
+  /// 這份預覽運行的資料庫 schema 版本。
+  final int schemaVersion;
+
+  /// 憑證失效時刻（UTC）。
+  final DateTime expiresAt;
+
+  /// 同意形態，恆為 [kBindPreflightConsentModeTargetSelfInitiated]。
+  final String consentMode;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `POST /auth/guest-bindings` 的成功回應：一次真實完成的綁定。
+///
+/// source 是**退休之後**的現值（status 為 retired 並帶著 retired_at），target 是目標的
+/// 現值——兩欄並列就是「動的是誰、沒動的是誰」的正面證據。revokedSessions 必填：
+/// 缺席判合同違例而不是降級成 0（界面要說出「讓 N 臺裝置重新登入」，猜不得）。
+/// 回應裡沒有 ticket：明文用掉了就不該在任何回應裡再出現第二次。
+class GuestBindResultReport {
+  /// 以已驗證的欄位建立一次綁定結果。
+  const GuestBindResultReport({
+    required this.bindingId,
+    required this.source,
+    required this.target,
+    required this.revokedSessions,
+    required this.boundAt,
+    required this.consentMode,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立綁定結果。
+  static GuestBindResultReport decode(Map<String, Object?> json) {
+    final Object? source = json['source'];
+    if (source is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('source 不是物件');
+    }
+    final Object? target = json['target'];
+    if (target is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('target 不是物件');
+    }
+    final String consentMode = _requireText(json, 'consent_mode');
+    if (consentMode != kBindPreflightConsentModeTargetSelfInitiated) {
+      throw ApiResponseShapeException('consent_mode 值 $consentMode 不在合同內');
+    }
+    return GuestBindResultReport(
+      bindingId: _requireText(json, 'binding_id'),
+      source: StandardAccountReport.decode(source),
+      target: StandardAccountReport.decode(target),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      boundAt: _requireUtcTime(json, 'bound_at'),
+      consentMode: consentMode,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 綁定留痕行的穩定標識（不可變的歷史解釋，查得到就代表這次綁定已完成）。
+  final String bindingId;
+
+  /// 來源訪戶退休後的現值（status=retired，且帶著 retired_at）。
+  final StandardAccountReport source;
+
+  /// 目標帳戶的現值：綁定不碰它，這一欄逐字原樣就是「目標沒被改造成別的主體」的證據。
+  final StandardAccountReport target;
+
+  /// 這次撤銷的源會話數量（必填；0 是事實而不是失敗）。
+  final int revokedSessions;
+
+  /// 綁定時刻（UTC），與來源那一行的 retired_at 同值（一次綁定只有一個時刻）。
+  final DateTime boundAt;
+
+  /// 同意形態，恆為 [kBindPreflightConsentModeTargetSelfInitiated]。
+  final String consentMode;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 本人綁定帳的一行：`GET /auth/guest-bindings` 的行。
+///
+/// 它回答的是「我以本人身分接住過誰」，範圍由本次憑據換出的主體決定——请求裡沒有任何
+/// 欄位可以填別人的帳戶。來源以**被綁走那一刻的样子**展示（登入名與顯示名都没被匿名化），
+/// 因為這一頁的用途就是歷史解釋。
+class GuestBindingItem {
+  /// 以已驗證的欄位建立一行綁定留痕。
+  const GuestBindingItem({
+    required this.bindingId,
+    required this.sourceAccountId,
+    required this.sourceLoginName,
+    required this.sourceDisplayName,
+    required this.boundAt,
+    required this.revokedSessions,
+    required this.consentMode,
+  });
+
+  /// 從 JSON 單項建立。
+  static GuestBindingItem decode(Map<String, Object?> json) {
+    final String consentMode = _requireText(json, 'consent_mode');
+    if (consentMode != kBindPreflightConsentModeTargetSelfInitiated) {
+      throw ApiResponseShapeException('consent_mode 值 $consentMode 不在合同內');
+    }
+    return GuestBindingItem(
+      bindingId: _requireText(json, 'binding_id'),
+      sourceAccountId: _requireText(json, 'source_account_id'),
+      sourceLoginName: _requireText(json, 'source_login_name'),
+      sourceDisplayName: _requireText(json, 'source_display_name'),
+      boundAt: _requireUtcTime(json, 'bound_at'),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      consentMode: consentMode,
+    );
+  }
+
+  /// 留痕行標識。
+  final String bindingId;
+
+  /// 被綁走的訪戶標識（存續身分，指向 accounts 那一行）。
+  final String sourceAccountId;
+
+  /// 來源訪戶的登入名原始寫法（退休不改名，因此這裡讀到的就是他出生時的寫法）。
+  final String sourceLoginName;
+
+  /// 來源訪戶的顯示名（同上：不做匿名化）。
+  final String sourceDisplayName;
+
+  /// 綁定時刻（UTC）。
+  final DateTime boundAt;
+
+  /// 那次動作撤銷的源會話數（隨行不可變的摘要，不是可事後重算的統計欄）。
+  final int revokedSessions;
+
+  /// 同意形態，恆為 [kBindPreflightConsentModeTargetSelfInitiated]。
+  final String consentMode;
+}
+
+/// `GET /auth/guest-bindings` 的成功回應：本人接住過的所有訪戶。
+///
+/// bindings 恆為數組：沒綁過人是 `[]` 而不是欄位缺席（後者會被讀成「回應壞了」）。
+/// total 取同一份讀取的行數並回顯。這一頁沒有分頁，因為「一個人接住幾個訪戶」
+/// 是個位數的事實——為它建分頁是把界面複雜度換成一個不存在的規模問題。
+class GuestBindingListReport {
+  /// 以已驗證的欄位建立一次本人綁定名冊。
+  const GuestBindingListReport({
+    required this.bindings,
+    required this.total,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立本人綁定名冊。
+  static GuestBindingListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['bindings'];
+    if (raw is! List<Object?>) {
+      throw const ApiResponseShapeException('bindings 不是數組');
+    }
+    final List<GuestBindingItem> items = <GuestBindingItem>[];
+    for (final Object? row in raw) {
+      if (row is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('bindings 的某一項不是物件');
+      }
+      items.add(GuestBindingItem.decode(row));
+    }
+    final int total = _requireInt(json, 'total');
+    if (total != items.length) {
+      throw ApiResponseShapeException('total $total 與實際行數 ${items.length} 不符');
+    }
+    return GuestBindingListReport(
+      bindings: items,
+      total: total,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本人的綁定留痕（依綁定時刻倒序，取服務端回顯的順序）。
+  final List<GuestBindingItem> bindings;
+
+  /// 回顯的總數（與本次清單逐字同源）。
+  final int total;
 
   /// 本次請求的關聯 ID。
   final String requestId;
