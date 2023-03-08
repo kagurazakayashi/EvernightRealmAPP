@@ -425,7 +425,18 @@ void main() {
       expect(ApiMachineCode.bindPlanStale.value, 2026);
       expect(ApiMachineCode.fromValue(2025), ApiMachineCode.bindTicketInvalid);
       expect(ApiMachineCode.fromValue(2026), ApiMachineCode.bindPlanStale);
-      expect(ApiMachineCode.fromValue(2027), isNull);
+      // 2027／2028 已由本系列的普通帳戶軟刪除一步發布（見 api_error.dart 的兩枚新值），
+      // 這裡把它們當作「已收錄」釘住，並把界線推到下一格：一枚還沒發布的碼必須仍讀不出來。
+      // 這條斷言的作用不是數數字，而是防止「順手把已發布的碼改成未收錄」或
+      // 「把兩件不同的事塞進同一枚碼」。
+      expect(ApiMachineCode.fromValue(2027), ApiMachineCode.accountDeleted);
+      expect(ApiMachineCode.fromValue(2028), ApiMachineCode.accountRetired);
+      expect(ApiMachineCode.fromValue(2029), isNull);
+      // 兩種終態是兩枚碼而不是一枚：它們各自的處置不同（一個別再管，一個去讀綁定留痕）。
+      expect(
+        ApiMachineCode.accountDeleted.value,
+        isNot(ApiMachineCode.accountRetired.value),
+      );
       // 已發布的數值不得重用：整張表的數值必須兩兩不同（新增一枚也不能撞到舊值）。
       final List<int> values = ApiMachineCode.values
           .map((ApiMachineCode c) => c.value)

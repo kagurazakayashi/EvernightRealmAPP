@@ -46,6 +46,11 @@ class StandardAccountDirectoryCard extends StatefulWidget {
   /// 點行內「查看／編輯」的回呼：把該筆標識交給詳情卡按標識重讀。
   final ValueChanged<StandardAccountReport>? onSelected;
 
+  /// 某一行的刪除時刻標籤鍵：以標識參數化，與本卡其他行內鍵同一取向
+  /// （同一張目錄同時出現好幾筆已刪者時，測試與界面都要能點名是哪一筆）。
+  static Key deletedAtKey(String accountId) =>
+      ValueKey<String>('std-account-deleted-at-$accountId');
+
   /// 狀態篩選「全部」識別鍵。
   static const Key filterStatusAllKey = ValueKey<String>(
     'std-account-directory-filter-status-all',
@@ -59,6 +64,13 @@ class StandardAccountDirectoryCard extends StatefulWidget {
   /// 狀態篩選「已停用」識別鍵。
   static const Key filterStatusDisabledKey = ValueKey<String>(
     'std-account-directory-filter-status-disabled',
+  );
+
+  /// 「已刪除」狀態篩選chip。用戶批准的刪除後展示策略把已刪者留在這本目錄裡
+  /// （行留著正是為了被讀到），所以篩選集合必須認得他；缺這一顆時操作者只能
+  /// 在全部行裡自己找，而那會把「已刪除」顯示成一個沒有名字的狀態。
+  static const Key filterStatusDeletedKey = ValueKey<String>(
+    'std-account-filter-status-deleted',
   );
 
   /// 來源篩選「全部」識別鍵。
@@ -294,6 +306,12 @@ class _StandardAccountDirectoryCardState
               onSelected: (_) => _setStatus('disabled'),
             ),
             ChoiceChip(
+              key: StandardAccountDirectoryCard.filterStatusDeletedKey,
+              label: Text(l10n.adminStatusFilterDeleted),
+              selected: _status == 'deleted',
+              onSelected: (_) => _setStatus('deleted'),
+            ),
+            ChoiceChip(
               key: StandardAccountDirectoryCard.filterTypeAllKey,
               label: Text(l10n.stdAccountTypeFilterAll),
               selected: _type == 'all',
@@ -488,6 +506,17 @@ class _StandardAccountDirectoryCardState
           ),
           style: theme.textTheme.bodySmall,
         ),
+        // 刪除時刻只讀服務端那一欄：沒被刪過就不出現，界面不拿別的時間湊數，
+        // 也不拿「他不在名冊上」的那種沉默替代「他於何時被刪」這個事實。
+        if (account.deletedAt != null)
+          Text(
+            l10n.labelValuePair(
+              l10n.stdAccountDeletedAtLabel,
+              _formatUtcMinute(account.deletedAt!),
+            ),
+            key: StandardAccountDirectoryCard.deletedAtKey(account.accountId),
+            style: theme.textTheme.bodySmall,
+          ),
         if (account.mustChangePassword)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -515,12 +544,17 @@ class _StandardAccountDirectoryCardState
 
 /// 狀態原字串 → 顯示文字；未知值原樣顯示（後端日後多一種狀態不至於顯示空白）。
 ///
-/// 這裡刻意不列 `deleted`：那一目錄範圍之外的狀態不該在這裡有一格標籤，
-/// 否則「介面準備了一個永遠不會出現的狀態」會讓人以為後端認得它。
+/// `deleted` 與 `retired` 如今都在這一頁讀得到的範圍之內（用戶批准的刪除後展示策略：
+/// 已刪者仍列出，好讓歷史身分指得回來），所以兩態各有自己的標籤，
+/// 而不是被當成一個不會出現的備用值。
 String _statusText(AppLocalizations l10n, String status) {
   return switch (status) {
     'active' => l10n.adminStatusActive,
     'disabled' => l10n.adminStatusDisabled,
+    // 兩種終態現在都是這一頁讀得到的事實（已刪者仍列出、已綁走的訪戶也仍列出），
+    // 留給「未知值原樣顯示」只會讓界面在該講清楚的地方給出一個機器字串。
+    'deleted' => l10n.adminStatusDeleted,
+    'retired' => l10n.adminStatusRetired,
     _ => status,
   };
 }

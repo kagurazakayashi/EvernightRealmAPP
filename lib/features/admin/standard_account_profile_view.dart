@@ -37,6 +37,19 @@
 ///   「尚未綁定」；即便預覽全綠，界面上也沒有那顆「執行綁定」的按鈕——用戶批准的
 ///   決定是綁定只能由目標帳戶持有人以自己的會話發起，今日不存在那樣通路，
 ///   而這份預覽對任何人都不是、也不會变成一半的綁定。
+/// * 刪除掛在詳情那條路徑的 DELETE 方法上，是這一張卡最後一條寫入通路：本體是空的，
+///   也沒有依據值欄位（第二次刪除回的是 2027「他已被刪除」，不是 2013／2014 那句
+///   「你依據的現值過期了」）。確認對話框要把四段話講完才准提交：動的是誰（登入名、
+///   來源類型與現狀逐一點名）、會發生什麼（停新登入、撤銷有效會話、顯示名匿名化為
+///   `DEL_<UTC日期>_<原名>`）、不會發生什麼（不是停用、沒有恢復通路，而且登入名仍被佔用，
+///   所以沒人接得走那個名字），以及為什麼帳戶行刻意留下（既有審計要指回同一個人）。
+///   影響範圍那一句講在按鈕之前：這一刀動的是整臺伺服器的登入能力，不是活動內的玩家限制。
+///   成功之後這張卡退出編輯態：改名框與每一顆寫入鈕一律消失，畫面換成服務端回的刪除後真相。
+/// * 刪除與退休是兩種終態，處置相同而來路不同，界面對兩者一律只讀：改名框、停用／恢復、
+///   重置口令、訪客升級、綁定預檢與憑證簽發全部收起，只列服務端回傳的現值與那個時刻。
+///   「查無此人」（1001）對它們都不成立——這一個人列得出、點得開，只是動不了；把按鈕
+///   留在畫面上對著一個不再接受寫入的對象，比少一顆按鈕更容易讓人以為還做得動。
+///   退休那句指向的是綁定留痕，不是刪除記錄：他還在，只是以另一個人的一部分存在。
 /// * 活動、資產與訊息都不在這一頁：那些模組尚未實作，擺一個空清單或 0 就是假資料。
 library;
 
@@ -268,6 +281,54 @@ class StandardAccountProfileCard extends StatefulWidget {
     'std-account-bind-ticket-result',
   );
 
+  /// 刪除區影響範圍說明識別鍵（常駐句：按鈕按下去之前就要讀到那一刀動的是什麼）。
+  static const Key deleteScopeKey = ValueKey<String>(
+    'std-account-delete-scope',
+  );
+
+  /// 刪除按鈕識別鍵（目標已是任何終態時不再出現）。
+  static const Key deleteKey = ValueKey<String>('std-account-delete-action');
+
+  /// 刪除確認對話框的肯定按鈕識別鍵。
+  static const Key deleteConfirmKey = ValueKey<String>(
+    'std-account-delete-confirm',
+  );
+
+  /// 刪除確認對話框的取消按鈕識別鍵。
+  static const Key deleteConfirmCancelKey = ValueKey<String>(
+    'std-account-delete-cancel',
+  );
+
+  /// 刪除成功摘要識別鍵（帶服務端回傳的撤銷數量）。
+  static const Key deleteNoticeKey = ValueKey<String>(
+    'std-account-delete-notice',
+  );
+
+  /// 已刪除橫幅識別鍵（這一態下這張卡對「他是誰、現在是什麼」的聲明）。
+  static const Key deletedBannerKey = ValueKey<String>(
+    'std-account-profile-deleted-banner',
+  );
+
+  /// 已退休橫幅識別鍵（另一種終態，處置指向綁定留痕）。
+  static const Key retiredBannerKey = ValueKey<String>(
+    'std-account-profile-retired-banner',
+  );
+
+  /// 刪除態下「為什麼帳戶行還在」的說明識別鍵（歷史身份保留的可見證據）。
+  static const Key identityKeptKey = ValueKey<String>(
+    'std-account-profile-identity-kept',
+  );
+
+  /// 退休態下「該去讀綁定留痕」的說明識別鍵。
+  static const Key retiredTraceKey = ValueKey<String>(
+    'std-account-profile-retired-trace',
+  );
+
+  /// 終態拒絕（2027／2028）之後唯一的出口識別鍵：重讀這份資料，不是重發那顆按鈕。
+  static const Key terminalReloadKey = ValueKey<String>(
+    'std-account-profile-terminal-reload',
+  );
+
   @override
   State<StandardAccountProfileCard> createState() =>
       _StandardAccountProfileCardState();
@@ -339,6 +400,18 @@ class _StandardAccountProfileCardState
   /// 任何寫入成功後一律收起，避免留下第二處「以為還能拿它做什麼」的畫面。
   GuestBindTicketReport? _issuedTicket;
 
+  /// 刪除進行中。它不只是「防手滑」：刪除只允許成功一次，
+  /// 界面上沒有一顆按鈕具備「再點一次還是同一件事」的正當含義。
+  bool _deleting = false;
+
+  /// 刪除成功的摘要（撤銷數量與刪除時刻都取自 DELETE 回應）。
+  String? _deleteNotice;
+
+  /// 某條通路被「目標已是終態」（2027／2028）擋下來：界面在此之後只給一個出口——
+  /// 重讀這份資料。它與 [_conflicted]／[_statusConflicted] 是三種不同的失敗：
+  /// 那兩者說「重讀現值之後同一顆按鈕還可以再按」，而終態重讀之後還是終態。
+  bool _terminalBlocked = false;
+
   @override
   void initState() {
     super.initState();
@@ -375,6 +448,12 @@ class _StandardAccountProfileCardState
       _upgradeNotice = null;
       _upgradeLogin.clear();
       _upgradePassword.clear();
+      // 刪除句同樣不在重讀後殘留：它講的是「那一次操作撤了幾份會話」，
+      // 而重讀之後畫面要說的是現在的真相。
+      _deleteNotice = null;
+      _deleting = false;
+      // 終態出口也不殘留：重讀拿到的現值自己會決定這張卡要不要只讀。
+      _terminalBlocked = false;
     });
     try {
       final StandardAccountDetailReport report = await widget.api
@@ -431,7 +510,11 @@ class _StandardAccountProfileCardState
       setState(() => _notice = l10n.adminProfileFormIncompleteNotice);
       return;
     }
-    setState(() => _savePhase = _SavePhase.saving);
+    setState(() {
+      _savePhase = _SavePhase.saving;
+      // 每一次新的嘗試都重新決定「上次是不是被終態擋住」：那個出口只描述最近一趟的結果。
+      _terminalBlocked = false;
+    });
     try {
       final StandardAccountDetailReport report = await widget.api
           .updateStandardAccountProfile(
@@ -461,6 +544,7 @@ class _StandardAccountProfileCardState
       setState(() {
         _savePhase = _SavePhase.idle;
         _notice = _writeFailureText(error);
+        _terminalBlocked = _isTerminalRefusal(error.knownCode);
       });
     }
   }
@@ -557,6 +641,7 @@ class _StandardAccountProfileCardState
       _notice = null;
       _resetNotice = null;
       _resetPassword.clear();
+      _terminalBlocked = false;
     });
     try {
       final StandardAccountPasswordResetReport report = await widget.api
@@ -588,6 +673,7 @@ class _StandardAccountProfileCardState
       setState(() {
         _resetting = false;
         _notice = _resetFailureText(error);
+        _terminalBlocked = _isTerminalRefusal(error.knownCode);
       });
     }
   }
@@ -679,6 +765,7 @@ class _StandardAccountProfileCardState
       _notice = null;
       _upgradeNotice = null;
       _upgradePassword.clear();
+      _terminalBlocked = false;
     });
     try {
       final StandardAccountUpgradeReport report = await widget.api
@@ -712,6 +799,7 @@ class _StandardAccountProfileCardState
       setState(() {
         _upgrading = false;
         _notice = _upgradeFailureText(error);
+        _terminalBlocked = _isTerminalRefusal(error.knownCode);
       });
     }
   }
@@ -1149,6 +1237,7 @@ class _StandardAccountProfileCardState
       _notice = null;
       _statusNotice = null;
       _statusConflicted = false;
+      _terminalBlocked = false;
     });
     try {
       final StandardAccountStatusReport report = await widget.api
@@ -1183,6 +1272,7 @@ class _StandardAccountProfileCardState
         _statusConflicted =
             error.knownCode == ApiMachineCode.adminStatusConflict;
         _notice = _statusFailureText(error);
+        _terminalBlocked = _isTerminalRefusal(error.knownCode);
       });
     }
   }
@@ -1193,6 +1283,154 @@ class _StandardAccountProfileCardState
     final AppLocalizations l10n = AppLocalizations.of(context);
     return switch (error.knownCode) {
       ApiMachineCode.adminStatusConflict => l10n.stdAccountStatusConflictNotice,
+      ApiMachineCode.notFound => l10n.stdAccountProfileNotFoundNotice,
+      ApiMachineCode.permissionDenied => l10n.stdAccountProfileDeniedNotice,
+      ApiMachineCode.notAuthenticated ||
+      ApiMachineCode.sessionInvalid ||
+      ApiMachineCode.sessionStale ||
+      ApiMachineCode.passwordChangeRequired =>
+        l10n.adminProfileStaleRejectedNotice,
+      _ => apiErrorText(l10n, error),
+    };
+  }
+
+  /// 刪除的確認對話框：這一張卡裡唯一不可逆的一條通路，所以確認要把四段話講完才准提交——
+  /// 動的是誰（登入名、來源類型與現狀逐一點名）、會發生哪三件事、哪兩件事不會發生
+  /// （不是停用、沒有恢復通路，而且登入名仍被佔用），以及為什麼帳戶行刻意留下。
+  ///
+  /// 取消是一條正經出路：一個請求都不發，界面停在上一份服務端真相。對話框裡不放
+  /// 「我已知悉風險」的勾選框——勾選會讓人以為點確認只是繼續下一步，而這個對話框
+  /// 本身就是最後一道把手。這裡也沒有「重試」的位置：刪除沒有依據值，對著一個可能
+  /// 已在終態的對象再點一次不是重試，而是又下一次寫入令。
+  Future<void> _confirmDelete() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null || profile.isTerminal || _deleting) {
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(l10n.stdAccountDeleteConfirmTitle),
+        content: Text(
+          l10n.stdAccountDeleteConfirmBody(
+            profile.loginName,
+            // 來源與狀態都讀自服務端那一筆：確認文要點名的是「他是哪一類主體、
+            // 現在是什麼狀態」，不是界面此刻假設的那樣。
+            _typeText(l10n, profile.accountType),
+            _statusText(l10n, profile.status),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: StandardAccountProfileCard.deleteConfirmCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.adminStatusConfirmCancelAction),
+          ),
+          FilledButton(
+            key: StandardAccountProfileCard.deleteConfirmKey,
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.stdAccountDeleteConfirmOkAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    await _applyDelete();
+  }
+
+  /// 提交刪除：DELETE 沒有本體也沒有依據值；成功的展示一律換成回應，並通知頁面重讀目錄
+  /// ——行與詳情不能各留一份舊真相。
+  ///
+  /// 成功後這張卡退出編輯態（見 _readyBody 的 terminal 分岔）：保留卡片是為了讓操作者
+  /// 看得見「現在他是什麼」，把那些寫入按鈕留在畫面上則是另一件事。
+  ///
+  /// 結果不明（連線中斷、逾時）時**絕不自動補發**：那不會是重試，而是對一個可能已進入
+  /// 終態的對象再下一次寫入令。操作者要的是重讀——目錄與詳情讀回來的那一份才是證據。
+  Future<void> _applyDelete() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final StandardAccountReport? profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    setState(() {
+      _deleting = true;
+      _notice = null;
+      _deleteNotice = null;
+      _terminalBlocked = false;
+    });
+    try {
+      final StandardAccountDeleteReport report = await widget.api
+          .deleteStandardAccount(
+            accountId: profile.accountId,
+            acceptLanguage: _acceptLanguage,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = report.account;
+        _deleting = false;
+        // 改名用的那份底稿從此沒有意義：顯示名已是佔位值，輸入框留著只會讓人以為還能改。
+        // 清掉它們與退出編輯態是同一件事的兩面。
+        _displayName.clear();
+        _resetPassword.clear();
+        _upgradeLogin.clear();
+        _upgradePassword.clear();
+        _bindPreflightTarget.clear();
+        _savedNotice = null;
+        _statusNotice = null;
+        _resetNotice = null;
+        _upgradeNotice = null;
+        // 預覽快照與已簽發的憑證描述的都已不是現在的事實。
+        _bindPreflight = null;
+        _issuedTicket = null;
+        _conflicted = false;
+        _statusConflicted = false;
+        // 撤銷數量來自回應：「這次讓 N 臺裝置失去登入狀態」不許界面自己猜。
+        _deleteNotice = l10n.stdAccountDeleteSuccessNotice(
+          report.revokedSessions,
+        );
+      });
+      widget.onSaved?.call();
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _deleting = false;
+        _notice = _deleteFailureText(error);
+        _terminalBlocked = _isTerminalRefusal(error.knownCode);
+      });
+    }
+  }
+
+  /// 刪除失敗分流：2027（已是刪除態）與 2028（已被綁走的退休訪戶）各說各句，
+  /// 兩者都只導向「重讀這份資料」；1001 是目標根本不在這本目錄（該換目標）、
+  /// 2011 是主體不對，其餘交給機器碼的通用句。
+  ///
+  /// 把 2027 報成 1001 會讓人對著一份明明列著他的目錄反覆懷疑標識抄錯；報成成功
+  /// 則是在審計與真相之間造出一件沒發生過的事。2027 與 2028 也都不冒充 2013／2014
+  /// 那句「現值過期了」——那兩句的處置是重讀之後同一顆按鈕還可以再按，而終態不行。
+  String _deleteFailureText(ApiError error) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ApiMachineCode? code = error.knownCode;
+    if (code == ApiMachineCode.invalidBody) {
+      // 刪除不該帶任何欄位：會走到這一句代表送出了一個不存在的「選項」，
+      // 點名它比假裝沒看見誠實。
+      return l10n.stdAccountDeleteNoBodyNotice;
+    }
+    return switch (code) {
+      ApiMachineCode.accountDeleted => l10n.errorCodeAccountDeleted,
+      ApiMachineCode.accountRetired => l10n.errorCodeAccountRetired,
       ApiMachineCode.notFound => l10n.stdAccountProfileNotFoundNotice,
       ApiMachineCode.permissionDenied => l10n.stdAccountProfileDeniedNotice,
       ApiMachineCode.notAuthenticated ||
@@ -1294,7 +1532,17 @@ class _StandardAccountProfileCardState
         _resetting ||
         _upgrading ||
         _bindPreflighting ||
-        _ticketIssuing;
+        _ticketIssuing ||
+        _deleting ||
+        // 被「目標已是終態」擋下一次之後，這張卡的所有寫入入口都停住，只留一個出口：
+        // 重讀。它與 [_conflicted]／[_statusConflicted] 那句「重讀後同一顆按鈕還能再按」
+        // 是兩種不同的失敗——終態重讀之後還是終態，把按鈕留在畫面上等於假裝還做得動。
+        _terminalBlocked;
+    // 兩種終態（已被軟刪除、已被綁走）一律走只讀分支：這個人列得出、點得開，
+    // 而每一條寫入通路都會被服務端當場拒絕，界面不把這件事藏成一個錯答案。
+    if (profile.isTerminal) {
+      return _terminalBody(l10n, theme, profile);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1699,8 +1947,195 @@ class _StandardAccountProfileCardState
               style: theme.textTheme.bodySmall,
             ),
           ),
+        const Divider(),
+        // 刪除：這一張卡最後一條寫入通路，也是唯一一條沒有回去的路。
+        // 影響範圍那句寫在按鈕之前而不是只塞進確認框——「這一刀動的是整臺伺服器的
+        // 登入能力，不是活動內的玩家限制」必須在按下去之前就讀到，而不是按下之後才看到。
+        Text(l10n.stdAccountDeleteZoneTitle, style: theme.textTheme.titleSmall),
+        Text(
+          l10n.stdAccountDeleteZoneHint,
+          key: StandardAccountProfileCard.deleteScopeKey,
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton(
+            key: StandardAccountProfileCard.deleteKey,
+            onPressed: busy ? null : _confirmDelete,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+            ),
+            child: Text(
+              _deleting
+                  ? l10n.stdAccountDeleteWorkingHint
+                  : l10n.stdAccountDeleteAction,
+            ),
+          ),
+        ),
+        if (_deleteNotice != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _deleteNotice!,
+              key: StandardAccountProfileCard.deleteNoticeKey,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        // 被 2027／2028 擋下時，本地這份現值還來不及變成終態（那個人是在服務端變的）。
+        // 這一格給的是同一張卡唯一的出口：重讀。它不出現的話，操作者面前就只剩
+        // 一排变灰的按鈕，而那讀起來像「稍後再試」——對終態沒有稍後。
+        if (_terminalBlocked)
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton(
+              key: StandardAccountProfileCard.terminalReloadKey,
+              onPressed: _load,
+              child: Text(l10n.adminProfileReloadAction),
+            ),
+          ),
       ],
     );
+  }
+
+  /// 終態（已刪除／已綁走）的只讀分支：把「他是誰、現在是什麼、那個時刻何時落下」
+  /// 一次講完，而且一個寫入控件都不給。
+  ///
+  /// 這一支存在的意思不是省事：用戶批准的刪除後展示策略是「列得出、點得開、動不了」，
+  /// 三件事必須由同一筆資料一次說明。若改成「照原樣渲染、每顆按鈕按下去都吃 2027」，
+  /// 操作者拿到的仍是錯的結論——他會以為這個對象還做得動事，只是這次不巧失敗了。
+  Widget _terminalBody(
+    AppLocalizations l10n,
+    ThemeData theme,
+    StandardAccountReport profile,
+  ) {
+    final bool deleted = profile.isDeleted;
+    // 時刻只讀服務端那一欄：deleted 帶 deleted_at、retired 帶 retired_at；
+    // 缺欄（表外值或舊伺服器）就退回不帶時刻的那句，不拿現在的時間去湊。
+    final DateTime? at = deleted ? profile.deletedAt : profile.retiredAt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(
+          l10n.labelValuePair(
+            l10n.adminListDisplayNameLabel,
+            profile.displayName,
+          ),
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(
+          l10n.labelValuePair(
+            l10n.stdAccountSourceLabel,
+            _typeText(l10n, profile.accountType),
+          ),
+          key: StandardAccountProfileCard.sourceKey,
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(
+          l10n.labelValuePair(
+            l10n.adminListStatusLabel,
+            _statusText(l10n, profile.status),
+          ),
+          key: StandardAccountProfileCard.statusKey,
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(
+          l10n.labelValuePair(l10n.adminAccountIdLabel, profile.accountId),
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(
+          l10n.labelValuePair(
+            l10n.adminListCreatedLabel,
+            _formatUtcMinute(profile.createdAt),
+          ),
+          style: theme.textTheme.bodySmall,
+        ),
+        if (at != null)
+          Text(
+            l10n.labelValuePair(
+              l10n.stdAccountDeletedAtLabel,
+              _formatUtcMinute(at),
+            ),
+            style: theme.textTheme.bodySmall,
+          ),
+        const SizedBox(height: 6),
+        // 橫幅那句是「這一頁現在是什麼」的聲明，兩態各自成句：一個說他已被刪掉、
+        // 一個說他被綁走了，混用就會讓人去讀錯那一條記錄。
+        Text(
+          at == null
+              ? (deleted
+                    ? l10n.stdAccountProfileDeletedBanner
+                    : l10n.stdAccountProfileRetiredBanner)
+              : (deleted
+                    ? l10n.stdAccountProfileDeletedBannerAt(
+                        _formatUtcMinute(at),
+                      )
+                    : l10n.stdAccountProfileRetiredBannerAt(
+                        _formatUtcMinute(at),
+                      )),
+          key: deleted
+              ? StandardAccountProfileCard.deletedBannerKey
+              : StandardAccountProfileCard.retiredBannerKey,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          deleted
+              ? l10n.stdAccountProfileIdentityKeptHint
+              : l10n.stdAccountProfileRetiredTraceHint,
+          key: deleted
+              ? StandardAccountProfileCard.identityKeptKey
+              : StandardAccountProfileCard.retiredTraceKey,
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          l10n.stdAccountProfileNoSectionsNotice,
+          key: StandardAccountProfileCard.noSectionsKey,
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        // 終態之後唯一的出口是重讀：它不承諾「再按一次會不同」，只把現值再拿一份回來。
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton(
+            key: StandardAccountProfileCard.terminalReloadKey,
+            onPressed: _load,
+            child: Text(l10n.adminProfileReloadAction),
+          ),
+        ),
+        if (_deleteNotice != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _deleteNotice!,
+              key: StandardAccountProfileCard.deleteNoticeKey,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        if (_notice != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _notice!,
+              key: StandardAccountProfileCard.noticeKey,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 是否為「目標已是終態」的拒絕（2027／2028）。兩枚碼的處置逐字相同——
+  /// 重讀這份資料而不是再按一次——所以界面把它們收成同一個旗標；
+  /// 至於「他是被刪了」還是「他被綁走了」，仍由 [_deleteFailureText] 各自成句。
+  bool _isTerminalRefusal(ApiMachineCode? code) {
+    return code == ApiMachineCode.accountDeleted ||
+        code == ApiMachineCode.accountRetired;
   }
 }
 
@@ -1709,6 +2144,10 @@ String _statusText(AppLocalizations l10n, String status) {
   return switch (status) {
     'active' => l10n.adminStatusActive,
     'disabled' => l10n.adminStatusDisabled,
+    // 兩種終態各有自己的詞：讓它們落到「未知值原樣顯示」那一支，界面就會在最需要
+    // 講清楚的地方顯示一個給機器讀的原始字串。
+    'deleted' => l10n.adminStatusDeleted,
+    'retired' => l10n.adminStatusRetired,
     _ => status,
   };
 }

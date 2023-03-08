@@ -1006,11 +1006,12 @@ class ApplicationStatusReport {
 ///   回應不描述一件不存在的事；拿管理員那一個模型套上來，界面就會多出一列永遠為空的授予時刻。
 /// * 多一個必填的 `account_type`：他是普通帳戶還是訪客帳戶，是這本目錄必須講清楚的來源事實，
 ///   值原樣保留為字串（未知取值不收緊成枚舉，與狀態欄同一取向）。
-/// * 沒有 `deleted_at`：刪除終態不在本目錄的範圍之內（後端把那些行整個排除了），
-///   因此這裡也沒有一個格子可以去猜「這個缺席是『沒被刪』還是『查不到』」。
+/// * `deleted_at` 可缺席：已刪除的帳戶自本步起**照樣列在這本目錄裡**（留行的目的就是讓
+///   既有引用指得回同一個人），未被刪除時那一欄按合同缺席。缺席只讀成「沒有被刪除」，
+///   不拿停用時刻或建立時刻冒充，也不因為缺席就判這一行不合格。
 ///
-/// `last_login_at` 與 `disabled_at` 可缺席：前者是從未登入，後者只在停過時出現，
-/// 兩個都不拿建立時刻或零值冒充。
+/// `last_login_at`、`disabled_at`、`retired_at` 與 `deleted_at` 都可缺席：第一個是從未登入，
+/// 第二個只在停過時出現，後兩個各自只在對應的終態出現——四個都不拿零值或彼此的時刻冒充。
 class StandardAccountReport {
   /// 以已驗證的欄位建立單筆普通帳戶資料。
   const StandardAccountReport({
@@ -1024,6 +1025,7 @@ class StandardAccountReport {
     this.lastLoginAt,
     this.disabledAt,
     this.retiredAt,
+    this.deletedAt,
   });
 
   /// 從 JSON 單項建立。
@@ -1039,6 +1041,7 @@ class StandardAccountReport {
       lastLoginAt: _optionalUtcTime(json, 'last_login_at'),
       disabledAt: _optionalUtcTime(json, 'disabled_at'),
       retiredAt: _optionalUtcTime(json, 'retired_at'),
+      deletedAt: _optionalUtcTime(json, 'deleted_at'),
     );
   }
 
@@ -1054,9 +1057,11 @@ class StandardAccountReport {
   /// 來源類型原字串（standard|guest，未知值原樣保留）。
   final String accountType;
 
-  /// 帳戶狀態原字串（本目錄可能出現的值是 active、disabled 與 retired；
-  /// deleted 與審批鏈那兩態不在範圍內。retired 是訪戶經綁定進去的終態——
-  /// 它仍被列在本目錄裡正是刻意的：那個人存在過、他已被誰接走要查得到）。
+  /// 帳戶狀態原字串（本目錄可能出現的值是 active、disabled、retired 與 deleted；
+  /// 審批鏈那兩態不在範圍內。retired 是訪戶經綁定進去的終態——它仍被列在本目錄裡正是
+  /// 刻意的：那個人存在過、他已被誰接走要查得到。deleted 是軟刪除的終態，自本步起
+  /// 同樣列在這裡：留行不是遺漏，而是讓既有審計與歷史引用仍能指回同一個身份。
+  /// 兩個終態在這本目錄的規則是同一句：列得出、點得開、動不了。）
   final String status;
 
   /// 是否仍欠首次改密（只讀展示；解除它的唯一通路是本人改密，本目錄不提供）。
@@ -1076,6 +1081,14 @@ class StandardAccountReport {
   /// 「這個人已被接走、何時接走」，而不是把他當成查無著落的幽靈行。
   final DateTime? retiredAt;
 
+  /// 進入刪除終態的時刻（UTC）；未被刪除時合同欄位缺席，讀成 `null`。
+  ///
+  /// 它與 [disabledAt]、[retiredAt] 是三件事：三個時刻各自記「何時被停用」「何時被綁走」
+  /// 「何時被刪除」，一行的現值可以同時帶著前兩位的痕跡，界面不得把三者混成一個標籤，
+  /// 也不得用其中一個去推另一個。欄位若出現，值仍走同一把 UTC 標記閘——帶了卻不成形的
+  /// 寫法是合同違例，不降級成「沒有刪除時刻」。
+  final DateTime? deletedAt;
+
   /// 是否為有效狀態（未知值不冒充有效）。
   bool get isActive => status == 'active';
 
@@ -1084,6 +1097,26 @@ class StandardAccountReport {
   /// 界面那顆「恢復登入」按鈕只在這裡為真時出現：拿「不是 active」推斷會把
   /// 未來任何新狀態都當成「可恢復」，而那正是 2014 要擋的那種註定落敗的請求。
   bool get isDisabled => status == 'disabled';
+
+  /// 是否已是刪除終態（只認服務端回傳的狀態字串，不看 [deletedAt] 是否有值）。
+  ///
+  /// 判的是 `status` 而不是 `deletedAt != null`：兩個值在後端由同一條約束成對鎖定，
+  /// 但介面要問的原話是「他現在是哪個狀態」，答案就取那個欄位。它是終態：
+  /// 該值為真時那張卡上不該再有任何寫入控件。
+  bool get isDeleted => status == 'deleted';
+
+  /// 是否已是退休終態（訪戶經綁定被接走，同樣只認狀態原字串）。
+  ///
+  /// 它與 [isDeleted] 是兩句不同的話：刪除留下行與登入名，退休留的是綁定留痕；
+  /// 相同之處只在於兩者都是終態——介面對它們的處置都是「只讀，動不了」。
+  bool get isRetired => status == 'retired';
+
+  /// 是否處於任何一種終態（刪除或退休）：介面據此收起全部寫入通路。
+  ///
+  /// 這裡把兩者寫成一個判定不是偷懶：那兩態在服務端對每一條寫入路徑都回自己那句
+  /// 拒絕（2027／2028），界面若還留著按鈕，就是在假裝這個對象可以被改。
+  /// 未知的狀態字串**不**算終態——不認得的值走「表外狀態」那一句，不冒充已讀。
+  bool get isTerminal => isDeleted || isRetired;
 
   /// 是否為訪客帳戶（只認服務端回傳的來源欄位，不看口令、也不看有無授予）。
   bool get isGuest => accountType == 'guest';
@@ -1254,6 +1287,50 @@ class StandardAccountPasswordResetReport {
   final StandardAccountReport account;
 
   /// 這次撤銷的會話數量（停用中的目標通常是 0——其會話早在停用時已撤）。
+  final int revokedSessions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `DELETE /admin/accounts/{account_id}` 的成功回應：刪除後的資料庫現值與撤銷數量。
+///
+/// 欄位形態與 [StandardAccountStatusReport]、[StandardAccountPasswordResetReport] 同構但
+/// 刻意各自獨名（與管理員那側 [AdminDeleteReport] 同一取向）：三條通路成功的是三件
+/// 不同的事，合併成一個型別會讓「這次辦掉的是哪一件」在界面層失去出處。
+/// [account] 是刪除後的單筆真相：`status` 必為 `deleted`、`deleted_at` 必在、
+/// `display_name` 已是服務端寫的匿名化佔位值，而 `login_name` 原樣保留
+/// （它就是歷史身份的承載者，也是後來人搶不走那個名字的原因）。
+/// 訪戶走同一條通路，回的也是同一個形狀——佔位值與終態不區分來源。
+/// [revokedSessions] 為這次落庫的會話撤銷數，缺席判合同違例、不降級成 0：
+/// 「讓幾臺裝置此刻失去登入狀態」是這次操作影響範圍的陳述，讀成 0 等於謊報沒人受影響；
+/// 本就停用且會話早已撤盡的目標回 0，那個 0 是事實而不是失敗。
+/// 回應裡不會有任何「如何恢復」的暗示：刪除是終態，協定層沒有一條把它改回來的路。
+class StandardAccountDeleteReport {
+  /// 以已驗證的欄位建立單次刪除回應。
+  const StandardAccountDeleteReport({
+    required this.account,
+    required this.revokedSessions,
+    required this.requestId,
+  });
+
+  /// 從 JSON 回應建立刪除結果。
+  static StandardAccountDeleteReport decode(Map<String, Object?> json) {
+    final Object? raw = json['account'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('account 不是物件');
+    }
+    return StandardAccountDeleteReport(
+      account: StandardAccountReport.decode(raw),
+      revokedSessions: _requireInt(json, 'revoked_sessions'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 刪除後的單筆普通帳戶資料。
+  final StandardAccountReport account;
+
+  /// 這次撤銷的會話數量（本就停用且會話早已撤盡的目標是 0）。
   final int revokedSessions;
 
   /// 本次請求的關聯 ID。

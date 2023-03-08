@@ -47,6 +47,10 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.guestNotUpgradable => l10n.errorCodeGuestNotUpgradable,
       ApiMachineCode.bindTicketInvalid => l10n.errorCodeBindTicketInvalid,
       ApiMachineCode.bindPlanStale => l10n.errorCodeBindPlanStale,
+      // 2027／2028 是普通帳戶那本目錄的兩句終態拒絕：兩者都只讓人停手重讀，
+      // 但退休那句要順帶指出該查的是綁定留痕，否則操作者會去翻刪除記錄。
+      ApiMachineCode.accountDeleted => l10n.errorCodeAccountDeleted,
+      ApiMachineCode.accountRetired => l10n.errorCodeAccountRetired,
       ApiMachineCode.selfRegisterNameTaken =>
         l10n.errorCodeSelfRegisterNameTaken,
       ApiMachineCode.notAnApplication => l10n.errorCodeNotAnApplication,
