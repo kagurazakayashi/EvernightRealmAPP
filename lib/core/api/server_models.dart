@@ -21,6 +21,34 @@ String _requireText(Map<String, Object?> json, String field) {
   return value;
 }
 
+/// 讀取可缺席的字串欄位：缺席或 `null` 換成 `null`。
+///
+/// 缺席是事實的缺席，不拿空字串冒充「有值但是空的」：活動的建立者欄位只在
+/// 由 Root 建立時不出現，而 Root 沒有一個可讀回任何人的帳戶標識。
+String? _optionalText(Map<String, Object?> json, String field) {
+  final Object? value = json[field];
+  if (value == null) {
+    return null;
+  }
+  if (value is! String) {
+    throw ApiResponseShapeException('欄位 $field 不是字串');
+  }
+  return value.isEmpty ? null : value;
+}
+
+/// 讀取允許空字串的欄位：類型必須是字串，但空值本身是合法事實。
+///
+/// [_requireText] 把空字串當成合同違例，這是對的（多數欄位空值代表沒寫）；
+/// 描述與顯示名這兩類欄位則相反：後端把「沒寫過描述」如實回成空字串，
+/// 界面要顯示的是「沒有描述」，不是把整份回應判成壞了。
+String _textAllowingEmpty(Map<String, Object?> json, String field) {
+  final Object? value = json[field];
+  if (value is! String) {
+    throw ApiResponseShapeException('欄位 $field 不是字串');
+  }
+  return value;
+}
+
 /// 嚴格讀取整數欄位：不接受字串或帶小數的數值。
 ///
 /// 金額一律以字串承載（DEC-001），因此這裡只服務確實發布為整數的小範圍欄位
@@ -795,7 +823,7 @@ class CreatedAdminReport {
     return CreatedAdminReport(
       accountId: _requireText(json, 'account_id'),
       loginName: _requireText(json, 'login_name'),
-      displayName: _requireText(json, 'display_name'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
       status: _requireText(json, 'status'),
       mustChangePassword: _requireBool(json, 'must_change_password'),
       roles: _optionalTextList(json, 'roles'),
@@ -852,7 +880,7 @@ class CreatedStandardAccountReport {
     return CreatedStandardAccountReport(
       accountId: _requireText(json, 'account_id'),
       loginName: _requireText(json, 'login_name'),
-      displayName: _requireText(json, 'display_name'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
       status: _requireText(json, 'status'),
       mustChangePassword: _requireBool(json, 'must_change_password'),
       createdAt: _requireUtcTime(json, 'created_at'),
@@ -909,7 +937,7 @@ class SelfRegisterReport {
     return SelfRegisterReport(
       accountId: _requireText(json, 'account_id'),
       loginName: _requireText(json, 'login_name'),
-      displayName: _requireText(json, 'display_name'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
       status: _requireText(json, 'status'),
       mustChangePassword: _requireBool(json, 'must_change_password'),
       createdAt: _requireUtcTime(json, 'created_at'),
@@ -1033,7 +1061,7 @@ class StandardAccountReport {
     return StandardAccountReport(
       accountId: _requireText(json, 'account_id'),
       loginName: _requireText(json, 'login_name'),
-      displayName: _requireText(json, 'display_name'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
       accountType: _requireText(json, 'account_type'),
       status: _requireText(json, 'status'),
       mustChangePassword: _requireBool(json, 'must_change_password'),
@@ -1826,7 +1854,7 @@ class RegistrationApplicationReport {
     return RegistrationApplicationReport(
       accountId: _requireText(json, 'account_id'),
       loginName: _requireText(json, 'login_name'),
-      displayName: _requireText(json, 'display_name'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
       status: _requireText(json, 'status'),
       submittedAt: _requireUtcTime(json, 'submitted_at'),
       // 缺席就是「還沒有任何人做過決定」：不得拿提交時刻或當前時刻冒充一個決定時刻。
@@ -1990,7 +2018,7 @@ class AdminAccountReport {
     return AdminAccountReport(
       accountId: _requireText(json, 'account_id'),
       loginName: _requireText(json, 'login_name'),
-      displayName: _requireText(json, 'display_name'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
       status: _requireText(json, 'status'),
       mustChangePassword: _requireBool(json, 'must_change_password'),
       createdAt: _requireUtcTime(json, 'created_at'),
@@ -2572,6 +2600,239 @@ class InviteCodeMutationReport {
 
   /// 撤銷後的單枚邀請碼現值。
   final InviteCodeReport invite;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 一筆活動的可展示事實（目錄行、詳情與各條寫入結果共用同一個形狀）。
+///
+/// 身份是 [activityId]（後端產生的 UUIDv7），[name] 只是可改、可重複的展示資料：
+/// 任何一條通路都不能拿名稱去找到或改動一個活動。
+///
+/// 兩個「缺席」各有其意義，界面據「這一格有沒有出現」說話，不拿零值冒充：
+/// * [createdByAccountId] 缺席表示這場活動由 Root 建立——Root 不在 accounts 表裡，
+///   沒有一個可讀回任何人的帳戶標識；
+/// * [archivedAt] 缺席表示它還沒進入歸檔終態。
+class ActivityReport {
+  /// 以已驗證的欄位建立一筆活動。
+  const ActivityReport({
+    required this.activityId,
+    required this.name,
+    required this.description,
+    required this.status,
+    required this.createdByAccountId,
+    required this.managerCount,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.archivedAt,
+  });
+
+  /// 從回應的 `activity` 那一格建立一筆活動。
+  static ActivityReport decode(Map<String, Object?> json) {
+    return ActivityReport(
+      activityId: _requireText(json, 'activity_id'),
+      name: _requireText(json, 'name'),
+      // 描述是「這一次沒有寫描述」與「寫了但為空」的同一個答案：後端把兩者收斂成
+      // 空字串，界面據空字串顯示「沒有描述」，不另造一句「讀不到」。
+      description: _textAllowingEmpty(json, 'description'),
+      status: _requireText(json, 'status'),
+      createdByAccountId: _optionalText(json, 'created_by_account_id'),
+      managerCount: _requireInt(json, 'manager_count'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      updatedAt: _requireUtcTime(json, 'updated_at'),
+      archivedAt: _optionalUtcTime(json, 'archived_at'),
+    );
+  }
+
+  /// 活動穩定標識（身分只在這裡）。
+  final String activityId;
+
+  /// 活動名稱（可重複、可改；不是身份鍵）。
+  final String name;
+
+  /// 活動描述（可為空字串）。
+  final String description;
+
+  /// 生命週期狀態的原始值：draft／active／closed／archived。
+  ///
+  /// 界面只轉述服務端讀到的值，遇到集合外的取值一律照實顯示原值而不猜它像哪一態——
+  /// 後端放寬集合時前端該看到的是「這個值我不認識」，不是被靜默歸類。
+  final String status;
+
+  /// 建立者的帳戶標識；Root 建立時為 `null`（合同上這一格缺席）。
+  final String? createdByAccountId;
+
+  /// 此刻持有該活動管理權的帳戶數（含建立時自動指派的建立者）。
+  final int managerCount;
+
+  /// 建立時刻（UTC；不做本機時區換算）。
+  final DateTime createdAt;
+
+  /// 最後一次改動時刻（UTC；資料編輯與狀態轉換都算）。
+  final DateTime updatedAt;
+
+  /// 歸檔時刻；尚未歸檔為 `null`。
+  final DateTime? archivedAt;
+
+  /// 是否已進入歸檔終態：界面據此收起全部寫入控件（與帳戶側終態同一處理方式）。
+  bool get isArchived => status == 'archived';
+}
+
+/// `GET／HEAD /admin/activities` 的成功回應：一頁活動目錄。
+///
+/// 可見範圍由服務端決定：本頁、總數與「還有沒有下一頁」都只取自回應，
+/// 客戶端不持有任何一份本地目錄。
+class ActivityDirectoryReport {
+  /// 以已驗證的欄位建立一頁目錄。
+  const ActivityDirectoryReport({
+    required this.activities,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.requestId,
+  });
+
+  /// 從 `/admin/activities` 的 JSON 回應建立一頁目錄。
+  static ActivityDirectoryReport decode(Map<String, Object?> json) {
+    final Object? raw = json['activities'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('activities 不是清單');
+    }
+    final List<ActivityReport> activities = <ActivityReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('activities 項不是物件');
+      }
+      activities.add(ActivityReport.decode(item));
+    }
+    return ActivityDirectoryReport(
+      activities: activities,
+      page: _requireInt(json, 'page'),
+      pageSize: _requireInt(json, 'page_size'),
+      total: _requireInt(json, 'total'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本頁的行（依後端給出的順序，新建立的在前）。
+  final List<ActivityReport> activities;
+
+  /// 本頁頁碼（1 起算，後端回顯）。
+  final int page;
+
+  /// 本頁尺寸（後端回顯）。
+  final int pageSize;
+
+  /// 符合篩選條件且在這個主體可見範圍內的總筆數。
+  final int total;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 總頁數至少為 1：零筆資料時第 1 頁就是那個「空但存在」的頁。
+  int get totalPages => total == 0 ? 1 : (total + pageSize - 1) ~/ pageSize;
+
+  /// 是否還有後頁；由伺服器回顯的頁碼與總數判定，客戶端不自算第二份真相。
+  bool get hasMore => page < totalPages;
+}
+
+/// `POST`／`GET`／`PUT /admin/activities…` 的成功回應：一筆活動的資料庫現值。
+///
+/// 寫入通路（建立、資料編輯、狀態轉換、指派與撤銷）回的都是同一個形狀，而且都是
+/// 「保存之後讀回来的那一份」：界面顯示的當前資料必須來自服務端結果，不是請求本體的迴音。
+class ActivityDetailReport {
+  /// 以已驗證的欄位建立單筆回應。
+  const ActivityDetailReport({required this.activity, required this.requestId});
+
+  /// 從活動端點的 JSON 回應建立單筆報告。
+  static ActivityDetailReport decode(Map<String, Object?> json) {
+    final Object? raw = json['activity'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('activity 不是物件');
+    }
+    return ActivityDetailReport(
+      activity: ActivityReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本筆活動的現值。
+  final ActivityReport activity;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 一行活動管理權指派的可展示事實。
+///
+/// [displayName] 可能是空字串：那一欄指向的帳戶行已被物理清理時，服務端如實回空值
+/// （軟參照讀不到顯示名），界面據空值說「讀不到這份資料」，不編造一個名字。
+/// [accountStatus] 帶出 deleted 這類終態：名冊不藏這種行。
+class ActivityManagerReport {
+  /// 以已驗證的欄位建立一行指派。
+  const ActivityManagerReport({
+    required this.accountId,
+    required this.displayName,
+    required this.accountStatus,
+    required this.grantedAt,
+  });
+
+  /// 從名冊的一項建立一行指派。
+  static ActivityManagerReport decode(Map<String, Object?> json) {
+    return ActivityManagerReport(
+      accountId: _requireText(json, 'account_id'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
+      accountStatus: _requireText(json, 'account_status'),
+      grantedAt: _requireUtcTime(json, 'granted_at'),
+    );
+  }
+
+  /// 被指派為管理人的帳戶標識。
+  final String accountId;
+
+  /// 該帳戶的顯示名（取自帳戶倉儲的實體讀法）。
+  final String displayName;
+
+  /// 該帳戶此刻的狀態原始值（active／disabled／deleted 等）。
+  final String accountStatus;
+
+  /// 指派寫下的時刻（UTC）。
+  final DateTime grantedAt;
+}
+
+/// `GET／HEAD /admin/activities/{activity_id}/managers` 的成功回應。
+///
+/// 名冊是一張可以長也可以為空的表：空清單語意是「這個活動還沒有帳戶管理人」
+/// （Root 建立的活動正是這種形態），不是錯誤也不是查無此活動。
+class ActivityManagerRosterReport {
+  /// 以已驗證的欄位建立名冊。
+  const ActivityManagerRosterReport({
+    required this.managers,
+    required this.requestId,
+  });
+
+  /// 從名冊回應建立報告。
+  static ActivityManagerRosterReport decode(Map<String, Object?> json) {
+    final Object? raw = json['managers'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('managers 不是清單');
+    }
+    final List<ActivityManagerReport> managers = <ActivityManagerReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('managers 項不是物件');
+      }
+      managers.add(ActivityManagerReport.decode(item));
+    }
+    return ActivityManagerRosterReport(
+      managers: managers,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 名冊的行（依指派寫下時刻倒序，後端決定順序）。
+  final List<ActivityManagerReport> managers;
 
   /// 本次請求的關聯 ID。
   final String requestId;

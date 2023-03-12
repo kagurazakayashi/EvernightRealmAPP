@@ -18,7 +18,7 @@
   "rootConsoleSummary": "服务器级管理上下文，不与活动端混在同一导航内。",
   "adminConsoleTitle": "管理员端",
   "adminConsoleSummary": "活动、玩家、资产与时间线等管理操作的进入点。",
-  "adminConsoleRemainingNotice": "这一页还不能删除普通账户，也不能改它的服务器级角色；活动管理、名册、资产与聊天在这台服务器上同样尚未实现。这一页今天能做的是：建立账户、读取目录、编辑一个显示名、停用或恢复该账户的登录能力、重置他的登录口令、批准或拒绝一份注册申请，把访客账户就地升级为正式账户，为访客运行只读的绑定预检，以及为一个可行的配对签发短期单次的绑定凭证（它从不绑定任何人，执行只能由目标本人确认）。批准永远不会给出服务器级角色。没有任何活动的新账户登录后看到的是真实的占位页面——本应用不假装活动大厅已经配置好。",
+  "adminConsoleRemainingNotice": "这一页今天能做的是：建立账户、读取目录、编辑一个显示名、停用或恢复该账户的登录能力、重置他的登录口令、软删除普通账户与访客（终态行仍列出且只读）、批准或拒绝一份注册申请、把访客账户就地升级为正式账户、为访客运行只读的绑定预检、为一个可行的配对签发短期单次的绑定凭证（它从不绑定任何人，执行只能由目标本人确认），以及管理活动：建立一个活动、读取这个账户获指派的活动目录、编辑名称与描述、开放／停止／重新开放／归档，并读取该活动的管理人名册。它不能改任何人的服务器级角色，也不能给活动加人或删人——那是 Root 的决定。活动里面的成员、阵营、资产与聊天尚未实现，所以活动页不列任何这类东西，也不拿空清单凑数。批准永远不会给出服务器级角色。没有被指派任何活动的账户登录后看到的是如实的占位页面——本应用不假装活动里面已经有东西。",
   "@adminConsoleRemainingNotice": {"description": "如實說明管理端其餘能力未接線，並把審批列入今天已有的那幾項；同時點名「批准不給角色」。"},
   "npcConsoleTitle": "NPC 操作台",
   "npcConsoleSummary": "以显式选定的 NPC 身份进行操作，与玩家操作上下文分离。",
@@ -1208,5 +1208,128 @@
   "errorCodeAccountDeleted": "这个账户已被删除，所以本次什么都没发生：状态没改、口令没重置、资料没编辑，也没有第二次删除。被删除的账户恢复不了登录，再点一次同一颗按钮也不会成功。他仍留在目录里，为的是让已有操作指回同一个人——请重新读取这份资料。",
   "@errorCodeAccountDeleted": {"description": "機器碼 2027：目標已是刪除終態，本次操作整個沒有發生（與後端 locale.go 同一語意）；處置是停手重讀，不是再點一次。"},
   "errorCodeAccountRetired": "这名访客在绑定进另一个账户时已进入退休终态，所以本次什么都没发生。退休同样是终态：不接受编辑、不改状态、不重置口令、不升级，也不接受删除。从这里该读的是绑定留痕，看他被绑进了谁——再点一次同一颗按钮不是出路。",
-  "@errorCodeAccountRetired": {"description": "機器碼 2028：目標是被綁走的退休訪戶，另一種終態（與後端 locale.go 同一語意）；要讀的是綁定留痕。"}
+  "@errorCodeAccountRetired": {"description": "機器碼 2028：目標是被綁走的退休訪戶，另一種終態（與後端 locale.go 同一語意）；要讀的是綁定留痕。"},
+
+  "activityConsoleTitle": "活动",
+  "activityConsoleIntro": "活动是后续功能（成员、阵营、资产、聊天、阶段与调度）将要栖身的容器。本服务器交付的是这个容器与它的生命周期——刚建立的活动如实是空的，界面不拿任何东西冒充里面有东西。",
+  "activityCreateTitle": "建立一个活动",
+  "activityNameLabel": "名称",
+  "activityDescriptionLabel": "描述",
+  "activityDescriptionHint": "可留空。名称可以重复，这是正常形态：名称只是展示文字，标识才是身份。",
+  "activityCreateSubmitAction": "建立活动",
+  "activityFormIncompleteNotice": "要先填名称才能送出。",
+  "activityCreatedTitle": "活动已建立：{name}",
+  "@activityCreatedTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "activityCreatedEmptyNotice": "以草稿建立。它现在没有成员、阵营、资产与消息——这些在本服务器上尚未实现，因此这张卡不列任何一项，也不拿空清单或 0 凑数。",
+  "activityInvalidNameNotice": "被拒：活动名称为空、过长或含控制字符。",
+  "activityInvalidDescriptionNotice": "被拒：活动描述过长或含控制字符。",
+  "activityInvalidStatusNotice": "被拒：那个状态取值不属于四个生命周期状态。",
+  "activityInvalidQueryNotice": "被拒：搜索关键词过长。",
+  "activityInvalidPageNotice": "被拒：页码不合法。",
+  "activityInvalidPageSizeNotice": "被拒：每页笔数不合法。",
+  "activityInvalidAccountIdNotice": "被拒：账户标识不是合法标识。",
+  "activityRejectedNotice": "被拒：请求带了这个端点不接受的栏位。",
+  "activityDirectoryTitle": "活动目录",
+  "activityFilterStatusLabel": "状态筛选",
+  "activityFilterAllLabel": "全部状态",
+  "activityStatusDraftLabel": "草稿",
+  "activityStatusActiveLabel": "已开放",
+  "activityStatusClosedLabel": "已停止",
+  "activityStatusArchivedLabel": "已归档",
+  "activityUnknownStatusLabel": "不认识的状态：{status}",
+  "@activityUnknownStatusLabel": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "activityQueryLabel": "搜索名称或描述",
+  "activitySearchAction": "套用筛选",
+  "activityLoadingNotice": "正在向服务器读取……",
+  "activityNotLoadedNotice": "还没有读到任何活动清单。",
+  "activityEmptyNotice": "这个筛选条件下，当前登录的主体看不见任何活动。那可能是这台服务器还没有活动，也可能是还没人把这个账户指派给任何活动——服务器不区分这两句话，界面因此也不猜。",
+  "activityPagedNotice": "第 {page} 页，共 {totalPages} 页——可见活动 {total} 笔",
+  "@activityPagedNotice": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "totalPages": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "activityPreviousPageAction": "上一页",
+  "activityNextPageAction": "下一页",
+  "activityOpenAction": "打开",
+  "activityProfileTitle": "活动：{name}",
+  "@activityProfileTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "activityCloseCardAction": "关闭",
+  "activityIdLabel": "活动标识",
+  "activityStatusLabel": "状态",
+  "activityCreatorLabel": "建立者账户",
+  "activityCreatedByRootNotice": "由 Root 建立——Root 不是 accounts 表里的一行，没有可显示的账户标识。在 Root 指派管理人之前，只有 Root 能管这个活动。",
+  "activityManagerCountLabel": "管理人",
+  "activityCreatedLabel": "建立于",
+  "activityUpdatedLabel": "最后改动",
+  "activityEditTitle": "编辑名称与描述",
+  "activitySaveAction": "保存",
+  "activitySavedNotice": "已保存。你现在看到的是服务器存下的现值。",
+  "activityReadOnlyNotice": "这个活动已归档，这里没有可编辑的东西：名称、描述、状态与名册都是一律只读。",
+  "activityArchivedBanner": "这个活动已归档。它仍列、仍可读，但不接受任何改动，也没有回去的路。",
+  "activityArchivedBannerAt": "这个活动于 {at} 归档。它仍列、仍可读，但不接受任何改动，也没有回去的路。",
+  "@activityArchivedBannerAt": {
+    "placeholders": {
+      "at": {}
+    }
+  },
+  "activityClosedNotice": "这个活动已停止：在它里面的写入一律被拒，直到有人把它重新开放。停止是可逆的——归档不是——而且这张卡不动它的成员、阵营或资产，那些东西今天也还不存在。",
+  "activityStatusTitle": "改变状态",
+  "activityOpenTransitionAction": "开放",
+  "activityCloseTransitionAction": "停止",
+  "activityReopenTransitionAction": "重新开放",
+  "activityArchiveTransitionAction": "归档",
+  "activityArchiveConfirmTitle": "要归档这个活动吗？",
+  "activityArchiveConfirmBody": "目标：{name}。之后会有三件事：名称与描述不能再编辑、状态永远不能再改变、它的名册也不能再加人或减人。这不是停止——停止可以恢复，归档不行。",
+  "@activityArchiveConfirmBody": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "activityConfirmOkAction": "确认",
+  "activityConfirmCancelAction": "取消",
+  "activityManagersTitle": "这个活动的管理人",
+  "activityManagersReadOnlyNotice": "在这里当管理人读得到这个活动与它的名册，但加人与减人是 Root 的决定，所以这张卡不长那两颗按钮。",
+  "activityManagersRootNotice": "你是 Root：可以在这里加人或减人。指派是一次权限授予，因此它待在 Root 这一侧，而不是交给活动自己的管理人。",
+  "activityManagerEmptyNotice": "还没有账户被指派给这个活动。",
+  "activityManagerStatusLabel": "账户状态",
+  "activityManagerUnknownNameNotice": "这个账户的显示名已经读不到了（它那一行已被物理清理）；指派仍指向原来那个标识，这里照实列出。",
+  "activityAssignTitle": "指派一位管理人",
+  "activityAssignHint": "目标必须已是能登录的管理员。这张卡不开角色：还缺的话请 Root 在管理员目录里开设。",
+  "activityAssignAccountIdLabel": "账户标识",
+  "activityAssignAction": "指派",
+  "activityAssignIncompleteNotice": "要先贴上一个账户标识才能指派。",
+  "activityRevokeAction": "撤销",
+  "activityRevokeConfirmTitle": "要撤销这一行指派吗？",
+  "activityRevokeConfirmBody": "目标：{target}。这只移除他对这一个活动的指派——不删除那个账户、不撤销他的会话、也不动他在别的活动上的指派。过往审计仍指向原来那个标识。",
+  "@activityRevokeConfirmBody": {
+    "placeholders": {
+      "target": {}
+    }
+  },
+  "activityReloadAction": "重新读取这份资料",
+  "errorCodeActivityArchived": "这个活动已经归档，进入的是终态，本次写入没有执行。它还在那里、读得到，但不再接受任何新的改动：不能改名、不能改状态，也不能增减它的管理人。归档没有出口——这不是「现在不行」，而是「这件事已经结束」。",
+  "errorCodeActivityStatusConflict": "你依据的活动状态已经不是服务器上的现值，或它已经就是你要的那个状态，本次转换没有执行。状态一位都没改，也没有留下审计。请重新读取该活动的详情，再决定要不要按下那颗按钮。",
+  "errorCodeActivityTransitionInvalid": "这两个状态之间没有这么一条路，重读现值也换不来任何结果。要改的是要做的那件事，不是画面上的数值：已批准的状态流转只有开放、停止、重新开放与归档四条。",
+  "errorCodeActivityManagerTaken": "这名账户已经是这个活动的管理人，本次指派没有执行——名册没有多出一行，审计也没有记。要换的是目标（另一个人），不是把同一颗按钮再按一次。"
 }

@@ -236,6 +236,45 @@ String rootAdminStatusPath(String accountId) =>
 String rootAdminPasswordPath(String accountId) =>
     '${rootAdminItemPath(accountId)}/password';
 
+/// 活動管理端點的路徑前綴：GET／HEAD 是分頁目錄，POST 是建立一個活動。
+///
+/// 目錄與建立掛在同一條父路徑的兩個方法上（與 [kAdminAccountsPath]／
+/// [kRootInviteCodesPath] 同一形態）：建立會產出一個新的穩定標識，因此它是 POST 一條新建，
+/// 而目錄是讀。
+const String kAdminActivitiesPath = '/admin/activities';
+
+/// 單筆活動端點的路徑前綴：GET 是詳情，PUT 是以白名單編輯名稱與描述。
+///
+/// 狀態不在這條路徑上改（見 [adminActivityStatusPath]）：把「能不能繼續發生」與
+/// 「這件事叫什麼」混進同一次提交，等於讓一次改名可以順手把歸檔的活動改回開放。
+String adminActivityItemPath(String activityId) =>
+    '$kAdminActivitiesPath/${Uri.encodeComponent(activityId)}';
+
+/// 活動狀態轉換的子資源路徑：PUT 一條路徑做一件事（開放／停止／重新開放／歸檔）。
+String adminActivityStatusPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/status';
+
+/// 活動管理人名冊的讀取路徑：GET／HEAD 只列這個活動此刻的管理人。
+///
+/// 讀掛在 /admin（管理員加上該活動的指派），寫掛在 /root（見 [rootActivityManagersPath]）：
+/// 同一張表、兩套准入邊界，因此是兩條路徑而不是一條路徑上的兩個方法。
+String adminActivityManagersPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/managers';
+
+/// Root 那側的管理人指派路徑：POST 指派、GET／HEAD 不在此掛（讀法在 /admin 那條上）。
+const String kRootActivityManagersPathPrefix = '/root/activities';
+
+/// Root 指派活動管理人的集合路徑（POST 一條指派）。
+String rootActivityManagersPath(String activityId) =>
+    '$kRootActivityManagersPathPrefix/${Uri.encodeComponent(activityId)}/managers';
+
+/// Root 撤銷單筆指派的路徑：DELETE 什麼都不帶（無本體、無依據值）。
+///
+/// 被撤銷的是「這一对（活動, 帳戶）」，所以目標在位址裡而不是在本體裡；
+/// 撤銷不存在的指派回 1001 而不是謊報成功。
+String rootActivityManagerItemPath(String activityId, String accountId) =>
+    '${rootActivityManagersPath(activityId)}/${Uri.encodeComponent(accountId)}';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -1312,6 +1351,171 @@ class ServerApi {
     return apiClient.delete(
       rootInviteCodeItemPath(codeId),
       decode: InviteCodeMutationReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 建立一個活動：POST `/admin/activities`。
+  ///
+  /// 本體只有名稱與描述兩個欄位：狀態不在其中（新建一律是草稿）、建立者不在其中
+  /// （他來自那枚會話憑據）、也沒有 id／created_at／archived_at 的格子——多帶会被後端
+  /// 打成 1004 並點名是哪一欄。回應是保存後的資料庫現值（含自動指派給建立者的管理人數量）。
+  Future<ActivityDetailReport> createActivity({
+    required String name,
+    required String description,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<ActivityDetailReport>(
+      kAdminActivitiesPath,
+      jsonBody: <String, Object?>{'name': name, 'description': description},
+      decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀一頁活動目錄：GET `/admin/activities`。
+  ///
+  /// 可見範圍由服務端決定：持有伺服器級管理權但未獲指派的人拿到的是空的一頁，
+  /// 而不是「全部活動」——漏帶授權資料在這裡不會被放寬成權限。
+  /// Root 那一側不受指派限制，看到的才是全量。
+  Future<ActivityDirectoryReport> activitiesDirectory({
+    int page = 1,
+    int pageSize = 20,
+    String status = 'all',
+    String query = '',
+    String? acceptLanguage,
+  }) {
+    final buffer = StringBuffer(kAdminActivitiesPath)
+      ..write('?page=')
+      ..write(page)
+      ..write('&page_size=')
+      ..write(pageSize)
+      ..write('&status=')
+      ..write(Uri.encodeComponent(status));
+    // 空關鍵字不發參數：後端把「沒帶」與「帶了但全是空白」收斂成同一句話（不篩選）。
+    if (query.trim().isNotEmpty) {
+      buffer
+        ..write('&q=')
+        ..write(Uri.encodeComponent(query));
+    }
+    return apiClient.get(
+      buffer.toString(),
+      decode: ActivityDirectoryReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀單筆活動詳情：GET `/admin/activities/{activity_id}`。
+  ///
+  /// 詳情是編輯表單底稿的唯一來源：「這個活動此刻叫什麼」只能取自服務端，
+  /// 不能拿目錄行或本地印象湊一份。「這個標識不存在」與「它存在但不是你管的活動」
+  /// 在這裡是同一個 1001，端點因此不是活動存在性的探測器。
+  Future<ActivityDetailReport> activityDetail({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      adminActivityItemPath(activityId),
+      decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯活動的名称与描述：PUT `/admin/activities/{activity_id}`。
+  ///
+  /// 白名單是兩欄資料，另帶它們各自依據的現值（compare-and-set）。本體裡沒有
+  /// 狀態、建立者、活動標識與時刻的格子（多帶即 1004），後端的 UPDATE 語句也不碰那些欄位：
+  /// 「保存資料順手把活動改成已開放」或「順手把它挪進另一個活動」在協定層就沒有發生點。
+  /// 現值已變時回 2013 且整個編輯不發生；已歸檔的活動回 2029（終態，重讀之後也沒有那顆按鈕）。
+  Future<ActivityDetailReport> updateActivityProfile({
+    required String activityId,
+    required String name,
+    required String description,
+    required String expectedName,
+    required String expectedDescription,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<ActivityDetailReport>(
+      adminActivityItemPath(activityId),
+      jsonBody: <String, Object?>{
+        'name': name,
+        'description': description,
+        'expected_name': expectedName,
+        'expected_description': expectedDescription,
+      },
+      decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 轉換活動狀態：PUT `/admin/activities/{activity_id}/status`。
+  ///
+  /// 本體只帶目標狀態一欄，刻意不帶依據值：正當性錨在「庫裡此刻的狀態等於你以为的那個狀態」
+  /// 這條可觀測事實上（帶 WHERE 的單向更新），現值已變與同態重複都回 2030。
+  /// 四條合法路徑之外回 2031（重讀現值也沒有用，要改的是意圖）；
+  /// 歸檔之後任何轉換回 2029。成功回應帶著伺服器的現值與歸檔時刻。
+  Future<ActivityDetailReport> updateActivityStatus({
+    required String activityId,
+    required String status,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<ActivityDetailReport>(
+      adminActivityStatusPath(activityId),
+      jsonBody: <String, Object?>{'status': status},
+      decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀活動管理人名冊：GET `/admin/activities/{activity_id}/managers`。
+  ///
+  /// 讀的權限與活動本身同一道閘（Root 或該活動的管理人）：管理人看得見還有誰在管，
+  /// 但不能據此加人或刪人。已進入終態的帳戶那一行仍列，帶著他的現狀，
+  /// 因為「历史指向原標識」是这份名冊的合同而不是可選修飾。
+  Future<ActivityManagerRosterReport> activityManagers({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      adminActivityManagersPath(activityId),
+      decode: ActivityManagerRosterReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 指派一位活動管理人：POST `/root/activities/{activity_id}/managers`。
+  ///
+  /// 這是一次權限授予，因此只在 Root 那一側（NeedRoot）：活動自己的管理人不能自行加人。
+  /// 本體只有目標帳戶標識一欄——「誰在指派」由那枚 Root 憑據決定，本體沒有格子能填操作者，
+  /// 也沒有 role／granted_at 可以宣稱。目標必須已是持有 server_admin 的可用帳戶，
+  /// 否則回 1001（不存在、訪戶、停用、待審批或沒有授予一律同一句話）；
+  /// 已是該活動管理人回 2032，活動已歸檔回 2029。
+  Future<ActivityDetailReport> assignActivityManager({
+    required String activityId,
+    required String accountId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<ActivityDetailReport>(
+      rootActivityManagersPath(activityId),
+      jsonBody: <String, Object?>{'account_id': accountId},
+      decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 撤銷一位活動管理人：DELETE `/root/activities/{activity_id}/managers/{account_id}`。
+  ///
+  /// 無本體、無依據值：撤的正當性錨在「這一行確實還在」上，查無此行回 1001 而不是謊報成功。
+  /// 指向帳戶的欄位是無外鍵軟参照，因此帳戶被軟刪除後這一行的歷史仍解析得到——
+  /// 撤銷與否由 Root 決定，不由綁定或刪除通路代為處置。
+  Future<ActivityDetailReport> revokeActivityManager({
+    required String activityId,
+    required String accountId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.delete(
+      rootActivityManagerItemPath(activityId, accountId),
+      decode: ActivityDetailReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

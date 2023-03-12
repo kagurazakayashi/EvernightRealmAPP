@@ -431,7 +431,11 @@ void main() {
       // 「把兩件不同的事塞進同一枚碼」。
       expect(ApiMachineCode.fromValue(2027), ApiMachineCode.accountDeleted);
       expect(ApiMachineCode.fromValue(2028), ApiMachineCode.accountRetired);
-      expect(ApiMachineCode.fromValue(2029), isNull);
+      // 2029～2032 已由活動生命週期那一步發布（歸檔終態／狀態衝突／路徑不存在／重複指派），
+      // 界線因此再往前推一格：2033 仍必須讀不出來。
+      expect(ApiMachineCode.fromValue(2029), ApiMachineCode.activityArchived);
+      expect(ApiMachineCode.fromValue(2032), ApiMachineCode.activityManagerTaken);
+      expect(ApiMachineCode.fromValue(2033), isNull);
       // 兩種終態是兩枚碼而不是一枚：它們各自的處置不同（一個別再管，一個去讀綁定留痕）。
       expect(
         ApiMachineCode.accountDeleted.value,

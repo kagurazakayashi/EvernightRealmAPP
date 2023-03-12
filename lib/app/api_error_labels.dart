@@ -57,6 +57,14 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.applicationDecided => l10n.errorCodeApplicationDecided,
       ApiMachineCode.inviteAlreadyRevoked => l10n.errorCodeInviteAlreadyRevoked,
       ApiMachineCode.inviteCodeRejected => l10n.errorCodeInviteCodeRejected,
+      // 2029～2032 是活動域的三句拒絕加一句終態：四种处置各不相同——
+      // 終態要停手、現值過期要重讀、路徑不存在要改意圖、重複指派要換目標。
+      ApiMachineCode.activityArchived => l10n.errorCodeActivityArchived,
+      ApiMachineCode.activityStatusConflict =>
+        l10n.errorCodeActivityStatusConflict,
+      ApiMachineCode.activityTransitionInvalid =>
+        l10n.errorCodeActivityTransitionInvalid,
+      ApiMachineCode.activityManagerTaken => l10n.errorCodeActivityManagerTaken,
     };
   }
 

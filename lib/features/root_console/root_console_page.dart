@@ -27,6 +27,8 @@ import '../../app/nav_context_labels.dart';
 import '../../core/api/server_api.dart';
 import '../../core/api/server_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../admin/activity_directory_view.dart';
+import '../admin/activity_profile_view.dart';
 import 'account_policy_view.dart';
 import 'admin_directory_view.dart';
 import 'admin_profile_view.dart';
@@ -48,6 +50,14 @@ class _RootConsolePageState extends State<RootConsolePage> {
   /// 用計數而不是直接抓目錄卡的 State 呼叫：卡自己決定「token 變了就重讀」，
   /// 頁面不需要認得卡的內部結構，幾張卡也就不會因重構而互相依賴。
   int _reloadToken = 0;
+
+  /// 活動目錄的重載計數（與上方 `_reloadToken` 分開：兩本書互不拖著對方重讀）。
+  int _activityReload = 0;
+
+  /// 目前開啟詳情卡的活動標識；null 表示沒有活動詳情卡。
+  ///
+  /// 與帳戶詳情那個欄位各自獨立：兩張卡讀的是兩本書，不互相覆蓋對方的選擇。
+  String? _selectedActivityId;
 
   /// 目前開啟詳情的帳戶標識；null 表示沒有詳情卡。
   ///
@@ -112,6 +122,27 @@ class _RootConsolePageState extends State<RootConsolePage> {
           const SizedBox(height: 28),
           // 邀請碼卡自帶標題（inviteCodeTitle），與策略卡同樣不再疊一層頁面級 section title。
           InviteCodeCard(api: api, reloadToken: _reloadToken),
+          const SizedBox(height: 28),
+          // 活動管理：Root 看得見全部活動（不受指派限制），也是唯一能增減
+          // 活動管理人的一側，因此這裡傳 canManageManagers: true。
+          ActivityConsoleCard(
+            api: api,
+            reloadToken: _activityReload,
+            onCreated: () => setState(() => _activityReload++),
+            onSelected: (ActivityReport activity) =>
+                setState(() => _selectedActivityId = activity.activityId),
+          ),
+          if (_selectedActivityId != null) ...<Widget>[
+            const SizedBox(height: 12),
+            ActivityProfileCard(
+              key: ValueKey<String>(_selectedActivityId!),
+              api: api,
+              activityId: _selectedActivityId!,
+              canManageManagers: true,
+              onClosed: () => setState(() => _selectedActivityId = null),
+              onSaved: () => setState(() => _activityReload++),
+            ),
+          ],
           const SizedBox(height: 28),
           Text(
             l10n.rootConsoleRemainingNotice,
