@@ -2837,3 +2837,136 @@ class ActivityManagerRosterReport {
   /// 本次請求的關聯 ID。
   final String requestId;
 }
+
+/// 一筆陣營：活動內的「組」實體，以穩定標識關聯唯一活動。
+///
+/// 身份是 [factionId]，[activityId] 是它的歸屬且與標識一起被資料庫釘成不可就地改寫：
+/// 一個陣營從生到死只屬於一場活動，沒有任何通路能改它的身份或挪走它。
+/// [name] 只在同一活動內唯一，跨活動同名互不相干——名稱從來不是外鍵。
+/// [icon] 是內建標識鍵（空字串＝未選，界面以通用佔位圖標顯示）、[color] 是 #RRGGBB
+/// 或空字串（未選色）：兩者都只是展示，永不單獨承載身份——界面不存在「只有色塊、
+/// 沒有名字」的一行。[available] 是旗標而不是狀態機：假＝停用，停用行仍列、可讀。
+class FactionReport {
+  /// 以已驗證的欄位建立一筆陣營。
+  const FactionReport({
+    required this.factionId,
+    required this.activityId,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.sortOrder,
+    required this.available,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  /// 從回應的 `faction` 那一格建立一筆陣營。
+  static FactionReport decode(Map<String, Object?> json) {
+    return FactionReport(
+      factionId: _requireText(json, 'faction_id'),
+      activityId: _requireText(json, 'activity_id'),
+      name: _requireText(json, 'name'),
+      // 描述、圖標與顏色的「空」都是合法現值（沒寫過描述、未選圖標、未選色），
+      // 後端把它們收斂成空字串而不是缺席：界面據空字串顯示佔位，不另造「讀不到」。
+      description: _textAllowingEmpty(json, 'description'),
+      icon: _textAllowingEmpty(json, 'icon'),
+      color: _textAllowingEmpty(json, 'color'),
+      sortOrder: _requireInt(json, 'sort_order'),
+      available: _requireBool(json, 'available'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      updatedAt: _requireUtcTime(json, 'updated_at'),
+    );
+  }
+
+  /// 陣營穩定標識（身分只在這裡）。
+  final String factionId;
+
+  /// 歸屬活動的標識（不可改寫；跨活動讀改一律收斂成同一句 1001）。
+  final String activityId;
+
+  /// 陣營名稱（同活動內唯一、可改；不是身份鍵）。
+  final String name;
+
+  /// 陣營描述（可為空字串）。
+  final String description;
+
+  /// 內建圖標鍵；空字串表示未選。
+  final String icon;
+
+  /// 展示顏色（#RRGGBB 小寫）；空字串表示未選色。
+  final String color;
+
+  /// 列表排序值（同值由後端按建立時刻與標識穩定破平）。
+  final int sortOrder;
+
+  /// 可用性旗標：真＝可用，假＝停用。
+  final bool available;
+
+  /// 建立時刻（UTC；不做本機時區換算）。
+  final DateTime createdAt;
+
+  /// 最後一次改動時刻（UTC）。
+  final DateTime updatedAt;
+}
+
+/// `GET／HEAD /admin/activities/{activity_id}/factions` 的成功回應。
+///
+/// 空清單語意是「這個活動還沒有設陣營」，不是錯誤也不是查無此活動；
+/// 順序取後端回顯（排序值、建立時刻、標識），客戶端不重排、不持有第二份列表。
+class FactionListReport {
+  /// 以已驗證的欄位建立一份列表。
+  const FactionListReport({required this.factions, required this.requestId});
+
+  /// 從列表回應建立報告。
+  static FactionListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['factions'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('factions 不是清單');
+    }
+    final List<FactionReport> factions = <FactionReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('factions 項不是物件');
+      }
+      factions.add(FactionReport.decode(item));
+    }
+    return FactionListReport(
+      factions: factions,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 這個活動的陣營行（依後端給出的順序）。
+  final List<FactionReport> factions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 建立與編輯陣營的成功回應：帶著保存後的資料庫現值。
+///
+/// 回應裡的那一筆是回讀的事實而不是請求意圖的迴音——介面據此刷新本地依據值，
+/// 「保存成功前不顯示已完成」由這個形狀支撐。
+class FactionWriteReport {
+  /// 以已驗證的欄位建立一份寫入回應。
+  const FactionWriteReport({required this.faction, required this.requestId});
+
+  /// 從寫入回應建立報告。
+  static FactionWriteReport decode(Map<String, Object?> json) {
+    final Object? raw = json['faction'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('faction 不是物件');
+    }
+    return FactionWriteReport(
+      faction: FactionReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 保存後的陣營現值。
+  final FactionReport faction;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}

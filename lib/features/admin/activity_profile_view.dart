@@ -13,6 +13,9 @@
 /// * 名冊的讀與寫分屬兩道閘：管理人讀得到自己活動還有誰在管（`/admin`），
 ///   但加人與刪人只在 Root 那一側（`/root`，介面據 `canManageManagers` 決定長不長那顆按鈕）。
 ///   被指派者必須已是伺服器級管理員，因此這張卡不提供「就地開設管理員」的捷徑。
+/// * 陣營卡接在本卡尾部，准入控件由本卡讀回的活動狀態決定：停止與歸檔時陣營不收任何
+///   寫入（2033 是「等重開」、2029 是「已經結束」，兩句在界面上也分得開），
+///   但列表仍列、仍可讀——終態「仍列、可讀、拒寫」的口徑從帳戶一路貫到陣營。
 /// * 結果不明（連不上、逾時）時絕不自動補發：資料編輯與狀態轉換的現值可能已經被別人改過，
 ///   由人重讀這一份再決定。
 library;
@@ -25,6 +28,7 @@ import '../../core/api/server_api.dart';
 import '../../core/api/server_models.dart';
 import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
+import 'activity_factions_view.dart';
 
 /// 活動詳情卡。
 class ActivityProfileCard extends StatefulWidget {
@@ -548,6 +552,17 @@ class _ActivityProfileCardState extends State<ActivityProfileCard> {
           assignController: _assignAccountId,
           onAssign: _assign,
           onRevoke: _revoke,
+        ),
+        const SizedBox(height: 20),
+        // 標識與狀態都進 key：活動轉換（含停止→開放）時陣營卡整張重建，
+        // 寫入控件的有無永遠跟著服務端現值，不留在舊態的畫面上。
+        ActivityFactionsCard(
+          key: ValueKey<String>(
+            'activity-factions-${widget.activityId}-${activity.status}',
+          ),
+          api: widget.api,
+          activityId: widget.activityId,
+          activityStatus: activity.status,
         ),
       ],
     );

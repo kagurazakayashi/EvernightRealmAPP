@@ -103,6 +103,7 @@ class _Fixture {
   int directoryCalls = 0;
   int detailCalls = 0;
   int rosterCalls = 0;
+  int factionListCalls = 0;
   final List<http.Request> profileWrites = <http.Request>[];
   final List<http.Request> statusWrites = <http.Request>[];
   final List<http.Request> createWrites = <http.Request>[];
@@ -140,6 +141,12 @@ class _Fixture {
         if (method == 'GET' && path.endsWith('/managers')) {
           rosterCalls++;
           return _json(_rosterBody(), 200);
+        }
+        // 詳情卡現在尾部嵌著陣營卡：這組測試不碰陣營通路，但列表讀法必須有自己的
+        // 分流（空列表）——让它落進最後那條「詳情兜底」會污染 detailCalls 的斷言。
+        if (method == 'GET' && path.endsWith('/factions')) {
+          factionListCalls++;
+          return _json('{"factions":[],"request_id":"r-fac"}', 200);
         }
         if (method == 'POST' && path.endsWith('/managers')) {
           assignWrites.add(request);

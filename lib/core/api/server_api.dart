@@ -275,6 +275,20 @@ String rootActivityManagersPath(String activityId) =>
 String rootActivityManagerItemPath(String activityId, String accountId) =>
     '${rootActivityManagersPath(activityId)}/${Uri.encodeComponent(accountId)}';
 
+/// 陣營集合路徑（活動詳情路徑的子資源）：GET／HEAD 讀列表、POST 建立。
+///
+/// 准入與活動資料編輯同一道閘（管理員加上該活動的指派），因此掛在 /admin 而不另發
+/// /root 一組：打理一個活動裡的陣營是「管這個活動的資料」，不是權限授予。
+String adminActivityFactionsPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/factions';
+
+/// 單筆陣營路徑：本步只有 PUT 一條編輯通路。
+///
+/// 沒有單筆 GET（列表就是這個活動的全量，另發一條會造出第二個答案來源），
+/// 也沒有 DELETE（用戶批准：只有可用／停用，沒有刪除通路）。
+String adminActivityFactionItemPath(String activityId, String factionId) =>
+    '${adminActivityFactionsPath(activityId)}/${Uri.encodeComponent(factionId)}';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -1516,6 +1530,94 @@ class ServerApi {
     return apiClient.delete(
       rootActivityManagerItemPath(activityId, accountId),
       decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀一個活動的陣營列表：GET `/admin/activities/{activity_id}/factions`。
+  ///
+  /// 仍列、可讀：停止與歸檔的活動照樣列出行（拒的是寫）。順序取後端回顯
+  /// （排序值、建立時刻、標識），客戶端不重排。「還沒有陣營」是一份空列表而不是錯誤。
+  Future<FactionListReport> activityFactions({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      adminActivityFactionsPath(activityId),
+      decode: FactionListReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 建立一個陣營：POST `/admin/activities/{activity_id}/factions`。
+  ///
+  /// 本體白名單是四欄資料加一格可選的排序值：可用性不在其中（新建一律可用，
+  /// 停用走編輯那一跳）、也沒有 id／activity_id／時刻的格子——多帶會被後端打成 1004。
+  /// [sortOrder] 為 null 時不發該欄，由後端在交易內排到最後一格。
+  /// 同活動重名回 2034；活動停止回 2033、歸檔回 2029。
+  Future<FactionWriteReport> createFaction({
+    required String activityId,
+    required String name,
+    required String description,
+    required String icon,
+    required String color,
+    int? sortOrder,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<FactionWriteReport>(
+      adminActivityFactionsPath(activityId),
+      jsonBody: <String, Object?>{
+        'name': name,
+        'description': description,
+        'icon': icon,
+        'color': color,
+        'sort_order': ?sortOrder,
+      },
+      decode: FactionWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯一個陣營：PUT `/admin/activities/{activity_id}/factions/{faction_id}`。
+  ///
+  /// 白名單六欄新值，另帶它們各自依據的現值（compare-and-set，沿用 2013 那一枚）。
+  /// 可用性開關並在這條通路裡（用戶批准：旗標不是狀態機，不另設 /status 子資源）。
+  /// 標識、歸屬與時刻在本體裡沒有一格可填：跨活動的標識收斂成 1001，
+  /// 撞同活動內他人的名字回 2034。
+  Future<FactionWriteReport> updateFaction({
+    required String activityId,
+    required String factionId,
+    required String name,
+    required String description,
+    required String icon,
+    required String color,
+    required int sortOrder,
+    required bool available,
+    required String expectedName,
+    required String expectedDescription,
+    required String expectedIcon,
+    required String expectedColor,
+    required int expectedSortOrder,
+    required bool expectedAvailable,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<FactionWriteReport>(
+      adminActivityFactionItemPath(activityId, factionId),
+      jsonBody: <String, Object?>{
+        'name': name,
+        'description': description,
+        'icon': icon,
+        'color': color,
+        'sort_order': sortOrder,
+        'available': available,
+        'expected_name': expectedName,
+        'expected_description': expectedDescription,
+        'expected_icon': expectedIcon,
+        'expected_color': expectedColor,
+        'expected_sort_order': expectedSortOrder,
+        'expected_available': expectedAvailable,
+      },
+      decode: FactionWriteReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

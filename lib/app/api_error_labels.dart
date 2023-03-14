@@ -65,6 +65,10 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.activityTransitionInvalid =>
         l10n.errorCodeActivityTransitionInvalid,
       ApiMachineCode.activityManagerTaken => l10n.errorCodeActivityManagerTaken,
+      // 2033／2034 是陣營通路的两句：停止是「等重開」（與 2029 的終態分得開），
+      // 重名是「換個名字」（與 1001 的換目標分得開）。
+      ApiMachineCode.activityClosedWrites => l10n.errorCodeActivityClosedWrites,
+      ApiMachineCode.factionNameTaken => l10n.errorCodeFactionNameTaken,
     };
   }
 
