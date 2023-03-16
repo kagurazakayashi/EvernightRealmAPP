@@ -1,9 +1,9 @@
 /// 「活動陣營管理」端點在前端的合同鏡像測試。
 ///
 /// 釘的是合同而不是畫面：三條路徑的方法、每條白名單**恰好**哪些欄位
-/// （建立沒有可用性格子、編輯十二欄且不帶標識與歸屬）、單筆路徑的編碼、
+/// （建立沒有可用性格子、編輯十二欄且不帶標識與歸屬、派生值那一格寫不進去）、
 /// 空列表與缺席語意、必填缺席判違例，以及 2033／2034 兩枚新碼在前端各自成值。
-/// 未知新欄位一律容忍（後端只增不刪）；圖標封閉集合在这里钉的是**清單本身**，
+/// 未知新欄位一律容忍（後端只增不刪）；圖標封閉集合在這裡钉的是**清單本身**，
 /// 與後端遷移 0013 的 CHECK 同漂移同報紅。
 library;
 
@@ -21,12 +21,16 @@ const String _activityId = '01a1b000-0000-7000-8000-0000000000a1';
 const String _factionId = '01a1b000-0000-7000-8000-0000000000f1';
 
 /// 一筆陣營的可展示事實。[extraField] 用來演「後端日後多發的未知欄位必須被容忍」。
+///
+/// [acceptsNewMembers] 是服務端派生值，默认與 [available] 同值（活動可寫時的形態）；
+/// 傳 false 演的是「陣營本身可用，但活動已停止或歸檔」那一格。
 String _factionJson({
   String name = '黎明軍',
   String icon = 'sun',
   String color = '#f0a020',
   int sortOrder = 0,
   bool available = true,
+  bool? acceptsNewMembers,
   String? extraField,
 }) {
   final List<String> parts = <String>[
@@ -38,6 +42,7 @@ String _factionJson({
     '"color":"$color"',
     '"sort_order":$sortOrder',
     '"available":$available',
+    '"accepts_new_members":${acceptsNewMembers ?? available}',
     '"created_at":"2026-10-10T03:00:00.000Z"',
     '"updated_at":"2026-10-10T04:00:00.000Z"',
     ?extraField,
@@ -97,6 +102,43 @@ void main() {
       expect(faction.color, '#f0a020');
       expect(faction.sortOrder, 0);
       expect(faction.available, isTrue);
+      expect(faction.acceptsNewMembers, isTrue);
+    });
+
+    test('派生值缺席判合同違例：accepts_new_members 缺失不降級成 false', () async {
+      // 少這一格時界面無從判「收不收新成員」；降級成 false 會讓界面憑空唸出
+      // 「此刻不接收新分配」，那是把讀不到說成一個結論。
+      final ServerApi api = apiWithHandler(
+        (http.Request request) async => _json(
+          '{"factions":[{"faction_id":"$_factionId","activity_id":"$_activityId",'
+          '"name":"缺派生值","description":"","icon":"","color":"","sort_order":0,'
+          '"available":true,'
+          '"created_at":"2026-10-10T03:00:00.000Z",'
+          '"updated_at":"2026-10-10T03:00:00.000Z"}],"request_id":"r-x"}',
+          200,
+        ),
+      );
+      expect(
+        () => api.activityFactions(activityId: _activityId),
+        throwsA(isA<ApiError>()),
+      );
+    });
+
+    test('派生值與旗標分得開：陣營可用而活動停止時兩格各自讀出', () async {
+      final ServerApi api = apiWithHandler(
+        (http.Request request) async => _json(
+          _listBody(<String>[
+            _factionJson(available: true, acceptsNewMembers: false),
+          ]),
+          200,
+        ),
+      );
+      final FactionReport faction = (await api.activityFactions(
+        activityId: _activityId,
+      )).factions.single;
+      // 界面靠這兩格分開講「它還是那個陣營」與「此刻收不收新成員」，不自己拼。
+      expect(faction.available, isTrue);
+      expect(faction.acceptsNewMembers, isFalse);
     });
 
     test('空圖標與空顏色是合法現值（未選），讀成空字串而不是失敗', () async {
@@ -239,7 +281,11 @@ void main() {
       expect(body.containsKey('id'), isFalse);
       expect(body.containsKey('activity_id'), isFalse);
       expect(body.containsKey('created_at'), isFalse);
+      // 派生值不是可寫欄位：想靠本體宣稱「還收新成員」在前端就發不出去，
+      // 後端對這類未知欄位的回答是 1004 點名（見根倉庫端點證據）。
+      expect(body.containsKey('accepts_new_members'), isFalse);
       expect(report.faction.available, isFalse);
+      expect(report.faction.acceptsNewMembers, isFalse);
     });
 
     test('標識進路徑時按 URL 規則編碼', () async {

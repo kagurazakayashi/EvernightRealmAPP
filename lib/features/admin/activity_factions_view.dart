@@ -16,6 +16,19 @@
 /// * 現值過期（2013）時收起寫入控件，只留「重新讀取這份列表」一個出口；
 ///   結果不明（連不上、逾時）絕不自動補發，由人重讀再決定。
 /// * 成功句只在寫入回應回來之後出現：保存成功前不顯示「已完成」。
+///
+/// 停用與恢復那兩顆按鈕的邊界（與後端那一條 PUT 白名單一一對應）：
+///
+/// * 沒有第二條寫入通路：停用就是把那一欄翻成假、恢復就是翻回真，發的是同一個 PUT，
+///   帶齊六欄新值與六欄依據值。後端沒有「陣營狀態子資源」，界面上那兩顆按鈕也只是
+///   編輯的捷徑，不是另一套語意。
+/// * 「當前狀態」與「操作結果」分兩處講：前者取自列表讀回的那一行（按鈕文案與確認框
+///   首行都讀它），後者取自寫入回應回讀的現值。回應沒回來之前不寫「已停用」。
+/// * 確認框念的是成員影響摘要：不再接收新分配、既有成員保留原歸屬且同陣營仍互見、
+///   不踢出活動不凍結帳戶不刪行、日後可恢復。成員歸屬與歷史交易尚未接入本版本這件事
+///   如實寫在摘要裡——這裡沒有成員名單，也不拿「0 位」或空清單冒充會被影響的人。
+/// * 那一格 `accepts_new_members` 是服務端派生值，界面只讀不寫：活動停止或歸檔時，
+///   連標記為可用的陣營也照實顯示「此刻不接收新分配」，界面不拿 available 自己去猜。
 library;
 
 import 'package:flutter/material.dart';
@@ -102,6 +115,25 @@ class ActivityFactionsCard extends StatefulWidget {
   /// 行內「編輯」按鈕識別鍵。
   static Key editActionKey(String factionId) =>
       ValueKey<String>('activity-factions-edit-$factionId');
+
+  /// 行內「停用／重新啟用」按鈕識別鍵（文案由服務端讀回的可用性決定）。
+  static Key toggleActionKey(String factionId) =>
+      ValueKey<String>('activity-factions-toggle-$factionId');
+
+  /// 停用與恢復確認框的發起按鈕識別鍵。
+  static const Key confirmActionKey = ValueKey<String>(
+    'activity-factions-confirm-action',
+  );
+
+  /// 停用與恢復確認框的取消按鈕識別鍵（取消零請求）。
+  static const Key confirmCancelKey = ValueKey<String>(
+    'activity-factions-confirm-cancel',
+  );
+
+  /// 確認框裡的成員影響摘要列識別鍵。
+  static const Key confirmSummaryKey = ValueKey<String>(
+    'activity-factions-confirm-summary',
+  );
 
   /// 建立區各控件識別鍵。
   static const Key createNameKey = ValueKey<String>(
@@ -249,7 +281,13 @@ class _ActivityFactionsCardState extends State<ActivityFactionsCard> {
 
   /// 走一次寫入並重讀列表：回應裡的那一筆是回讀的事實，而列表順序只有後端知道，
   /// 成功之後以一次 GET 收尾，不做本地拼裝（也不先於回應顯示「已完成」）。
-  Future<void> _write(Future<Object> Function() request) async {
+  ///
+  /// [successFor] 讓各條寫入自己決定成功句：可用性翻轉那兩次要唸出「已停用／已重新啟用」
+  /// 並帶著回應回讀的名稱，其餘一律「已保存」。總之取回應、不取請求意圖。
+  Future<void> _write<T>(
+    Future<T> Function() request, {
+    String Function(AppLocalizations l10n, T result)? successFor,
+  }) async {
     if (_writing) {
       return;
     }
@@ -260,7 +298,7 @@ class _ActivityFactionsCardState extends State<ActivityFactionsCard> {
       _saved = null;
     });
     try {
-      await request();
+      final T result = await request();
       if (!mounted) {
         return;
       }
@@ -274,7 +312,9 @@ class _ActivityFactionsCardState extends State<ActivityFactionsCard> {
       setState(() {
         _writing = false;
         _factions = report.factions;
-        _saved = l10n.factionSavedNotice;
+        _saved = successFor == null
+            ? l10n.factionSavedNotice
+            : successFor(l10n, result);
         _editingId = null;
         _editingBaseline = null;
       });
@@ -290,6 +330,117 @@ class _ActivityFactionsCardState extends State<ActivityFactionsCard> {
         _stale = error.knownCode == ApiMachineCode.profileConflict;
       });
     }
+  }
+
+  /// 寫入成功句：可用性這一欄翻轉時念出翻轉後的結果，其餘編輯念一般保存句。
+  ///
+  /// 兩個判斷都讀回應回讀的現值與本次提交的依據值，不讀本地推測——「當前狀態」屬列表，
+  /// 「操作結果」屬這一次回應，界面兩處不混。
+  String _availabilityOutcome(
+    AppLocalizations l10n,
+    bool availableBefore,
+    FactionReport result,
+  ) {
+    if (availableBefore == result.available) {
+      return l10n.factionSavedNotice;
+    }
+    return result.available
+        ? l10n.factionEnabledNotice(result.name)
+        : l10n.factionDisabledNotice(result.name);
+  }
+
+  /// 停用或重新啟用這一行：確認框先把成員影響摘要念完，確認後走同一條 PUT 白名單，
+  /// 六欄新值只有可用性那一格翻轉，六欄依據值取自列表讀回的那一行。
+  Future<void> _confirmAvailability(FactionReport faction) async {
+    if (_writing || !_canWrite) {
+      return;
+    }
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    // want 是「這一欄新的取值」；這次動作算停用還是恢復，看的是讀回來的現值：
+    // 現值為真意味著這一次是把它的可用性翻下去，反過來才是恢復啟用。
+    final bool want = !faction.available;
+    final bool disabling = faction.available;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(
+          disabling
+              ? l10n.factionDisableConfirmTitle(faction.name)
+              : l10n.factionEnableConfirmTitle(faction.name),
+        ),
+        content: Column(
+          key: ActivityFactionsCard.confirmSummaryKey,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // 當前狀態與此刻可否收新成員：兩行都唸服務端讀回的現值，操作還沒發生就先講清楚。
+            Text(
+              l10n.labelValuePair(
+                l10n.factionConfirmCurrentStatusLabel,
+                faction.available
+                    ? l10n.factionAvailableLabel
+                    : l10n.factionDisabledLabel,
+              ),
+            ),
+            Text(
+              l10n.labelValuePair(
+                l10n.factionConfirmAcceptanceLabel,
+                faction.acceptsNewMembers
+                    ? l10n.factionAcceptanceYesLabel
+                    : l10n.factionAcceptanceNoLabel,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              disabling
+                  ? l10n.factionDisableConfirmBody(faction.name)
+                  : l10n.factionEnableConfirmBody(faction.name),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l10n.factionMemberImpactPendingNotice,
+              style: Theme.of(dialogContext).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: ActivityFactionsCard.confirmCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.factionEditCancelAction),
+          ),
+          FilledButton(
+            key: ActivityFactionsCard.confirmActionKey,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.factionConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    await _write(
+      () => widget.api.updateFaction(
+        activityId: widget.activityId,
+        factionId: faction.factionId,
+        name: faction.name,
+        description: faction.description,
+        icon: faction.icon,
+        color: faction.color,
+        sortOrder: faction.sortOrder,
+        available: want,
+        expectedName: faction.name,
+        expectedDescription: faction.description,
+        expectedIcon: faction.icon,
+        expectedColor: faction.color,
+        expectedSortOrder: faction.sortOrder,
+        expectedAvailable: faction.available,
+        acceptLanguage: _acceptLanguage,
+      ),
+      successFor: (AppLocalizations l10n, FactionWriteReport report) =>
+          _availabilityOutcome(l10n, faction.available, report.faction),
+    );
   }
 
   /// 把一次失敗換成一句話：欄位級結論點名是哪一欄，其餘交回統一對映。
@@ -439,6 +590,8 @@ class _ActivityFactionsCardState extends State<ActivityFactionsCard> {
         expectedAvailable: baseline.available,
         acceptLanguage: _acceptLanguage,
       ),
+      successFor: (AppLocalizations l10n, FactionWriteReport report) =>
+          _availabilityOutcome(l10n, baseline.available, report.faction),
     );
   }
 
@@ -509,14 +662,36 @@ class _ActivityFactionsCardState extends State<ActivityFactionsCard> {
                     title: Text(faction.name),
                     subtitle: _FactionSubtitle(faction: faction),
                     trailing: _canWrite
-                        ? OutlinedButton(
-                            key: ActivityFactionsCard.editActionKey(
-                              faction.factionId,
-                            ),
-                            onPressed: _writing
-                                ? null
-                                : () => _beginEdit(faction),
-                            child: Text(l10n.factionEditAction),
+                        ? Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            alignment: WrapAlignment.end,
+                            children: <Widget>[
+                              // 停用與恢復各長在自己那一行的服務端現值上：可用性為真才給
+                              // 「停用」，為假才給「重新啟用」——界面不替自己發明第二套狀態。
+                              TextButton(
+                                key: ActivityFactionsCard.toggleActionKey(
+                                  faction.factionId,
+                                ),
+                                onPressed: _writing
+                                    ? null
+                                    : () => _confirmAvailability(faction),
+                                child: Text(
+                                  faction.available
+                                      ? l10n.factionDisableAction
+                                      : l10n.factionEnableAction,
+                                ),
+                              ),
+                              OutlinedButton(
+                                key: ActivityFactionsCard.editActionKey(
+                                  faction.factionId,
+                                ),
+                                onPressed: _writing
+                                    ? null
+                                    : () => _beginEdit(faction),
+                                child: Text(l10n.factionEditAction),
+                              ),
+                            ],
                           )
                         : null,
                   ),
@@ -617,6 +792,10 @@ class _FactionBadge extends StatelessWidget {
 }
 
 /// 行副標：「可用性 · 排序 N」，狀態以文字說而不是只變色。
+///
+/// 第二列只在服務端派生值與旗標不一致時出現（活動停止或歸檔、陣營本身仍可用）：
+/// 這一句讲的是門禁對「此刻收不收新成員」的影響，不是另一個可用性——兩句分開講，
+/// 操作者才不會以為管理員把這個陣營停用了。
 class _FactionSubtitle extends StatelessWidget {
   const _FactionSubtitle({required this.faction});
 
@@ -629,13 +808,27 @@ class _FactionSubtitle extends StatelessWidget {
         ? l10n.factionAvailableLabel
         : l10n.factionDisabledLabel;
     final String line = l10n.labelValuePair(l10n.factionStatusLabel, state);
-    if (faction.description.isEmpty) {
-      return Text('$line · ${l10n.factionSortLabel}: ${faction.sortOrder}');
+    final Text first = faction.description.isEmpty
+        ? Text('$line · ${l10n.factionSortLabel}: ${faction.sortOrder}')
+        : Text(
+            '$line · ${l10n.factionSortLabel}: ${faction.sortOrder} · ${faction.description}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          );
+    if (faction.available && faction.acceptsNewMembers) {
+      return first;
     }
-    return Text(
-      '$line · ${l10n.factionSortLabel}: ${faction.sortOrder} · ${faction.description}',
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        first,
+        if (faction.available && !faction.acceptsNewMembers)
+          Text(
+            l10n.factionNotAcceptingWhileActivityFrozen,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+      ],
     );
   }
 }

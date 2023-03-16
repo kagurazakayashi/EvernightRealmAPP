@@ -2857,6 +2857,7 @@ class FactionReport {
     required this.color,
     required this.sortOrder,
     required this.available,
+    required this.acceptsNewMembers,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -2874,6 +2875,9 @@ class FactionReport {
       color: _textAllowingEmpty(json, 'color'),
       sortOrder: _requireInt(json, 'sort_order'),
       available: _requireBool(json, 'available'),
+      // 派生值同样是必填：缺席就是一份抵觸合同的回應，判失敗而不是降級成 false——
+      // 後者會讓界面把「讀不到」念成「收不到新成員」，那是憑空發明的結論。
+      acceptsNewMembers: _requireBool(json, 'accepts_new_members'),
       createdAt: _requireUtcTime(json, 'created_at'),
       updatedAt: _requireUtcTime(json, 'updated_at'),
     );
@@ -2900,8 +2904,14 @@ class FactionReport {
   /// 列表排序值（同值由後端按建立時刻與標識穩定破平）。
   final int sortOrder;
 
-  /// 可用性旗標：真＝可用，假＝停用。
+  /// 可用性旗標：真＝可用，假＝停用。停用不刪行、不改標識，只讓這個陣營不再接收新分配。
   final bool available;
+
+  /// 服務端派生的「此刻還收不收新成員」：available 且所屬活動接受業務寫入時才為真。
+  ///
+  /// 界面顯示用它，不自己拿 available 跟活動狀態拼——兩個欄位的組合規則只在後端有一份。
+  /// 它是只讀派生值：寫入通路沒有這一格，帶著它來的本體在協定層就被 1004 點名擋下。
+  final bool acceptsNewMembers;
 
   /// 建立時刻（UTC；不做本機時區換算）。
   final DateTime createdAt;

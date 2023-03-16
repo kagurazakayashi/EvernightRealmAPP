@@ -1581,7 +1581,9 @@ class ServerApi {
   /// 編輯一個陣營：PUT `/admin/activities/{activity_id}/factions/{faction_id}`。
   ///
   /// 白名單六欄新值，另帶它們各自依據的現值（compare-and-set，沿用 2013 那一枚）。
-  /// 可用性開關並在這條通路裡（用戶批准：旗標不是狀態機，不另設 /status 子資源）。
+  /// 可用性開關並在這條通路裡（用戶批准：旗標不是狀態機，不另設 /status 子資源），
+  /// 因此「停用」與「重新啟用」也是這一次 PUT——只翻那一欄，其餘五欄帶著現值原樣送回。
+  /// 回應裡的 `accepts_new_members` 是服務端派生值，本體沒有這一格：帶了會被 1004 點名。
   /// 標識、歸屬與時刻在本體裡沒有一格可填：跨活動的標識收斂成 1001，
   /// 撞同活動內他人的名字回 2034。
   Future<FactionWriteReport> updateFaction({
