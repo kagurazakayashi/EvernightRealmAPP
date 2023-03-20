@@ -69,6 +69,9 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       // 重名是「換個名字」（與 1001 的換目標分得開）。
       ApiMachineCode.activityClosedWrites => l10n.errorCodeActivityClosedWrites,
       ApiMachineCode.factionNameTaken => l10n.errorCodeFactionNameTaken,
+      // 2035 是名冊那一句「他已經是成員了」：處置是去編輯那份既有檔案，
+      // 既不是換目標（1001）也不是重讀現值再按一次（2013）。
+      ApiMachineCode.activityMemberTaken => l10n.errorCodeActivityMemberTaken,
     };
   }
 

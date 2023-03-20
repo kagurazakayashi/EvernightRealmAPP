@@ -104,6 +104,7 @@ class _Fixture {
   int detailCalls = 0;
   int rosterCalls = 0;
   int factionListCalls = 0;
+  int memberListCalls = 0;
   final List<http.Request> profileWrites = <http.Request>[];
   final List<http.Request> statusWrites = <http.Request>[];
   final List<http.Request> createWrites = <http.Request>[];
@@ -147,6 +148,12 @@ class _Fixture {
         if (method == 'GET' && path.endsWith('/factions')) {
           factionListCalls++;
           return _json('{"factions":[],"request_id":"r-fac"}', 200);
+        }
+        // 同理，詳情卡尾部也嵌著成員名冊卡：這組測試不碰名冊通路，但名冊讀法必須有
+        // 自己的分流（空名冊），否則它落進詳情兜底會多算一次 detailCalls。
+        if (method == 'GET' && path.endsWith('/members')) {
+          memberListCalls++;
+          return _json('{"members":[],"request_id":"r-mem"}', 200);
         }
         if (method == 'POST' && path.endsWith('/managers')) {
           assignWrites.add(request);

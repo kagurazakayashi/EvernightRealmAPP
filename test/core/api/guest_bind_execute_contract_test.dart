@@ -432,8 +432,9 @@ void main() {
       expect(ApiMachineCode.fromValue(2027), ApiMachineCode.accountDeleted);
       expect(ApiMachineCode.fromValue(2028), ApiMachineCode.accountRetired);
       // 2029～2032 已由活動生命週期那一步發布（歸檔終態／狀態衝突／路徑不存在／重複指派），
-      // 2033／2034 再由陣營管理一步發布（活動停止、業務寫入待重開／同活動內陣營重名）：
-      // 界線因此推到 2035，那一格仍必須讀不出來。
+      // 2033／2034 再由陣營管理一步發布（活動停止、業務寫入待重開／同活動內陣營重名），
+      // 2035 再由成員名冊一步發布（該帳戶在此活動已有成員身份）：
+      // 界線因此推到 2036，那一格仍必須讀不出來。
       expect(ApiMachineCode.fromValue(2029), ApiMachineCode.activityArchived);
       expect(
         ApiMachineCode.fromValue(2032),
@@ -444,7 +445,11 @@ void main() {
         ApiMachineCode.activityClosedWrites,
       );
       expect(ApiMachineCode.fromValue(2034), ApiMachineCode.factionNameTaken);
-      expect(ApiMachineCode.fromValue(2035), isNull);
+      expect(
+        ApiMachineCode.fromValue(2035),
+        ApiMachineCode.activityMemberTaken,
+      );
+      expect(ApiMachineCode.fromValue(2036), isNull);
       // 兩種終態是兩枚碼而不是一枚：它們各自的處置不同（一個別再管，一個去讀綁定留痕）。
       expect(
         ApiMachineCode.accountDeleted.value,

@@ -289,6 +289,21 @@ String adminActivityFactionsPath(String activityId) =>
 String adminActivityFactionItemPath(String activityId, String factionId) =>
     '${adminActivityFactionsPath(activityId)}/${Uri.encodeComponent(factionId)}';
 
+/// 成員集合路徑（活動詳情路徑的子資源）：GET／HEAD 讀名冊、POST 建立成員身份。
+///
+/// 准入與活動資料編輯、陣營管理同一道閘（管理員加上該活動的指派），因此掛在 /admin
+/// 而不另發 /root 一組：打理一個活動裡的成員名冊是「管這個活動的事」，不是權限授予。
+String adminActivityMembersPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/members';
+
+/// 單筆成員路徑：本版本只有 PUT 一條編輯暱稱的通路。
+///
+/// 沒有單筆 GET（名冊就是這個活動的全量，另發一條會造出第二個答案來源），
+/// 也沒有 DELETE（用戶批准：沒有把成員移出活動的通路），也沒有能改陣營歸屬的方法——
+/// 分配屬下一步，今日這一格在任何本體裡都沒有格子。
+String adminActivityMemberItemPath(String activityId, String memberId) =>
+    '${adminActivityMembersPath(activityId)}/${Uri.encodeComponent(memberId)}';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -1620,6 +1635,69 @@ class ServerApi {
         'expected_available': expectedAvailable,
       },
       decode: FactionWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀一個活動的成員名冊：GET `/admin/activities/{activity_id}/members`。
+  ///
+  /// 仍列、可讀：停止與歸檔的活動照樣列出行（拒的是寫）。順序取後端回顯
+  /// （加入時刻、標識），客戶端不重排。「還沒有人加入」是一份空列表而不是錯誤。
+  Future<MemberListReport> activityMembers({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      adminActivityMembersPath(activityId),
+      decode: MemberListReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 在一個活動裡為一個既有帳戶建立成員身份：POST `/admin/activities/{activity_id}/members`。
+  ///
+  /// 本體白名單只有兩格（目標帳戶標識與活動內暱稱）：身分三欄、時刻與陣營歸屬
+  /// 都沒有格子——多帶會被後端打成 1004，而「他此刻屬於哪個陣營」在本版本根本無處可填
+  /// （分配通路尚未存在，出生即為「尚未分組」）。
+  /// 目標帳戶的型別與狀態由後端現讀：終態者（待審批／被拒／已刪除／已退休）與幽靈
+  /// 一律回同一句 1001；重複建立回 2035；活動停止回 2033、歸檔回 2029。
+  Future<MemberWriteReport> createMember({
+    required String activityId,
+    required String accountId,
+    required String nickname,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<MemberWriteReport>(
+      adminActivityMembersPath(activityId),
+      jsonBody: <String, Object?>{
+        'account_id': accountId,
+        'nickname': nickname,
+      },
+      decode: MemberWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯一個成員的活動內暱稱：PUT `/admin/activities/{activity_id}/members/{member_id}`。
+  ///
+  /// 這是本版本唯一一條寫入成員資料的通路：白名單只有暱稱一欄，另帶它所依據的現值
+  /// （compare-and-set，沿用 2013 那一枚）。身分三欄與 `faction_id` 在本體裡沒有一格可填——
+  /// 「儲存名字順手把他挪進另一個陣營」不是被拒，而是無處可填。
+  /// 跨活動的標識與幽靈同形收斂成 1001；活動停止回 2033、歸檔回 2029。
+  Future<MemberWriteReport> updateMemberNickname({
+    required String activityId,
+    required String memberId,
+    required String nickname,
+    required String expectedNickname,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<MemberWriteReport>(
+      adminActivityMemberItemPath(activityId, memberId),
+      jsonBody: <String, Object?>{
+        'nickname': nickname,
+        'expected_nickname': expectedNickname,
+      },
+      decode: MemberWriteReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

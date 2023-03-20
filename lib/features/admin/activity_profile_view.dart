@@ -29,6 +29,7 @@ import '../../core/api/server_models.dart';
 import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
 import 'activity_factions_view.dart';
+import 'activity_members_view.dart';
 
 /// 活動詳情卡。
 class ActivityProfileCard extends StatefulWidget {
@@ -559,6 +560,17 @@ class _ActivityProfileCardState extends State<ActivityProfileCard> {
         ActivityFactionsCard(
           key: ValueKey<String>(
             'activity-factions-${widget.activityId}-${activity.status}',
+          ),
+          api: widget.api,
+          activityId: widget.activityId,
+          activityStatus: activity.status,
+        ),
+        const SizedBox(height: 20),
+        // 同上：成員卡也按「活動標識＋狀態」做 key，轉換後寫入控件如實跟隨服務端現值。
+        // 讀法本身不受狀態限制（停止與歸檔仍列、可讀），所以這張卡在兩態下照樣掛著。
+        ActivityMembersCard(
+          key: ValueKey<String>(
+            'activity-members-${widget.activityId}-${activity.status}',
           ),
           api: widget.api,
           activityId: widget.activityId,

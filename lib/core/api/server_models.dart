@@ -2980,3 +2980,134 @@ class FactionWriteReport {
   /// 本次請求的關聯 ID。
   final String requestId;
 }
+
+/// 活動內一行成員身份（一個帳戶在一場活動裡的那一份檔案）的可展示事實。
+///
+/// 合同要點（權威在後端 `internal/activity` 與遷移 0014）：
+/// - 身分三欄（`member_id`／`activity_id`／`account_id`）由服務端決定，任何寫入通路都改不了；
+/// - `faction_id` 恆在回應裡：空字串是「尚未分組」這個合法現值，不靠欄位缺席表達，
+///   因此缺席與空值是兩回事——前者判合同違例，後者是如實的「還沒分組」；
+/// - `display_name` 與 `account_status` 是帳戶的投影，不是成員表的欄位：兩者同時為空
+///   表示那一行指向的帳戶已讀不回（軟參照的代價），界面顯示通用句而不編造名字。
+class MemberReport {
+  /// 以已驗證的欄位建立一行成員。
+  const MemberReport({
+    required this.memberId,
+    required this.activityId,
+    required this.accountId,
+    required this.nickname,
+    required this.factionId,
+    required this.displayName,
+    required this.accountStatus,
+    required this.joinedAt,
+    required this.updatedAt,
+  });
+
+  /// 從回應的 `member` 那一格建立一行成員。
+  static MemberReport decode(Map<String, Object?> json) {
+    return MemberReport(
+      memberId: _requireText(json, 'member_id'),
+      activityId: _requireText(json, 'activity_id'),
+      accountId: _requireText(json, 'account_id'),
+      nickname: _requireText(json, 'nickname'),
+      // 「尚未分組」是合法現值（空字串），不是讀不到：缺席才判合同違例。
+      factionId: _textAllowingEmpty(json, 'faction_id'),
+      // 顯示名與狀態的「空」屬事實的缺席（軟參照讀不回那一行），界面據此換成通用句。
+      displayName: _textAllowingEmpty(json, 'display_name'),
+      accountStatus: _textAllowingEmpty(json, 'account_status'),
+      joinedAt: _requireUtcTime(json, 'joined_at'),
+      updatedAt: _requireUtcTime(json, 'updated_at'),
+    );
+  }
+
+  /// 玩家在活動內的穩定標識（身分只在這裡；暱稱可改、可重複）。
+  final String memberId;
+
+  /// 所屬活動的標識（不可改寫；跨活動讀改一律收斂成同一句 1001）。
+  final String activityId;
+
+  /// 對應的帳戶標識（軟參照；不可改寫，要換人沒有通路）。
+  final String accountId;
+
+  /// 活動內暱稱（不承擔唯一性：同活動兩個玩家重名完全合法）。
+  final String nickname;
+
+  /// 此刻的陣營歸屬；空字串＝尚未分組。本版本沒有任何分配通路，因此所有行都是空字串。
+  final String factionId;
+
+  /// 該帳戶的顯示名投影；空字串表示那一行已讀不回。
+  final String displayName;
+
+  /// 該帳戶此刻的狀態（active／disabled／deleted／...）；空字串表示已讀不回。
+  final String accountStatus;
+
+  /// 加入時刻（UTC；不做本機時區換算）。
+  final DateTime joinedAt;
+
+  /// 最後一次改動時刻（UTC）。
+  final DateTime updatedAt;
+
+  /// 這一欄是否已有陣營歸屬（空字串＝尚未分組）。
+  bool get hasFaction => factionId.isNotEmpty;
+}
+
+/// `GET／HEAD /admin/activities/{activity_id}/members` 的成功回應。
+///
+/// 空清單語意是「這個活動還沒有人加入」，不是錯誤也不是查無此活動；
+/// 順序取後端回顯（加入時刻、標識），客戶端不重排、不持有第二份名冊。
+class MemberListReport {
+  /// 以已驗證的欄位建立一份名冊。
+  const MemberListReport({required this.members, required this.requestId});
+
+  /// 從名冊回應建立報告。
+  static MemberListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['members'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('members 不是清單');
+    }
+    final List<MemberReport> members = <MemberReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('members 項不是物件');
+      }
+      members.add(MemberReport.decode(item));
+    }
+    return MemberListReport(
+      members: members,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 這個活動的成員行（依後端給出的順序）。
+  final List<MemberReport> members;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 建立成員與編輯暱稱的成功回應：帶著保存後的資料庫現值。
+///
+/// 回應裡的那一筆是回讀的事實而不是請求意圖的迴音——介面據此刷新本地依據值，
+/// 「保存成功前不顯示已完成」由這個形狀支撐。
+class MemberWriteReport {
+  /// 以已驗證的欄位建立一份寫入回應。
+  const MemberWriteReport({required this.member, required this.requestId});
+
+  /// 從寫入回應建立報告。
+  static MemberWriteReport decode(Map<String, Object?> json) {
+    final Object? raw = json['member'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('member 不是物件');
+    }
+    return MemberWriteReport(
+      member: MemberReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 保存後的成員現值。
+  final MemberReport member;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
