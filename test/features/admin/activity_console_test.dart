@@ -32,6 +32,10 @@ const Locale _locale = Locale('zh', 'TW');
 const String _activityId = '01a1c000-0000-7000-8000-0000000000c1';
 const String _otherManagerId = '01a1c000-0000-7000-8000-0000000000d2';
 
+/// 活動回應裡「玩家自選陣營」那一欄的現值（本檔只在詳情卡取證，
+/// 配置卡自己的四語言與寫入取證見 activity_faction_select_test）。
+const String _factionSelectMode = 'disabled';
+
 /// 一筆活動的回應片段。
 String _activityJson({
   String status = 'draft',
@@ -45,6 +49,8 @@ String _activityJson({
     '"name":"$name"',
     '"description":"第一段描述"',
     '"status":"$status"',
+    // 自選模式現值恆隨活動回顯：缺席時合同判定為失敗，不由界面降級成「當它沒開放」。
+    '"faction_select_mode":"$_factionSelectMode"',
     if (!rootCreated) '"created_by_account_id":"$_otherManagerId"',
     '"manager_count":$managerCount',
     '"created_at":"2026-10-10T03:00:00.000Z"',

@@ -29,6 +29,7 @@ import '../../core/api/server_models.dart';
 import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
 import 'activity_factions_view.dart';
+import 'activity_faction_select_view.dart';
 import 'activity_members_view.dart';
 
 /// 活動詳情卡。
@@ -575,6 +576,28 @@ class _ActivityProfileCardState extends State<ActivityProfileCard> {
           api: widget.api,
           activityId: widget.activityId,
           activityStatus: activity.status,
+        ),
+        const SizedBox(height: 20),
+        // 「玩家自選陣營」那一欄配置接在名冊之後：它動的是活動自己的一欄，
+        // 因此準入同這張卡其餘白名單（管理員加上該活動的指派），而底稿只能取自
+        // 本卡剛讀回的 activity.factionSelectMode——保存成功後以一次重讀收尾，
+        // 讓配置卡、名冊卡與詳情列都跟著服務端那份現值，不各留一份本地記憶體。
+        FactionSelectConfigCard(
+          key: ValueKey<String>(
+            'faction-select-${widget.activityId}-${activity.status}-${activity.factionSelectMode}',
+          ),
+          api: widget.api,
+          activityId: widget.activityId,
+          activityStatus: activity.status,
+          currentMode: activity.factionSelectMode,
+          onReload: _load,
+          // 保存成功後兩處都要跟隨服務端現值：本卡重讀詳情與名冊（編輯底稿的依據值
+          // 只能取自這裡），頁面也重讀活動目錄——目錄行現在同樣帶這一欄，
+          // 留舊值會讓人在清單上看到一個已經不是現值的開關狀態。
+          onSaved: (_) {
+            _load();
+            widget.onSaved?.call();
+          },
         ),
       ],
     );

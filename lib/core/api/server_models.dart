@@ -2621,6 +2621,7 @@ class ActivityReport {
     required this.name,
     required this.description,
     required this.status,
+    required this.factionSelectMode,
     required this.createdByAccountId,
     required this.managerCount,
     required this.createdAt,
@@ -2637,6 +2638,10 @@ class ActivityReport {
       // 空字串，界面據空字串顯示「沒有描述」，不另造一句「讀不到」。
       description: _textAllowingEmpty(json, 'description'),
       status: _requireText(json, 'status'),
+      // 「玩家能不能自己選陣營」屬活動的一欄配置，出廠是 disabled。
+      // 這一格缺席就判合同違例：界面若把它讀成「沒開放」的預設值，
+      // 一次回應格式漂移會靜默把配置卡上的開關畫成關著，而庫裡可能正開著。
+      factionSelectMode: _requireText(json, 'faction_select_mode'),
       createdByAccountId: _optionalText(json, 'created_by_account_id'),
       managerCount: _requireInt(json, 'manager_count'),
       createdAt: _requireUtcTime(json, 'created_at'),
@@ -2659,6 +2664,13 @@ class ActivityReport {
   /// 界面只轉述服務端讀到的值，遇到集合外的取值一律照實顯示原值而不猜它像哪一態——
   /// 後端放寬集合時前端該看到的是「這個值我不認識」，不是被靜默歸類。
   final String status;
+
+  /// 「玩家自選陣營」那一欄配置的原始值：disabled／first_only／free，出廠 disabled。
+  ///
+  /// 與 [status] 同一取向：界面只轉述服務端讀到的值，集合外的取值照實顯示原值而不猜它像
+  /// 哪一態。它不是權限，也不決定玩家「是不是」成員——只決定他此刻能不能自己改歸屬；
+  /// 而寫入側一律由後端在自己的交易裡現讀這一欄，客戶端這份只是顯示用的現值。
+  final String factionSelectMode;
 
   /// 建立者的帳戶標識；Root 建立時為 `null`（合同上這一格缺席）。
   final String? createdByAccountId;
@@ -3107,6 +3119,302 @@ class MemberWriteReport {
 
   /// 保存後的成員現值。
   final MemberReport member;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `GET／HEAD /player/activities` 的一行：我在某一場活動裡的成員身份，加上那場活動的現值。
+///
+/// 這一讀只答「我」：清單由我自己的成員行決定，不是活動目錄的另一份可見範圍規則。
+/// 兩份事實各有各的來源（活動那一側多帶的是界面要同時顯示的名稱、狀態與自選模式），
+/// 因此這裡不是第三個答案來源。
+class MyActivityReport {
+  /// 以已驗證的欄位建立一行本人活動。
+  const MyActivityReport({
+    required this.activityId,
+    required this.name,
+    required this.status,
+    required this.factionSelectMode,
+    required this.memberId,
+    required this.nickname,
+    required this.factionId,
+    required this.joinedAt,
+  });
+
+  /// 從回應的 `activities` 某一項建立一行。
+  static MyActivityReport decode(Map<String, Object?> json) {
+    return MyActivityReport(
+      activityId: _requireText(json, 'activity_id'),
+      name: _requireText(json, 'name'),
+      status: _requireText(json, 'status'),
+      factionSelectMode: _requireText(json, 'faction_select_mode'),
+      memberId: _requireText(json, 'member_id'),
+      nickname: _requireText(json, 'nickname'),
+      // 空字串＝尚未分組，是合法現值；缺席才判合同違例（口徑同成員名冊）。
+      factionId: _textAllowingEmpty(json, 'faction_id'),
+      joinedAt: _requireUtcTime(json, 'joined_at'),
+    );
+  }
+
+  /// 那場活動的穩定標識（本人通路的路徑引數）。
+  final String activityId;
+
+  /// 活動名稱（展示值；身份只有標識）。
+  final String name;
+
+  /// 活動生命週期原始值：draft／active／closed／archived（界面照實轉述）。
+  final String status;
+
+  /// 那場活動的自選模式現值：disabled／first_only／free。
+  final String factionSelectMode;
+
+  /// 我在那場活動裡的穩定標識（由後端按「這次會話是哪一個人」讀出來，不是請求填的）。
+  final String memberId;
+
+  /// 我的活動內暱稱。
+  final String nickname;
+
+  /// 我在這場活動裡此刻的陣營歸屬；空字串＝尚未分組。
+  final String factionId;
+
+  /// 加入時刻（UTC）。
+  final DateTime joinedAt;
+
+  /// 這一欄是否已有陣營歸屬。
+  bool get hasFaction => factionId.isNotEmpty;
+}
+
+/// `GET／HEAD /player/activities` 的成功回應。
+///
+/// 空清單語意是「我還沒有參加任何活動」，不是錯誤；順序取後端回顯（加入時刻倒序），
+/// 客戶端不重排、也不持有第二份清單。
+class MyActivityListReport {
+  /// 以已驗證的欄位建立一份本人清單。
+  const MyActivityListReport({
+    required this.activities,
+    required this.requestId,
+  });
+
+  /// 從本人清單回應建立報告。
+  static MyActivityListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['activities'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('activities 不是清單');
+    }
+    final List<MyActivityReport> activities = <MyActivityReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('activities 項不是物件');
+      }
+      activities.add(MyActivityReport.decode(item));
+    }
+    return MyActivityListReport(
+      activities: activities,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本人的活動行（依後端給出的順序）。
+  final List<MyActivityReport> activities;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 玩家自選界面上的一個候選陣營：展示值加上「它此刻能不能被我選」。
+///
+/// [selectable] 是後端派生值（這個陣營收不收新成員，加上這場活動此刻讓不讓玩家自選），
+/// 請求本體沒有這一格；界面據它決定哪一項可點，而寫入通路在服務端重新問同樣的幾句話——
+/// 藏按鈕不代替那道閘。
+class FactionOptionReport {
+  /// 以已驗證的欄位建立一個候選項。
+  const FactionOptionReport({
+    required this.factionId,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.sortOrder,
+    required this.available,
+    required this.selectable,
+  });
+
+  /// 從回應的 `factions` 某一項建立一個候選項。
+  static FactionOptionReport decode(Map<String, Object?> json) {
+    return FactionOptionReport(
+      factionId: _requireText(json, 'faction_id'),
+      name: _requireText(json, 'name'),
+      description: _textAllowingEmpty(json, 'description'),
+      icon: _textAllowingEmpty(json, 'icon'),
+      color: _textAllowingEmpty(json, 'color'),
+      sortOrder: _requireInt(json, 'sort_order'),
+      available: _requireBool(json, 'available'),
+      selectable: _requireBool(json, 'selectable'),
+    );
+  }
+
+  /// 陣營穩定標識（自選請求要填的就是它）。
+  final String factionId;
+
+  /// 陣營名稱（同活動內唯一；不是身份鍵）。
+  final String name;
+
+  /// 陣營描述（可為空字串）。
+  final String description;
+
+  /// 內建圖標鍵（空字串＝未選，界面以通用佔位顯示）。
+  final String icon;
+
+  /// 顏色（#RRGGBB 或空字串＝未選色）。
+  final String color;
+
+  /// 排序值（順序取後端回顯，客戶端不重排）。
+  final int sortOrder;
+
+  /// 這個陣營本身可不可用（停用＝不再接收新成員；既有歸屬保留）。
+  final bool available;
+
+  /// 這個選項此刻能不能被我選中（後端派生）。
+  final bool selectable;
+}
+
+/// `GET／HEAD /player/activities/{activity_id}/faction` 的成功回應。
+///
+/// 三份同源事實：那場活動（狀態與自選模式）、我自己（成員標識、暱稱、此刻歸屬）、
+/// 這場活動的候選清單。「此刻能不能選」只問 [canSelectNow] 這一個派生值，
+/// 界面不再自己拼「狀態＋配置＋旗標」的組合。
+class FactionSelectionReport {
+  /// 以已驗證的欄位建立一份本人現況。
+  const FactionSelectionReport({
+    required this.activityId,
+    required this.name,
+    required this.status,
+    required this.factionSelectMode,
+    required this.canSelectNow,
+    required this.memberId,
+    required this.nickname,
+    required this.factionId,
+    required this.factions,
+    required this.requestId,
+  });
+
+  /// 從本人現況回應建立報告。
+  static FactionSelectionReport decode(Map<String, Object?> json) {
+    final Object? raw = json['factions'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('factions 不是清單');
+    }
+    final List<FactionOptionReport> factions = <FactionOptionReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('factions 項不是物件');
+      }
+      factions.add(FactionOptionReport.decode(item));
+    }
+    return FactionSelectionReport(
+      activityId: _requireText(json, 'activity_id'),
+      name: _requireText(json, 'name'),
+      status: _requireText(json, 'status'),
+      factionSelectMode: _requireText(json, 'faction_select_mode'),
+      canSelectNow: _requireBool(json, 'can_select_now'),
+      memberId: _requireText(json, 'member_id'),
+      nickname: _requireText(json, 'nickname'),
+      factionId: _textAllowingEmpty(json, 'faction_id'),
+      factions: factions,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 活動標識。
+  final String activityId;
+
+  /// 活動名稱。
+  final String name;
+
+  /// 活動生命週期原始值。
+  final String status;
+
+  /// 那場活動的自選模式現值。
+  final String factionSelectMode;
+
+  /// 此刻能不能發起一次自選（後端派生；寫入通路另在交易內重新判定）。
+  final bool canSelectNow;
+
+  /// 我在這場活動裡的成員標識。
+  final String memberId;
+
+  /// 我的活動內暱稱。
+  final String nickname;
+
+  /// 我此刻的陣營歸屬；空字串＝尚未分組。
+  final String factionId;
+
+  /// 這場活動的全部陣營候選項（含已被停用的，界面如實標不可選而非藏起來）。
+  final List<FactionOptionReport> factions;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 我是否已有歸屬。
+  bool get hasFaction => factionId.isNotEmpty;
+
+  /// 依標識找出我此刻那一項（候選清單就是全量，不另開單筆讀法）。
+  ///
+  /// 讀不到時回 `null`：今天的合同下不該發生（歸屬只指向同活動的陣營），
+  /// 但界面要能如實說「這一格我讀不懂」，而不是崩在解析上或拿名稱冒充。
+  FactionOptionReport? optionById(String id) {
+    for (final FactionOptionReport option in factions) {
+      if (option.factionId == id) {
+        return option;
+      }
+    }
+    return null;
+  }
+}
+
+/// 玩家自選寫入的成功回應。
+///
+/// 刻意不帶名冊行那種帳戶投影（顯示名與帳戶狀態）：這一條通路的回讀只有
+/// `activity_members` 那一行的事實。若把兩格空字串塞進來，界面會把它讀成
+/// 「查無此人」——那是把「沒做那次投影」誤報成「軟參照讀不回」。
+class SelfFactionWriteReport {
+  /// 以已驗證的欄位建立一份自選結果。
+  const SelfFactionWriteReport({
+    required this.memberId,
+    required this.activityId,
+    required this.nickname,
+    required this.factionId,
+    required this.updatedAt,
+    required this.requestId,
+  });
+
+  /// 從自選回應建立報告。
+  static SelfFactionWriteReport decode(Map<String, Object?> json) {
+    return SelfFactionWriteReport(
+      memberId: _requireText(json, 'member_id'),
+      activityId: _requireText(json, 'activity_id'),
+      nickname: _requireText(json, 'nickname'),
+      factionId: _textAllowingEmpty(json, 'faction_id'),
+      updatedAt: _requireUtcTime(json, 'updated_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本人的成員標識（由後端按會話讀出，回應只是把這件事說回去）。
+  final String memberId;
+
+  /// 所屬活動標識。
+  final String activityId;
+
+  /// 我的活動內暱稱（自選不碰它，回讀因此仍帶同一個值）。
+  final String nickname;
+
+  /// 落庫後的歸屬。自選沒有清空通路，因此這一站它恆非空；空字串的解讀仍按「尚未分組」。
+  final String factionId;
+
+  /// 改動時刻（UTC）。
+  final DateTime updatedAt;
 
   /// 本次請求的關聯 ID。
   final String requestId;

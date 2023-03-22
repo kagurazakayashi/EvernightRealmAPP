@@ -304,6 +304,28 @@ String adminActivityMembersPath(String activityId) =>
 String adminActivityMemberItemPath(String activityId, String memberId) =>
     '${adminActivityMembersPath(activityId)}/${Uri.encodeComponent(memberId)}';
 
+/// 活動的「玩家自選陣營」那一欄配置路徑：PUT 編輯。
+///
+/// 它是活動管理面的一條白名單子資源（準入同活動資料編輯：管理員加上該活動的指派），
+/// 與 `.../status` 分開的理由也同一套——一欄配置換的是「往後允不允許玩家自己選」，
+/// 不該讓任何一次改名順手把它一起存進去。本族群沒有 GET（那一格的現值由活動詳情帶回）、
+/// 也沒有 DELETE（關閉就是 disabled 這個取值，沒有「清回未設定」這種形態）。
+String adminActivityFactionSelectPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/faction-select';
+
+/// 本人活動清單路徑：GET／HEAD 讀「我參加了哪些活動」。
+///
+/// 這一族掛在 /player 而不掛在 /admin：準入只問「這次請求的憑據此刻換出的是哪一個帳戶」，
+/// 路徑裡沒有一格能填「哪個玩家」，本體裡也沒有。前綴無版本（只增不刪的相容演進）。
+String playerActivitiesPath() => '/player/activities';
+
+/// 本人在某一場活動裡的陣營現況路徑：GET／HEAD 讀現況、PUT 自選。
+///
+/// 沒有 DELETE——本步批準的自選只能設定歸屬，不能清空（把歸屬改回「尚未分組」
+/// 屬管理側分配通路，今日不存在那條路）。
+String playerActivityFactionPath(String activityId) =>
+    '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/faction';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -1698,6 +1720,80 @@ class ServerApi {
         'expected_nickname': expectedNickname,
       },
       decode: MemberWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯某一場活動的「玩家自選陣營」那一欄配置：PUT `/admin/activities/{activity_id}/faction-select`。
+  ///
+  /// 白名單只有 `mode`（disabled／first_only／free）與它所依據的現值 `expected_mode`。
+  /// 本體裡沒有狀態、名稱、描述或任何人的歸屬格子（多帶即 1004）：
+  /// 「改開關順手把活動改名」與「改開關順手把某個人搬出陣營」都不是被拒，而是無處可填。
+  /// 現值已變時回 2013 且整個編輯不發生；已歸檔回 2029（停止態照樣可以準備這欄配置）。
+  Future<ActivityDetailReport> updateFactionSelectMode({
+    required String activityId,
+    required String mode,
+    required String expectedMode,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<ActivityDetailReport>(
+      adminActivityFactionSelectPath(activityId),
+      jsonBody: <String, Object?>{'mode': mode, 'expected_mode': expectedMode},
+      decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀「我參加了哪些活動」：GET `/player/activities`。
+  ///
+  /// 主體只由會話決定，沒有任何引數能宣稱「動的是誰」；這一份清單就是玩家端唯一的
+  /// 活動入口讀法（不是活動目錄，也不回答「還有哪些活動存在」）。
+  /// 空清單是一句事實：我還沒有參加任何活動。本人不是成員時不會得到任何別人的行。
+  Future<MyActivityListReport> myActivities({String? acceptLanguage}) {
+    return apiClient.get(
+      playerActivitiesPath(),
+      decode: MyActivityListReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀我在某一場活動裡的陣營現況：GET `/player/activities/{activity_id}/faction`。
+  ///
+  /// 三份同源事實：那場活動（狀態與自選模式）、我自己（此刻歸屬）、這場活動的全部候選項。
+  /// 「他不是這個活動的成員」與「沒有這場活動」「那場活動不歸你看」收斂成同一個 1001。
+  Future<FactionSelectionReport> myFactionSelection({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      playerActivityFactionPath(activityId),
+      decode: FactionSelectionReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 自己把歸屬選成一個此刻可用的陣營：PUT `/player/activities/{activity_id}/faction`。
+  ///
+  /// 本體恰好兩格：目標陣營與它所依據的我的歸屬現值（空字串＝我以為自己尚未分組）。
+  /// 後端在寫入交易內重新問全部規則，因此界面讀到的 [FactionSelectionReport.canSelectNow]
+  /// 只是顯示面，不是通行證：
+  /// 2037 那場活動沒開放、2038 還在草稿、2033 已停止、2029 已歸檔、
+  /// 2036 那個陣營已停用、2039 僅首次模式下我已選過、2013 我依據的現值已過期、
+  /// 1004 本體寫法不對、1001 目標標識寫壞或我根本不是這個活動的成員。
+  /// 本步沒有清空歸屬的通路：`faction_id` 填空字串是 1001 那一句，不是「把我移出陣營」。
+  Future<SelfFactionWriteReport> selectOwnFaction({
+    required String activityId,
+    required String factionId,
+    required String expectedFactionId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<SelfFactionWriteReport>(
+      playerActivityFactionPath(activityId),
+      jsonBody: <String, Object?>{
+        'faction_id': factionId,
+        'expected_faction_id': expectedFactionId,
+      },
+      decode: SelfFactionWriteReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

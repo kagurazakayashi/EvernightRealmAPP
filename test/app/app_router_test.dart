@@ -147,13 +147,11 @@ void main() {
     }
 
     // 「如實標明尚未實作」這句話的對象隨各步接線而縮小：Root 控制台自 R2-001 起已接上
-    // 開設與目錄等項；管理員端自 R2-007 起接上「建立普通帳戶」一張卡，所以它也不再整頁佔位。
+    // 開設與目錄等項；管理員端自 R2-007 起接上「建立普通帳戶」一張卡，所以它也不再整頁佔位；
+    // 玩家端自本步起接上「我的陣營」那一條（本人活動清單＋自選寫入），因此這裡只剩 NPC 操作台。
     // 兩個方向都要釘住——把已接線的上下文寫成佔位是謊報落後，把未接線的寫成已實作
     // 是謊報進度，而「不出現範例業務元件」對各者都還成立。
-    for (final NavContext context in <NavContext>[
-      NavContext.npcConsole,
-      NavContext.playerSurface,
-    ]) {
+    for (final NavContext context in <NavContext>[NavContext.npcConsole]) {
       testWidgets('${context.routeName} 如實標明後端尚未實作', (
         WidgetTester tester,
       ) async {

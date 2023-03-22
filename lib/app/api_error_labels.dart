@@ -72,6 +72,17 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       // 2035 是名冊那一句「他已經是成員了」：處置是去編輯那份既有檔案，
       // 既不是換目標（1001）也不是重讀現值再按一次（2013）。
       ApiMachineCode.activityMemberTaken => l10n.errorCodeActivityMemberTaken,
+      // 2036～2039 是玩家自選陣營的四句拒絕，處置四樣都不同：
+      // 換一個還開著的陣營（2036）、等管理人打開那一欄配置（2037）、等活動開放（2038）、
+      // 這件事已由自己選過一次而自助不再可改（2039）。把任何兩句併在一起都會
+      // 讓人對著一顆根本不會變亮的按鈕再按一次。
+      ApiMachineCode.factionNotAcceptingMembers =>
+        l10n.errorCodeFactionNotAcceptingMembers,
+      ApiMachineCode.factionSelectDisabled =>
+        l10n.errorCodeFactionSelectDisabled,
+      ApiMachineCode.factionSelectNotOpen => l10n.errorCodeFactionSelectNotOpen,
+      ApiMachineCode.factionSelectLockedIn =>
+        l10n.errorCodeFactionSelectLockedIn,
     };
   }
 

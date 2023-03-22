@@ -26,6 +26,7 @@ const String _accountId = '01a1b000-0000-7000-8000-0000000000b1';
 /// [archivedAt] 為 null 時同理不出現歸檔時刻。
 String _activityJson({
   String status = 'draft',
+  String factionSelectMode = 'disabled',
   bool rootCreated = false,
   String? archivedAt,
   int managerCount = 1,
@@ -36,6 +37,9 @@ String _activityJson({
     '"name":"秋夜長談"',
     '"description":"第一段描述"',
     '"status":"$status"',
+    // 「玩家能不能自己選陣營」屬活動自己的一欄配置，出廠 disabled；
+    // 它缺席時本檔把它當成合同違例，不降級成「讀不懂就當沒開放」。
+    '"faction_select_mode":"$factionSelectMode"',
     if (!rootCreated) '"created_by_account_id":"$_accountId"',
     '"manager_count":$managerCount',
     '"created_at":"2026-10-10T03:00:00.000Z"',
@@ -48,6 +52,7 @@ String _activityJson({
 
 String _detailBody({
   String status = 'draft',
+  String factionSelectMode = 'disabled',
   bool rootCreated = false,
   String? archivedAt,
   int managerCount = 1,
@@ -55,6 +60,7 @@ String _detailBody({
 }) {
   final String activity = _activityJson(
     status: status,
+    factionSelectMode: factionSelectMode,
     rootCreated: rootCreated,
     archivedAt: archivedAt,
     managerCount: managerCount,
