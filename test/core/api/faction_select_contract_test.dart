@@ -79,6 +79,9 @@ String _activityBody({
     '"description":""',
     '"status":"active"',
     if (!omitMode) '"faction_select_mode":"$mode"',
+    // 目錄那一欄是活動詳情现在必須帶著的一格（本檔只在 omitMode 那一条演缺席，
+    // 這裡補上合法值是为了讓其餘案例仍走完整合同）。
+    '"member_directory_mode":"hidden"',
     '"created_by_account_id":"$_accountId"',
     '"manager_count":1',
     '"created_at":"2026-10-10T03:00:00.000Z"',

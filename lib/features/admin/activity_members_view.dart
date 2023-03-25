@@ -88,6 +88,24 @@ class ActivityMembersCard extends StatefulWidget {
   static Key renameActionKey(String memberId) =>
       ValueKey<String>('activity-members-rename-$memberId');
 
+  /// 某一行的「目錄可見性」開關識別鍵（收緊與放回同一顆按鈕，語意取自那一行的現值）。
+  static Key visibilityActionKey(String memberId) =>
+      ValueKey<String>('activity-members-visibility-$memberId');
+
+  /// 某一行的目錄可見性交代列識別鍵（含「他此刻是不是管理員身分」那一句）。
+  static Key visibilityLabelKey(String memberId) =>
+      ValueKey<String>('activity-members-visibility-label-$memberId');
+
+  /// 可見性確認框的肯定／取消按鈕識別鍵。
+  static const Key visibilityConfirmKey = ValueKey<String>(
+    'activity-members-visibility-confirm',
+  );
+
+  /// 可見性確認框的取消按鈕識別鍵。
+  static const Key visibilityCancelKey = ValueKey<String>(
+    'activity-members-visibility-cancel',
+  );
+
   /// 建立區各控件識別鍵。
   static const Key createAccountKey = ValueKey<String>(
     'activity-members-create-account',
@@ -345,6 +363,61 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
     );
   }
 
+  /// 送交一次目錄可見性覆蓋：本體恰好兩格（新值與它所依據的現值），對象由路徑決定。
+  ///
+  /// 這一格只能往「更看不見」的方向走（取值集合就只有 inherit｜hidden），
+  /// 界面上也不提供第三種寫法：一格能繞過整個活動規則的開關就不是覆蓋，是第二套規則。
+  /// 它收的是「其他普通玩家在目錄裡讀不讀得到這一行的投影」——
+  /// 不影響管理名冊（這一讀本來就是管理面，仍列、可讀），也不影響本人那條通路；
+  /// 那兩句要在按下去之前講清楚，否則這顆按鈕會被讀成「把人移出活動」。
+  Future<void> _toggleVisibility(MemberReport member) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    if (_writing) {
+      return;
+    }
+    final bool hiding = member.directoryVisibility != 'hidden';
+    final bool? answer = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(l10n.memberVisibilityConfirmTitle),
+        content: Text(
+          hiding
+              ? l10n.memberVisibilityHideConfirmBody(member.nickname)
+              : l10n.memberVisibilityRestoreConfirmBody(member.nickname),
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: ActivityMembersCard.visibilityCancelKey,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.activityConfirmCancelAction),
+          ),
+          FilledButton(
+            key: ActivityMembersCard.visibilityConfirmKey,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.activityConfirmOkAction),
+          ),
+        ],
+      ),
+    );
+    if (answer != true || !mounted) {
+      return;
+    }
+    await _write(
+      () => widget.api.updateMemberDirectoryVisibility(
+        activityId: widget.activityId,
+        memberId: member.memberId,
+        visibility: hiding ? 'hidden' : 'inherit',
+        // 依據值只取自這一行剛讀回的現值——本地湊一份「應該是 inherit」會把 2013
+        // 那道併發把關變成擺設（同一時刻另一位管理人可能已經動過這一格）。
+        expectedVisibility: member.directoryVisibility,
+        acceptLanguage: _acceptLanguage,
+      ),
+      successFor: (AppLocalizations l10n, MemberWriteReport report) => hiding
+          ? l10n.memberVisibilityHiddenNotice(report.member.nickname)
+          : l10n.memberVisibilityRestoredNotice(report.member.nickname),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -428,6 +501,7 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
                   busy: _writing,
                   canWrite: _canWrite,
                   onRename: () => _beginEdit(member),
+                  onToggleVisibility: () => _toggleVisibility(member),
                 ),
             ],
           ),
@@ -533,6 +607,7 @@ class _MemberRow extends StatelessWidget {
     required this.busy,
     required this.canWrite,
     required this.onRename,
+    required this.onToggleVisibility,
   });
 
   /// 那一行的服務端現值。
@@ -549,6 +624,9 @@ class _MemberRow extends StatelessWidget {
 
   /// 進入編輯態的回呼。
   final VoidCallback onRename;
+
+  /// 送一次目錄可見性覆蓋的回呼（收緊與放回同一顆按鈕，語意取自行現值）。
+  final VoidCallback onToggleVisibility;
 
   /// 狀態取值：active 與 disabled 各有批准過的一句人話，其餘（含deleted／retired／
   /// pending／rejected 與未來新增的任何取值）一律如實唸出服務端的機器值而不猜意思——
@@ -616,6 +694,37 @@ class _MemberRow extends StatelessWidget {
                   ),
             style: theme.textTheme.bodySmall,
           ),
+          Text(
+            // 這一行的覆蓋現值與「此刻是不是管理員身分」都取自服務端讀回的投影：
+            // 前者回答「其他玩家在目錄裡讀不讀得到他」，後者回答
+            // all_players_except_admin 那一態收起來的是誰。雨者都不是昵稱或標籤。
+            l10n.labelValuePair(
+              l10n.memberVisibilityColumnLabel,
+              member.directoryVisibility == 'hidden'
+                  ? l10n.memberVisibilityHiddenLabel
+                  : l10n.memberVisibilityInheritLabel,
+            ),
+            key: ActivityMembersCard.visibilityLabelKey(member.memberId),
+            style: theme.textTheme.bodySmall,
+          ),
+          if (member.adminIdentity)
+            Text(
+              l10n.memberAdminIdentityNotice,
+              style: theme.textTheme.bodySmall,
+            ),
+          if (canWrite)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: OutlinedButton(
+                key: ActivityMembersCard.visibilityActionKey(member.memberId),
+                onPressed: busy ? null : onToggleVisibility,
+                child: Text(
+                  member.directoryVisibility == 'hidden'
+                      ? l10n.memberVisibilityRestoreAction
+                      : l10n.memberVisibilityHideAction,
+                ),
+              ),
+            ),
         ],
       ),
     );

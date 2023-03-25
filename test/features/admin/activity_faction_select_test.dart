@@ -33,6 +33,7 @@ const String _activityId = '01a1d000-0000-7000-8000-0000000000e1';
 String _detailBody({String status = 'active', required String mode}) {
   return '{"activity":{"activity_id":"$_activityId","name":"秋夜長談",'
       '"description":"","status":"$status","faction_select_mode":"$mode",'
+      '"member_directory_mode":"hidden",'
       '"created_by_account_id":"01a1d000-0000-7000-8000-0000000000c1",'
       '"manager_count":1,"created_at":"2026-10-10T03:00:00.000Z",'
       '"updated_at":"2026-10-10T04:00:00.000Z"},"request_id":"r-detail"}';

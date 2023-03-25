@@ -27,6 +27,7 @@ const String _accountId = '01a1b000-0000-7000-8000-0000000000b1';
 String _activityJson({
   String status = 'draft',
   String factionSelectMode = 'disabled',
+  String memberDirectoryMode = 'hidden',
   bool rootCreated = false,
   String? archivedAt,
   int managerCount = 1,
@@ -40,6 +41,9 @@ String _activityJson({
     // 「玩家能不能自己選陣營」屬活動自己的一欄配置，出廠 disabled；
     // 它缺席時本檔把它當成合同違例，不降級成「讀不懂就當沒開放」。
     '"faction_select_mode":"$factionSelectMode"',
+    // 「誰能在玩家目錄裡看見誰」是同一側的另一欄配置，出廠 hidden：
+    // 缺席同樣判合同違例——把「讀不懂」當成「沒開放」會讓配置卡畫出一個與庫裡不同的開關。
+    '"member_directory_mode":"$memberDirectoryMode"',
     if (!rootCreated) '"created_by_account_id":"$_accountId"',
     '"manager_count":$managerCount',
     '"created_at":"2026-10-10T03:00:00.000Z"',
@@ -53,6 +57,7 @@ String _activityJson({
 String _detailBody({
   String status = 'draft',
   String factionSelectMode = 'disabled',
+  String memberDirectoryMode = 'hidden',
   bool rootCreated = false,
   String? archivedAt,
   int managerCount = 1,
@@ -61,6 +66,7 @@ String _detailBody({
   final String activity = _activityJson(
     status: status,
     factionSelectMode: factionSelectMode,
+    memberDirectoryMode: memberDirectoryMode,
     rootCreated: rootCreated,
     archivedAt: archivedAt,
     managerCount: managerCount,

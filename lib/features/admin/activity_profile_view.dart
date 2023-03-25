@@ -30,6 +30,7 @@ import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
 import 'activity_factions_view.dart';
 import 'activity_faction_select_view.dart';
+import 'activity_member_directory_view.dart';
 import 'activity_members_view.dart';
 
 /// 活動詳情卡。
@@ -594,6 +595,27 @@ class _ActivityProfileCardState extends State<ActivityProfileCard> {
           // 保存成功後兩處都要跟隨服務端現值：本卡重讀詳情與名冊（編輯底稿的依據值
           // 只能取自這裡），頁面也重讀活動目錄——目錄行現在同樣帶這一欄，
           // 留舊值會讓人在清單上看到一個已經不是現值的開關狀態。
+          onSaved: (_) {
+            _load();
+            widget.onSaved?.call();
+          },
+        ),
+        const SizedBox(height: 20),
+        // 「玩家目錄可見性」那一欄配置接在自選配置之後：同一側的活動資料、同一道準入，
+        // 底稿同樣只能取自本卡剛讀回的 activity.memberDirectoryMode。
+        // 它與上面那一欄是兩件不同的事（一個問「玩家能不能自己選組」，一個問
+        // 「誰能在目錄裡看見誰」），因此各一欄、各一條通路、各一張卡，不共用控件。
+        MemberDirectoryConfigCard(
+          key: ValueKey<String>(
+            'member-directory-${widget.activityId}-${activity.status}-${activity.memberDirectoryMode}',
+          ),
+          api: widget.api,
+          activityId: widget.activityId,
+          activityStatus: activity.status,
+          currentMode: activity.memberDirectoryMode,
+          onReload: _load,
+          // 理由與上一張卡同形：改完配置的下一筆請求就按新規則回答（倉庫裡沒有目錄
+          // 快取，也沒有實時推送層可宣稱），所以這裡以一次重讀收尾而不本地蓋值。
           onSaved: (_) {
             _load();
             widget.onSaved?.call();

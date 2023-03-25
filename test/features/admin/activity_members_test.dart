@@ -42,11 +42,15 @@ String _memberJson({
   String factionId = '',
   String displayName = '名冊裡的玩家',
   String accountStatus = 'active',
+  String directoryVisibility = 'inherit',
+  String adminIdentity = 'false',
 }) {
   return '{"member_id":"$id","activity_id":"$_activityId",'
       '"account_id":"$_accountId","nickname":"$nickname",'
       '"faction_id":"$factionId","display_name":"$displayName",'
       '"account_status":"$accountStatus",'
+      '"directory_visibility":"$directoryVisibility",'
+      '"admin_identity":$adminIdentity,'
       '"joined_at":"2026-10-10T03:00:00.000Z",'
       '"updated_at":"2026-10-10T04:00:00.000Z"}';
 }
@@ -71,8 +75,12 @@ class _Fixture {
     this.createCode = 0,
     this.editStatus = 200,
     this.editCode = 0,
+    this.visibilityStatus = 200,
+    this.visibilityCode = 0,
     this.projectionMissing = false,
     this.emptyRoster = false,
+    this.hideOtherRow = false,
+    this.otherAdminIdentity = false,
   });
 
   final String activityStatus;
@@ -80,6 +88,17 @@ class _Fixture {
   final int createCode;
   final int editStatus;
   final int editCode;
+
+  /// 覆蓋寫入的狀態碼與失敗時返回值（2013／2033／2029 各有各的一句）。
+  final int visibilityStatus;
+  final int visibilityCode;
+
+  /// 演「其他玩家已經看不見那一行」：第二行帶著 directory_visibility=hidden。
+  final bool hideOtherRow;
+
+  /// 演「那一位此刻持有伺服器級授予」：名冊那一格必須唸得出來，
+  /// 否則管理人看不懂 all_players_except_admin 收起來的是誰。
+  final bool otherAdminIdentity;
 
   /// 演「軟參照那一行已讀不回」：顯示名與狀態都回空字串。
   final bool projectionMissing;
@@ -90,15 +109,26 @@ class _Fixture {
   int listCalls = 0;
   final List<http.Request> createWrites = <http.Request>[];
   final List<http.Request> editWrites = <http.Request>[];
+  final List<http.Request> visibilityWrites = <http.Request>[];
 
   bool _written = false;
 
+  /// 假後端這邊「此刻被收起來的那一行」：覆蓋寫入成功後才換掉，
+  /// 於是名冊重讀回來的那一行帶著新現值（界面唸的是回應而不是提交意圖）。
+  String? _hiddenId;
+
   String _row(String id, {String nickname = '夜行者'}) {
+    final bool hiddenNow =
+        id == _hiddenId || (hideOtherRow && id == _otherMemberId);
     return _memberJson(
       id: id,
       nickname: nickname,
       displayName: projectionMissing ? '' : '名冊裡的玩家',
       accountStatus: projectionMissing ? '' : 'active',
+      directoryVisibility: hiddenNow ? 'hidden' : 'inherit',
+      adminIdentity: id == _otherMemberId && otherAdminIdentity
+          ? 'true'
+          : 'false',
     );
   }
 
@@ -141,6 +171,29 @@ class _Fixture {
           }
           _written = true;
           return _json(_writeBody(_row(_memberId, nickname: '建立後的名字')), 201);
+        }
+        if (method == 'PUT' && path.endsWith('/directory-visibility')) {
+          visibilityWrites.add(request);
+          if (visibilityStatus != 200) {
+            return _json(
+              '{"code":$visibilityCode,"message":"rejected",'
+              '"request_id":"r-mem-visibility"}',
+              visibilityStatus,
+            );
+          }
+          // 寫入回應帶著回讀的那一行：界面唸的是回應現值，不是提交時的想法。
+          final Map<String, Object?> body =
+              jsonDecode(request.body) as Map<String, Object?>;
+          _hiddenId = body['visibility'] == 'hidden' ? _memberId : null;
+          return _json(
+            _writeBody(
+              _memberJson(
+                id: _memberId,
+                directoryVisibility: body['visibility']! as String,
+              ),
+            ),
+            200,
+          );
         }
         if (method == 'PUT' && !isList) {
           editWrites.add(request);
@@ -508,5 +561,119 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byKey(ActivityMembersCard.listKey), findsOneWidget);
     expect(find.byKey(ActivityMembersCard.createSubmitKey), findsOneWidget);
+  });
+
+  testWidgets('每一行念出自己的目錄覆蓋現值；持有授予者另唸一句', (WidgetTester tester) async {
+    final AppLocalizations l10n = await _pump(
+      tester,
+      _Fixture(hideOtherRow: true, otherAdminIdentity: true),
+    );
+
+    expect(
+      find.byKey(ActivityMembersCard.visibilityLabelKey(_memberId)),
+      findsOneWidget,
+    );
+    // 這一格的文字是「標籤／值」合成的一句（labelValuePair），而「恢復服從活動設定」
+    // 那顆按鈕裡也含著同樣幾個字，所以要按 key 取那一列本體而不是全文搜尋。
+    final Text hiddenRowLabel = tester.widget<Text>(
+      find.byKey(ActivityMembersCard.visibilityLabelKey(_otherMemberId)),
+    );
+    expect(hiddenRowLabel.data, contains(l10n.memberVisibilityHiddenLabel));
+    final Text ownRowLabel = tester.widget<Text>(
+      find.byKey(ActivityMembersCard.visibilityLabelKey(_memberId)),
+    );
+    expect(ownRowLabel.data, contains(l10n.memberVisibilityInheritLabel));
+    expect(ownRowLabel.data, isNot(contains(l10n.memberVisibilityHiddenLabel)));
+    // 「他此刻持有授予」這句話只在管理名冊出現（玩家目錄那份投影刻意沒有這一格）。
+    expect(find.text(l10n.memberAdminIdentityNotice), findsOneWidget);
+  });
+
+  testWidgets('收起來恰好送兩欄、依據值取讀回的那一格，成功後重讀名冊', (WidgetTester tester) async {
+    final _Fixture fixture = _Fixture();
+    final AppLocalizations l10n = await _pump(tester, fixture);
+    final int listsBefore = fixture.listCalls;
+
+    await tester.tap(
+      find.byKey(ActivityMembersCard.visibilityActionKey(_memberId)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.memberVisibilityConfirmTitle), findsOneWidget);
+    // 確認正文要把「不會把人移出活動、也不會讓他對你自己消失」講在前面，
+    // 否則這顆按鈕會被讀成移除成員。
+    expect(
+      find.text(l10n.memberVisibilityHideConfirmBody('夜行者')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(ActivityMembersCard.visibilityCancelKey));
+    await tester.pumpAndSettle();
+    expect(fixture.visibilityWrites, isEmpty, reason: '取消時一個請求都不該發');
+
+    await tester.tap(
+      find.byKey(ActivityMembersCard.visibilityActionKey(_memberId)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ActivityMembersCard.visibilityConfirmKey));
+    await tester.pumpAndSettle();
+
+    expect(fixture.visibilityWrites, hasLength(1));
+    final Map<String, Object?> body = jsonDecode(
+      fixture.visibilityWrites.single.body,
+    ) as Map<String, Object?>;
+    expect(body.keys, <String>{'visibility', 'expected_visibility'});
+    expect(body['visibility'], 'hidden');
+    // 依據值是這一行剛讀回的 inherit，不是本地推測，也不是活動那一欄模式。
+    expect(body['expected_visibility'], 'inherit');
+    expect(
+      fixture.visibilityWrites.single.url.path,
+      adminMemberDirectoryVisibilityPath(_activityId, _memberId),
+    );
+    expect(find.text(l10n.memberVisibilityHiddenNotice('夜行者')), findsOneWidget);
+    expect(fixture.listCalls, greaterThan(listsBefore), reason: '成功後以一次重讀收尾');
+    // 重讀回來的現值換成了 hidden：按鈕隨之改成「恢復服從活動設定」那一顆。
+    expect(find.text(l10n.memberVisibilityRestoreAction), findsOneWidget);
+  });
+
+  testWidgets('覆蓋撞上 2013 時只留重讀，不自動補發第二次寫入', (WidgetTester tester) async {
+    final _Fixture fixture = _Fixture(
+      visibilityStatus: 409,
+      visibilityCode: 2013,
+    );
+    await _pump(tester, fixture);
+
+    await tester.tap(
+      find.byKey(ActivityMembersCard.visibilityActionKey(_memberId)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ActivityMembersCard.visibilityConfirmKey));
+    await tester.pumpAndSettle();
+
+    expect(fixture.visibilityWrites, hasLength(1));
+    expect(
+      find.byKey(ActivityMembersCard.reloadKey),
+      findsOneWidget,
+      reason: '2013 的出口只有重讀這份名冊',
+    );
+    expect(
+      find.byKey(ActivityMembersCard.visibilityActionKey(_memberId)),
+      findsNothing,
+      reason: '過期之後寫入控件一律收起',
+    );
+  });
+
+  testWidgets('停止與歸檔時名冊不長出覆蓋開關（读得到、改不了）', (WidgetTester tester) async {
+    for (final String status in <String>['closed', 'archived']) {
+      final _Fixture fixture = _Fixture(activityStatus: status);
+      await _pump(tester, fixture);
+      expect(
+        find.byKey(ActivityMembersCard.visibilityActionKey(_memberId)),
+        findsNothing,
+        reason: '$status 態不該長出寫入入口',
+      );
+      expect(
+        find.byKey(ActivityMembersCard.visibilityLabelKey(_memberId)),
+        findsOneWidget,
+        reason: '但仍要如實唸出那一行的覆蓋現值（仍列、可讀）',
+      );
+    }
   });
 }

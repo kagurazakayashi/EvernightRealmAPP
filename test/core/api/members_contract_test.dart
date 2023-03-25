@@ -27,6 +27,8 @@ String _memberJson({
   String? factionId = '',
   String displayName = '名冊裡的玩家',
   String accountStatus = 'active',
+  String directoryVisibility = 'inherit',
+  String adminIdentity = 'false',
   String? extraField,
 }) {
   final List<String> parts = <String>[
@@ -37,6 +39,10 @@ String _memberJson({
     if (factionId != null) '"faction_id":"$factionId"',
     '"display_name":"$displayName"',
     '"account_status":"$accountStatus"',
+    // 目錄覆蓋現值與「此刻是不是管理員身分」都是服務端讀回的投影：缺席判合同違例，
+    // 因為界面拿「預設沒覆蓋」去畫那一格，會把管理人剛收起來的行畫成還亮著。
+    '"directory_visibility":"$directoryVisibility"',
+    '"admin_identity":$adminIdentity',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
     '"updated_at":"2026-10-10T04:00:00.000Z"',
     ?extraField,
@@ -140,11 +146,15 @@ void main() {
       );
     });
 
-    test('身分欄與暱稱是必填：任一缺席都判合同違例', () async {
+    test('身分欄、暱稱與目錄投影都是必填：任一缺席都判合同違例', () async {
       for (final String missing in <String>[
         '"member_id"',
         '"account_id"',
         '"nickname"',
+        // 這兩格缺席時界面只能靠猜：猜「沒覆蓋」會把管理人剛收起來的行畫成還亮著，
+        // 猜「不是管理員」會讓 all_players_except_admin 那一態看起來收錯人。
+        '"directory_visibility"',
+        '"admin_identity"',
       ]) {
         final ServerApi api = apiWithHandler(
           (http.Request request) async => _json(
@@ -152,6 +162,7 @@ void main() {
                     '"member_id":"$_memberId","account_id":"$_accountId",'
                     '"nickname":"夜行者","faction_id":"",'
                     '"display_name":"名冊裡的玩家","account_status":"active",'
+                    '"directory_visibility":"inherit","admin_identity":false,'
                     '"joined_at":"2026-10-10T03:00:00.000Z",'
                     '"updated_at":"2026-10-10T03:00:00.000Z"}],"request_id":"r-x"}'
                 .replaceAll(missing, '"unused_field"'),

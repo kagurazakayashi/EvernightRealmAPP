@@ -2622,6 +2622,7 @@ class ActivityReport {
     required this.description,
     required this.status,
     required this.factionSelectMode,
+    required this.memberDirectoryMode,
     required this.createdByAccountId,
     required this.managerCount,
     required this.createdAt,
@@ -2642,6 +2643,10 @@ class ActivityReport {
       // 這一格缺席就判合同違例：界面若把它讀成「沒開放」的預設值，
       // 一次回應格式漂移會靜默把配置卡上的開關畫成關著，而庫裡可能正開著。
       factionSelectMode: _requireText(json, 'faction_select_mode'),
+      // 「玩家目錄開放多大範圍」同屬活動的一欄配置，出廠是 hidden。
+      // 這一格缺席也判合同違例：界面若拿「沒開放」當預設，一次回應格式漂移會把配置卡
+      // 畫成關著而庫裡可能正開著——兩側各猜一份時，沒有人會發現目錄其實在放人。
+      memberDirectoryMode: _requireText(json, 'member_directory_mode'),
       createdByAccountId: _optionalText(json, 'created_by_account_id'),
       managerCount: _requireInt(json, 'manager_count'),
       createdAt: _requireUtcTime(json, 'created_at'),
@@ -2671,6 +2676,14 @@ class ActivityReport {
   /// 哪一態。它不是權限，也不決定玩家「是不是」成員——只決定他此刻能不能自己改歸屬；
   /// 而寫入側一律由後端在自己的交易裡現讀這一欄，客戶端這份只是顯示用的現值。
   final String factionSelectMode;
+
+  /// 「玩家目錄開放多大範圍」那一欄配置的原始值：hidden｜same_faction_only｜
+  /// all_players_except_admin｜all_members，出廠 hidden。
+  ///
+  /// 與 [factionSelectMode] 同一取向：界面只轉述服務端讀到的值，集合外取值照實顯示原值。
+  /// 它是「誰能在目錄裡看見誰」的活動級規則，不是任何人的權限，也不決定他是不是成員；
+  /// 判定一律由後端在每次請求內現讀這一欄再算，客戶端這份只是顯示用的現值。
+  final String memberDirectoryMode;
 
   /// 建立者的帳戶標識；Root 建立時為 `null`（合同上這一格缺席）。
   final String? createdByAccountId;
@@ -2752,7 +2765,7 @@ class ActivityDirectoryReport {
 /// `POST`／`GET`／`PUT /admin/activities…` 的成功回應：一筆活動的資料庫現值。
 ///
 /// 寫入通路（建立、資料編輯、狀態轉換、指派與撤銷）回的都是同一個形狀，而且都是
-/// 「保存之後讀回来的那一份」：界面顯示的當前資料必須來自服務端結果，不是請求本體的迴音。
+/// 「保存之後讀回來的那一份」：界面顯示的當前資料必須來自服務端結果，不是請求本體的迴音。
 class ActivityDetailReport {
   /// 以已驗證的欄位建立單筆回應。
   const ActivityDetailReport({required this.activity, required this.requestId});
@@ -3011,6 +3024,8 @@ class MemberReport {
     required this.factionId,
     required this.displayName,
     required this.accountStatus,
+    required this.directoryVisibility,
+    required this.adminIdentity,
     required this.joinedAt,
     required this.updatedAt,
   });
@@ -3027,6 +3042,11 @@ class MemberReport {
       // 顯示名與狀態的「空」屬事實的缺席（軟參照讀不回那一行），界面據此換成通用句。
       displayName: _textAllowingEmpty(json, 'display_name'),
       accountStatus: _textAllowingEmpty(json, 'account_status'),
+      // 覆蓋現值（inherit｜hidden）缺席判合同違例：界面若把它讀成「沒覆蓋」的預設，
+      // 管理人會以為自己剛收起來的那一行還亮著——那是一格「以為改了其實沒改」的錯覺。
+      directoryVisibility: _requireText(json, 'directory_visibility'),
+      // 「此刻持有 server_admin 授予」是服務端經 internal/grant 現讀的投影，不是暱稱或標籤。
+      adminIdentity: _requireBool(json, 'admin_identity'),
       joinedAt: _requireUtcTime(json, 'joined_at'),
       updatedAt: _requireUtcTime(json, 'updated_at'),
     );
@@ -3052,6 +3072,18 @@ class MemberReport {
 
   /// 該帳戶此刻的狀態（active／disabled／deleted／...）；空字串表示已讀不回。
   final String accountStatus;
+
+  /// 這一行的目錄覆蓋現值：inherit（服從活動規則）｜hidden（在規則之外再多收一層）。
+  ///
+  /// 只有這兩態：覆蓋只能收緊，永不放寬，因此界面不該期待一個「單獨公開」的選項。
+  /// 它只對普通玩家的可見範圍有效，對管理視角與本人的那一讀都不起作用。
+  final String directoryVisibility;
+
+  /// 這一行的帳戶此刻是否持有 server_admin 授予（服務端現讀，不是昵稱也不是前端標記）。
+  ///
+  /// 它只在管理名冊裡出現：玩家目錄那份投影刻意不帶這一格，否則等於讓普通玩家
+  /// 多得到一枚「誰是後台的人」的可列舉信號。
+  final bool adminIdentity;
 
   /// 加入時刻（UTC；不做本機時區換算）。
   final DateTime joinedAt;
@@ -3418,4 +3450,345 @@ class SelfFactionWriteReport {
 
   /// 本次請求的關聯 ID。
   final String requestId;
+}
+
+/// 玩家目錄的一行：這場活動內那個玩家的白名單投影。
+///
+/// 它是玩家能從目錄裡拿到的全部——後端在這裡不帶任何帳戶側事實（沒有登錄名、
+/// 顯示名、帳戶狀態，也沒有「誰是持有授予者」那一格），因此介面不可能憑角色
+/// 自行拼出後台欄位：那些東西從一開始就沒有出現在回應裡。
+///
+/// [factionAvailable] 是那個陣營自己的停用旗標（不是派生的「此刻收不收新成員」，
+/// 也不折進活動狀態）。界面據它講「該玩家所屬陣營已停用」那一句；三種讀法
+/// （目錄、單筆詳情、本人投影）共用同一個欄位名與同一份現讀，不留第二個答案來源。
+class DirectoryMemberReport {
+  /// 以已驗證的欄位建立一行目錄資料。
+  const DirectoryMemberReport({
+    required this.memberId,
+    required this.nickname,
+    required this.factionId,
+    required this.factionName,
+    required this.factionIcon,
+    required this.factionColor,
+    required this.factionAvailable,
+    required this.joinedAt,
+  });
+
+  /// 從回應的 `members`（或單筆的 `member`）某一項建立一行。
+  static DirectoryMemberReport decode(Map<String, Object?> json) {
+    return DirectoryMemberReport(
+      memberId: _requireText(json, 'member_id'),
+      nickname: _requireText(json, 'nickname'),
+      // 空字串＝尚未分組，是合法現值；缺席才判合同違例（口徑同成員名冊）。
+      factionId: _textAllowingEmpty(json, 'faction_id'),
+      factionName: _textAllowingEmpty(json, 'faction_name'),
+      factionIcon: _textAllowingEmpty(json, 'faction_icon'),
+      factionColor: _textAllowingEmpty(json, 'faction_color'),
+      // 恆在欄位：缺席與讀到假是兩回事，介面拿假值會把「讀不到」講成「已停用」。
+      factionAvailable: _requireBool(json, 'faction_available'),
+      joinedAt: _requireUtcTime(json, 'joined_at'),
+    );
+  }
+
+  /// 那個玩家在這一場活動裡的穩定標識（單筆詳情路徑要填的就是它）。
+  final String memberId;
+
+  /// 活動內暱稱（展示值，可重複、可改；不是身份）。
+  final String nickname;
+
+  /// 他此刻的陣營歸屬；空字串＝尚未分組。
+  final String factionId;
+
+  /// 那個陣營的名稱（無歸屬或讀不到展示值時為空字串）。
+  final String factionName;
+
+  /// 那個陣營的內建圖標鍵（空字串＝未選）。
+  final String factionIcon;
+
+  /// 那個陣營的顏色（#RRGGBB 或空字串＝未選色）。
+  final String factionColor;
+
+  /// 那個陣營自己的停用旗標現值。
+  final bool factionAvailable;
+
+  /// 他取得成員身份的時刻（活動內事實，非帳戶資料）。
+  final DateTime joinedAt;
+
+  /// 這一欄是否已有陣營歸屬。
+  bool get hasFaction => factionId.isNotEmpty;
+
+  /// 歸屬讀到了展示值：界面能把「已停用」那句話講在一個有名字的陣營上。
+  ///
+  /// 讀不到時（空名稱）界面換成「歸屬讀不到展示值」那句通用話，而不是把一欄
+  /// 假值冒充成停用——三種假各有各的說法，分不開就成了猜測。
+  bool get hasFactionDisplay => factionName.isNotEmpty;
+}
+
+/// 目錄的篩選候選一項：一個陣營與「此刻這個觀看者在他那邊看得見幾個人」。
+///
+/// 計數與列表同源（都由同一份「先授權篩選」的結果集派生），因此界面不會拿到
+/// 一個能探到「別人那邊有幾個人」的第二枚數字。尚未分組的人不是一個候選項。
+class DirectoryFacetReport {
+  /// 以已驗證的欄位建立一個候選項。
+  const DirectoryFacetReport({
+    required this.factionId,
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.count,
+  });
+
+  /// 從回應的 `facets` 某一項建立一個候選項。
+  static DirectoryFacetReport decode(Map<String, Object?> json) {
+    return DirectoryFacetReport(
+      factionId: _requireText(json, 'faction_id'),
+      name: _requireText(json, 'name'),
+      icon: _textAllowingEmpty(json, 'icon'),
+      color: _textAllowingEmpty(json, 'color'),
+      count: _requireInt(json, 'count'),
+    );
+  }
+
+  /// 陣營標識。
+  final String factionId;
+
+  /// 陣營名稱。
+  final String name;
+
+  /// 陣營圖標鍵。
+  final String icon;
+
+  /// 陣營顏色。
+  final String color;
+
+  /// 這個觀看者在那個陣營裡看得見的人數（與列表同一份結果集）。
+  final int count;
+}
+
+/// `GET／HEAD /player/activities/{activity_id}/members` 的成功回應。
+///
+/// [memberDirectoryMode] 是服務端現讀的派生值，恆在回應而絕不在請求：界面據它把
+/// 「這一態本來就不列任何人」與「這場活動還沒有人加入」分成兩句話——那份空清單
+/// 自己分不出這兩件事，混為一談正是防枚舉要防的形態。
+class MemberDirectoryReport {
+  /// 以已驗證的欄位建立一份目錄回應。
+  const MemberDirectoryReport({
+    required this.members,
+    required this.facets,
+    required this.memberDirectoryMode,
+    required this.selfMemberId,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.requestId,
+  });
+
+  /// 從目錄回應建立報告。
+  static MemberDirectoryReport decode(Map<String, Object?> json) {
+    final Object? rawMembers = json['members'];
+    if (rawMembers is! List) {
+      throw const ApiResponseShapeException('members 不是清單');
+    }
+    final List<DirectoryMemberReport> members = <DirectoryMemberReport>[];
+    for (final Object? item in rawMembers) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('members 項不是物件');
+      }
+      members.add(DirectoryMemberReport.decode(item));
+    }
+    final Object? rawFacets = json['facets'];
+    if (rawFacets is! List) {
+      throw const ApiResponseShapeException('facets 不是清單');
+    }
+    final List<DirectoryFacetReport> facets = <DirectoryFacetReport>[];
+    for (final Object? item in rawFacets) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('facets 項不是物件');
+      }
+      facets.add(DirectoryFacetReport.decode(item));
+    }
+    return MemberDirectoryReport(
+      members: members,
+      facets: facets,
+      memberDirectoryMode: _requireText(json, 'member_directory_mode'),
+      // 空字串是合法現值：獲准管理該活動、自己卻沒有成員行的那種視角。
+      selfMemberId: _textAllowingEmpty(json, 'self_member_id'),
+      page: _requireInt(json, 'page'),
+      pageSize: _requireInt(json, 'page_size'),
+      total: _requireInt(json, 'total'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 本頁的行（順序由後端給出：加入時刻升序、標識破平，客戶端不重排）。
+  final List<DirectoryMemberReport> members;
+
+  /// 篩選候選（取自「已授權篩選」而未套關鍵字與陣營篩選的那一份結果集）。
+  final List<DirectoryFacetReport> facets;
+
+  /// 這一讀生效的活動目錄模式現值。
+  final String memberDirectoryMode;
+
+  /// 我自己在這場活動裡的成員標識；空字串＝這個視角沒有本人的行。
+  final String selfMemberId;
+
+  /// 後端回顯的頁碼。
+  final int page;
+
+  /// 後端回顯的每頁筆數。
+  final int pageSize;
+
+  /// 「已授權篩選＋關鍵字＋陣營篩選」之後的總筆數（不受分頁影響）。
+  final int total;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 目錄在這一態對任何人都不列舉任何人（本人讀法另有一條通路，不受它影響）。
+  bool get isHiddenByPolicy => memberDirectoryMode == 'hidden';
+
+  /// 依標識找出候選裡那個陣營的顯示名（列表行只帶標識時介面要的對應）。
+  ///
+  /// 讀不到回 `null`：候選只覆蓋「看得見人」的那些陣營，被篩選掉的關鍵字那幾項
+  /// 不在其中。界面拿不到名稱時如實念標識，不替那個陣營編一個名字。
+  DirectoryFacetReport? facetById(String id) {
+    for (final DirectoryFacetReport facet in facets) {
+      if (facet.factionId == id) {
+        return facet;
+      }
+    }
+    return null;
+  }
+
+  /// 總頁數：一頁也沒有時仍算 1，讓「第 1／共 1 頁」說得出口。
+  int get totalPages => total == 0 ? 1 : (total + pageSize - 1) ~/ pageSize;
+
+  /// 是否還有下一頁（取值全來自後端回顯的 page／page_size／total，本地不猜）。
+  bool get hasMore => page < totalPages;
+}
+
+/// `GET／HEAD /player/activities/{activity_id}/members/{member_id}` 的成功回應。
+///
+/// 它與目錄那一行共用同一份白名單欄位（同一個 [DirectoryMemberReport]），所以
+/// 「列表裡那一行的欄位」與「點進去那一份的欄位」不可能各長一套。
+class DirectoryMemberDetailReport {
+  /// 以已驗證的欄位建立一份單筆詳情。
+  const DirectoryMemberDetailReport({
+    required this.member,
+    required this.requestId,
+  });
+
+  /// 從單筆回應建立報告。
+  static DirectoryMemberDetailReport decode(Map<String, Object?> json) {
+    final Object? raw = json['member'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('member 不是物件');
+    }
+    return DirectoryMemberDetailReport(
+      member: DirectoryMemberReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 那一份白名單投影。
+  final DirectoryMemberReport member;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `GET／HEAD /player/activities/{activity_id}/profile` 的成功回應：我自己的活動內資料。
+///
+/// 這一讀不經目錄可見性判定：活動把目錄收成 `hidden`、或管理人把我那一行單獨收起來，
+/// 都不該讓我讀不到自己叫什麼。因此目錄為空時這一張卡照舊有內容，
+/// 介面也不得把「目錄沒有別人」當成「我的資料是空的」。
+class OwnMemberProfileReport {
+  /// 以已驗證的欄位建立一份本人投影。
+  const OwnMemberProfileReport({
+    required this.activityId,
+    required this.name,
+    required this.status,
+    required this.memberDirectoryMode,
+    required this.memberId,
+    required this.nickname,
+    required this.factionId,
+    required this.factionName,
+    required this.factionIcon,
+    required this.factionColor,
+    required this.factionAvailable,
+    required this.directoryVisibility,
+    required this.joinedAt,
+    required this.requestId,
+  });
+
+  /// 從本人投影回應建立報告。
+  static OwnMemberProfileReport decode(Map<String, Object?> json) {
+    return OwnMemberProfileReport(
+      activityId: _requireText(json, 'activity_id'),
+      name: _requireText(json, 'name'),
+      status: _requireText(json, 'status'),
+      memberDirectoryMode: _requireText(json, 'member_directory_mode'),
+      memberId: _requireText(json, 'member_id'),
+      nickname: _requireText(json, 'nickname'),
+      factionId: _textAllowingEmpty(json, 'faction_id'),
+      factionName: _textAllowingEmpty(json, 'faction_name'),
+      factionIcon: _textAllowingEmpty(json, 'faction_icon'),
+      factionColor: _textAllowingEmpty(json, 'faction_color'),
+      factionAvailable: _requireBool(json, 'faction_available'),
+      directoryVisibility: _requireText(json, 'directory_visibility'),
+      joinedAt: _requireUtcTime(json, 'joined_at'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 活動標識。
+  final String activityId;
+
+  /// 活動名稱。
+  final String name;
+
+  /// 活動生命週期原始值：draft／active／closed／archived（界面照實轉述）。
+  final String status;
+
+  /// 那場活動此刻把目錄開到多大（本人看得見這條規則，看得見的只是規則不是別人）。
+  final String memberDirectoryMode;
+
+  /// 我在這場活動裡的成員標識。
+  final String memberId;
+
+  /// 我的活動內暱稱。
+  final String nickname;
+
+  /// 我此刻的陣營歸屬；空字串＝尚未分組。
+  final String factionId;
+
+  /// 那個陣營的名稱（無歸屬或讀不到展示值時為空字串）。
+  final String factionName;
+
+  /// 那個陣營的圖標鍵。
+  final String factionIcon;
+
+  /// 那個陣營的顏色。
+  final String factionColor;
+
+  /// 那個陣營自己的停用旗標現值（與目錄那一欄同源同語意）。
+  final bool factionAvailable;
+
+  /// 我自己那一行的目錄覆蓋：inherit｜hidden（只能收緊，集合裡沒有放寬那一格）。
+  final String directoryVisibility;
+
+  /// 加入時刻（UTC）。
+  final DateTime joinedAt;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 我是否已有歸屬。
+  bool get hasFaction => factionId.isNotEmpty;
+
+  /// 歸屬讀到了展示值（否則那句「已停用」無處可掛）。
+  bool get hasFactionDisplay => factionName.isNotEmpty;
+
+  /// 我是否把自己那一行對別人收了起來。
+  bool get isSelfHidden => directoryVisibility == 'hidden';
 }

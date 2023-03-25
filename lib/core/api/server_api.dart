@@ -326,6 +326,43 @@ String playerActivitiesPath() => '/player/activities';
 String playerActivityFactionPath(String activityId) =>
     '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/faction';
 
+/// 玩家目錄路徑：GET／HEAD 讀「這一態讓我看見的那些人」。
+///
+/// 它與 `/admin/.../members`（名冊）是兩份不同的讀法：那道給管理人看全量並帶帳戶側
+/// 投影，這一條只給白名單投影，而且「能看見誰」由後端現讀模式、覆蓋與授予決定——
+/// 查詢串與本體裡都沒有格子能宣稱「用管理視角給我全部人」。
+String playerActivityMembersPath(String activityId) =>
+    '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/members';
+
+/// 目錄裡的單筆詳情路徑：GET／HEAD 按成員標識直查。
+///
+/// 這條不是「列表那一行的展開」：介面進入詳情時重新問一次可見性判定，
+/// 於是「列得出來卻點不進去」與「列表收了他而詳情還給得出來」在結構上都不成立。
+String playerActivityMemberItemPath(String activityId, String memberId) =>
+    '${playerActivityMembersPath(activityId)}/${Uri.encodeComponent(memberId)}';
+
+/// 本人在某一場活動裡的資料投影路徑：GET／HEAD。
+///
+/// 它不經目錄可見性判定（本人看得見自己不是特權），所以目錄收成 `hidden` 時
+/// 這一條照舊成功——介面因此能把「別人看不見我」與「我看見的自己」分兩句講。
+String playerActivityProfilePath(String activityId) =>
+    '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/profile';
+
+/// 活動的「玩家目錄可見性」那一欄配置路徑：PUT 編輯。
+///
+/// 與 faction-select 同一形態——它是活動管理面的一條白名單子資源（準入同活動資料編輯：
+/// 管理員加上該活動的指派），本族群沒有 GET（現值由活動詳情帶回）也沒有 DELETE
+/// （關閉就是 hidden 這個取值，沒有「清回未設定」這種形態）。
+String adminActivityMemberDirectoryPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/member-directory';
+
+/// 一行成員的目錄覆蓋路徑：PUT 編輯那一格（只可收緊的兩態）。
+///
+/// 「動哪一行」由路徑決定，本體裡沒有一格能填 member_id／account_id，
+/// 也沒有格子的寫法是「把這個人單獨開放給所有人」。
+String adminMemberDirectoryVisibilityPath(String activityId, String memberId) =>
+    '${adminActivityMemberItemPath(activityId, memberId)}/directory-visibility';
+
 /// 會話 Cookie 名（後端合同的固定值）。
 ///
 /// 原生客戶端從 `Set-Cookie` 標頭按此名稱提取會話秘密；提取後的保存與回傳
@@ -1794,6 +1831,124 @@ class ServerApi {
         'expected_faction_id': expectedFactionId,
       },
       decode: SelfFactionWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀某一場活動的玩家目錄：GET `/player/activities/{activity_id}/members`。
+  ///
+  /// 四個查詢引數是這個端點僅有的篩選（頁碼、每頁筆數、暱稱關鍵字、陣營篩選）：
+  /// 「誰能進這份清單」不在引數裡——後端現讀活動模式、我自己那一行、每一行的覆蓋
+  /// 與授予之後才切頁與計數，所以列表、計數與篩選候選吃同一份已授權結果集。
+  /// 取值不合法回 1004 並點名是哪一個參數；他不是這個活動的成員、查無這場活動、
+  /// 那一行此刻不給他看，全都收斂成同一個 1001（不可分辨，不是存在性探測器）。
+  /// `hidden` 態的答案是空的一頁加上回顯的那一欄模式，不是錯誤。
+  Future<MemberDirectoryReport> playerMemberDirectory({
+    required String activityId,
+    int page = 1,
+    int pageSize = 20,
+    String query = '',
+    String factionId = '',
+    String? acceptLanguage,
+  }) {
+    final buffer = StringBuffer(playerActivityMembersPath(activityId))
+      ..write('?page=')
+      ..write(page)
+      ..write('&page_size=')
+      ..write(pageSize);
+    // 空關鍵字與空篩選都不發參數：後端把「沒帶」與「帶了但全是空白」收斂成同一句話
+    // （不篩選），但介面不必因此多送兩個無意義的空值。
+    if (query.trim().isNotEmpty) {
+      buffer
+        ..write('&q=')
+        ..write(Uri.encodeComponent(query));
+    }
+    if (factionId.isNotEmpty) {
+      buffer
+        ..write('&faction=')
+        ..write(Uri.encodeComponent(factionId));
+    }
+    return apiClient.get(
+      buffer.toString(),
+      decode: MemberDirectoryReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀目錄裡的單筆玩家資料：GET `/player/activities/{activity_id}/members/{member_id}`。
+  ///
+  /// 「詳情直達」走這一條而不是從列表那一行本地展開：同一句可見性判定在這次請求裡
+  /// 重新問一遍，所以失權之後重新進入這一路徑拿到的是 1001，而不是上一批留下的那一份。
+  /// 那一行此刻不可見、從未存在、屬於另一場活動——三種形態同一個 1001。
+  Future<DirectoryMemberDetailReport> playerDirectoryMember({
+    required String activityId,
+    required String memberId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      playerActivityMemberItemPath(activityId, memberId),
+      decode: DirectoryMemberDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀我自己在某一場活動裡的資料投影：GET `/player/activities/{activity_id}/profile`。
+  ///
+  /// 這一讀不經目錄可見性判定：活動把目錄收成 `hidden`、或管理人把我那一行收起來，
+  /// 都不該讓我讀不到自己叫什麼。回應只有我自己的活動內事實加那兩格規則現值，
+  /// 別人一個都不在其中。非成員與 Root／系統主體一樣收斂成 1001。
+  Future<OwnMemberProfileReport> playerOwnMemberProfile({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      playerActivityProfilePath(activityId),
+      decode: OwnMemberProfileReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯某一場活動的「玩家目錄可見性」那一欄配置：PUT `/admin/activities/{activity_id}/member-directory`。
+  ///
+  /// 白名單只有 `mode`（hidden｜same_faction_only｜all_players_except_admin｜all_members）
+  /// 與它所依據的現值 `expected_mode`。本體裡沒有任何一格能宣稱「用管理視角給我全部人」
+  /// （多帶即 1004）：可見範圍由後端現讀指派與授予決定，客戶端連「我是誰」都填不了。
+  /// 現值已變回 2013 且整個編輯不發生；已歸檔回 2029；停止態照樣可以準備這欄配置
+  /// （它屬活動自己的資料，與名稱描述同側）。
+  Future<ActivityDetailReport> updateMemberDirectoryMode({
+    required String activityId,
+    required String mode,
+    required String expectedMode,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<ActivityDetailReport>(
+      adminActivityMemberDirectoryPath(activityId),
+      jsonBody: <String, Object?>{'mode': mode, 'expected_mode': expectedMode},
+      decode: ActivityDetailReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯單一行成員的目錄覆蓋：PUT `/admin/activities/{activity_id}/members/{member_id}/directory-visibility`。
+  ///
+  /// 本體恰好兩格：新覆蓋與它所依據的現值。取值只有 inherit｜hidden——
+  /// 覆蓋只能收緊，庫裡沒有一格能表達「把這個人單獨公開」。
+  /// 2013 現值已過期、2033 活動已停止（這是对一行成員資料的改動，走業務寫入門禁）、
+  /// 2029 已歸檔、1004 寫法不對、1001 那一行不存在或不屬於這個活動或這場活動不歸你管。
+  Future<MemberWriteReport> updateMemberDirectoryVisibility({
+    required String activityId,
+    required String memberId,
+    required String visibility,
+    required String expectedVisibility,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<MemberWriteReport>(
+      adminMemberDirectoryVisibilityPath(activityId, memberId),
+      jsonBody: <String, Object?>{
+        'visibility': visibility,
+        'expected_visibility': expectedVisibility,
+      },
+      decode: MemberWriteReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

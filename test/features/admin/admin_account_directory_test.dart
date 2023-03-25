@@ -124,8 +124,11 @@ class _Fixture {
         if (request.method == 'GET') {
           // 其餘讀取（另一本名冊）如實回空清單：本檔的斷言對象不是它，
           // 但也不能讓它拿到一份會被誤當目錄回應的本體。
-          return _reply(200, '{"applications":[],"page":1,"page_size":20,'
-              '"total":0,"request_id":"r-other"}');
+          return _reply(
+            200,
+            '{"applications":[],"page":1,"page_size":20,'
+            '"total":0,"request_id":"r-other"}',
+          );
         }
         writes.add(request);
         if (_holdNextWrite) {
