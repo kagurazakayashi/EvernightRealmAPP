@@ -3006,6 +3006,259 @@ class FactionWriteReport {
   final String requestId;
 }
 
+/// 活動內一枚標籤定義（管理側讀法）的可展示事實。
+///
+/// 合同要點（權威在後端 `internal/activity` 與遷移 0017）：
+/// - 身分兩欄（`tag_id`／`activity_id`）由資料庫觸發器釘住，任何寫入通路都改不了；
+///   跨活動的標識收斂成 1001，與「從未存在」逐字同文；
+/// - 名稱只是展示值（同活動內唯一是用戶批准的防呆，不是外鍵）：改名不換 `tag_id`，
+///   日後引用標籤的通路因此不會因為一次改名而失效；
+/// - `public` 是「這份定義讓不让普通玩家讀」，不是角色、不是權限，也不放大任何人的
+///   目錄可見性（那一件事由 `member_directory_mode` 與成員那格覆蓋決定）；
+/// - `accepts_new_assignments` 是服務端派生值（available 且活動接受業務寫入）：
+///   本體沒有這一格，帶著它來的請求在協定層就被 1004 點名，界面據它顯示「此刻貼不貼得出去」。
+class TagReport {
+  /// 以已驗證的欄位建立一枚標籤定義。
+  const TagReport({
+    required this.tagId,
+    required this.activityId,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.sortOrder,
+    required this.available,
+    required this.public,
+    required this.acceptsNewAssignments,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  /// 從回應的 `tag` 那一格建立一枚標籤定義。
+  static TagReport decode(Map<String, Object?> json) {
+    return TagReport(
+      tagId: _requireText(json, 'tag_id'),
+      activityId: _requireText(json, 'activity_id'),
+      name: _requireText(json, 'name'),
+      // 描述、圖標與顏色的「空」都是合法現值（沒寫過描述、未選圖標、未選色）：
+      // 後端把它們收斂成空字串而不是缺席，界面據空字串顯示佔位，不另造「讀不到」。
+      description: _textAllowingEmpty(json, 'description'),
+      icon: _textAllowingEmpty(json, 'icon'),
+      color: _textAllowingEmpty(json, 'color'),
+      sortOrder: _requireInt(json, 'sort_order'),
+      available: _requireBool(json, 'available'),
+      // 公開旗標恆在：缺席就是一份抵觸合同的回應，判失敗而不是降級成 false——
+      // 後者會讓界面把「讀不到」念成「這枚是內部的」，那是一次憑空發明的收緊。
+      public: _requireBool(json, 'public'),
+      acceptsNewAssignments: _requireBool(json, 'accepts_new_assignments'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      updatedAt: _requireUtcTime(json, 'updated_at'),
+    );
+  }
+
+  /// 標籤穩定標識（身分只在這裡；日後引用標籤的都該是指向它）。
+  final String tagId;
+
+  /// 歸屬活動的標識（不可改寫；跨活動讀改一律收斂成同一句 1001）。
+  final String activityId;
+
+  /// 標籤名稱（同活動內唯一、可改；不是身份鍵）。
+  final String name;
+
+  /// 標籤描述（可為空字串）。
+  final String description;
+
+  /// 內建圖標鍵；空字串表示未選。
+  final String icon;
+
+  /// 展示顏色（#RRGGBB 小寫）；空字串表示未選色。界面不得只靠它辨認一枚標籤。
+  final String color;
+
+  /// 列表排序值（同值由後端按建立時刻與標識穩定破平）。
+  final int sortOrder;
+
+  /// 可用性旗標：真＝可用，假＝停用。停用不刪行、不改標識，只讓這枚標籤不再接收新的貼標請求。
+  final bool available;
+
+  /// 玩家公開旗標：真＝該活動成員讀得到這份定義，假＝僅管理面讀得到（新建的出生值）。
+  final bool public;
+
+  /// 服務端派生的「此刻還貼不貼得出去」：available 且所屬活動接受業務寫入時才為真。
+  ///
+  /// 界面顯示用它，不自己拿 available 跟活動狀態拼——兩個欄位的組合規則只在後端有一份。
+  final bool acceptsNewAssignments;
+
+  /// 建立時刻（UTC；不做本機時區換算）。
+  final DateTime createdAt;
+
+  /// 最後一次改動時刻（UTC）。
+  final DateTime updatedAt;
+}
+
+/// `GET／HEAD /admin/activities/{activity_id}/tags` 的成功回應。
+///
+/// 空清單語意是「這個活動還沒有設標籤」，不是錯誤也不是查無此活動；
+/// 順序取後端回顯（排序值、建立時刻、標識），客戶端不重排、不持有第二份列表。
+class TagListReport {
+  /// 以已驗證的欄位建立一份標籤列表。
+  const TagListReport({required this.tags, required this.requestId});
+
+  /// 從列表回應建立報告。
+  static TagListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['tags'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('tags 不是清單');
+    }
+    final List<TagReport> tags = <TagReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('tags 項不是物件');
+      }
+      tags.add(TagReport.decode(item));
+    }
+    return TagListReport(tags: tags, requestId: _requireText(json, 'request_id'));
+  }
+
+  /// 這個活動的標籤定義行（依後端給出的順序，含未公開的那幾枚）。
+  final List<TagReport> tags;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 建立與編輯標籤定義的成功回應：帶著保存後的資料庫現值。
+///
+/// 回應裡那一筆是回讀的事實而不是請求意圖的迴音——界面據此刷新本地依據值，
+/// 「保存成功前不顯示已完成」由這個形狀支撐。
+class TagWriteReport {
+  /// 以已驗證的欄位建立一份標籤寫入回應。
+  const TagWriteReport({required this.tag, required this.requestId});
+
+  /// 從寫入回應建立報告。
+  static TagWriteReport decode(Map<String, Object?> json) {
+    final Object? raw = json['tag'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('tag 不是物件');
+    }
+    return TagWriteReport(
+      tag: TagReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 保存後的標籤現值。
+  final TagReport tag;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// 玩家側讀到的一枚公開標籤定義（DTO 與管理側那份刻意分開）。
+///
+/// 這一族的欄位清單由後端的玩家投影決定：回應裡沒有 `available`、沒有 `public`、
+/// 沒有 `activity_id` 也沒有兩個時刻與任何計數——不是空值佔位，而是根本沒有那些格子。
+/// 「有這枚標籤、只是沒被設成公開」與「從未有過這個標識」是同一句 1001，
+/// 因此界面不可能靠這份讀法探測內部定義的存在。
+class PublicTagReport {
+  /// 以已驗證的欄位建立一枚公開標籤定義。
+  const PublicTagReport({
+    required this.tagId,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.sortOrder,
+  });
+
+  /// 從回應的 `tags` 某一項或 `tag` 那一格建立一枚公開標籤定義。
+  static PublicTagReport decode(Map<String, Object?> json) {
+    return PublicTagReport(
+      tagId: _requireText(json, 'tag_id'),
+      name: _requireText(json, 'name'),
+      description: _textAllowingEmpty(json, 'description'),
+      icon: _textAllowingEmpty(json, 'icon'),
+      color: _textAllowingEmpty(json, 'color'),
+      sortOrder: _requireInt(json, 'sort_order'),
+    );
+  }
+
+  /// 標籤穩定標識（將來的引用指向它，不是名稱）。
+  final String tagId;
+
+  /// 標籤名稱（展示值；改名不改標識）。
+  final String name;
+
+  /// 標籤描述（可為空字串）。
+  final String description;
+
+  /// 內建圖標鍵（空字串＝未選，界面以通用佔位顯示）。
+  final String icon;
+
+  /// 顏色（#RRGGBB 或空字串＝未選色）；不得單獨用作辨識依據。
+  final String color;
+
+  /// 排序值（順序取後端回顯，客戶端不重排）。
+  final int sortOrder;
+}
+
+/// `GET／HEAD /player/activities/{activity_id}/tags` 的成功回應。
+///
+/// 空清單語意是「這場活動還沒有任何標籤被設成對外公開」，不是錯誤、也不是「他不該看到東西」；
+/// 這一讀吃的是本人成員行，非成員拿到的是 1001 而不是空清單。
+class PublicTagListReport {
+  /// 以已驗證的欄位建立一份公開標籤目錄。
+  const PublicTagListReport({required this.tags, required this.requestId});
+
+  /// 從公開標籤目錄回應建立報告。
+  static PublicTagListReport decode(Map<String, Object?> json) {
+    final Object? raw = json['tags'];
+    if (raw is! List) {
+      throw const ApiResponseShapeException('tags 不是清單');
+    }
+    final List<PublicTagReport> tags = <PublicTagReport>[];
+    for (final Object? item in raw) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('tags 項不是物件');
+      }
+      tags.add(PublicTagReport.decode(item));
+    }
+    return PublicTagListReport(
+      tags: tags,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 這場活動裡被設成公開的標籤定義（依後端給出的順序）。
+  final List<PublicTagReport> tags;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `GET／HEAD /player/activities/{activity_id}/tags/{tag_id}` 的成功回應。
+class PublicTagDetailReport {
+  /// 以已驗證的欄位建立一份單笔直查回應。
+  const PublicTagDetailReport({required this.tag, required this.requestId});
+
+  /// 從直查回應建立報告。
+  static PublicTagDetailReport decode(Map<String, Object?> json) {
+    final Object? raw = json['tag'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('tag 不是物件');
+    }
+    return PublicTagDetailReport(
+      tag: PublicTagReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 讀到的那一枚公開定義。
+  final PublicTagReport tag;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
 /// 活動內一行成員身份（一個帳戶在一場活動裡的那一份檔案）的可展示事實。
 ///
 /// 合同要點（權威在後端 `internal/activity` 與遷移 0014）：

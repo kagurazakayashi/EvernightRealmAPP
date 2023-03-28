@@ -83,6 +83,10 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       ApiMachineCode.factionSelectNotOpen => l10n.errorCodeFactionSelectNotOpen,
       ApiMachineCode.factionSelectLockedIn =>
         l10n.errorCodeFactionSelectLockedIn,
+      // 2040 是標籤定義那一句「同活動內已經有同名的了」：處置是換個名字，
+      // 既不是換目標（1001）也不是重讀現值再按一次（2013）。它與 2034 分開發是刻意的——
+      // 同一枚碼的語義永不因後續步驟改寫，新實體的衝突另發一枚。
+      ApiMachineCode.tagNameTaken => l10n.errorCodeTagNameTaken,
     };
   }
 

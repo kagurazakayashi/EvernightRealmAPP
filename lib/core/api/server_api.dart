@@ -289,6 +289,35 @@ String adminActivityFactionsPath(String activityId) =>
 String adminActivityFactionItemPath(String activityId, String factionId) =>
     '${adminActivityFactionsPath(activityId)}/${Uri.encodeComponent(factionId)}';
 
+/// 標籤定義集合路徑（活動詳情路徑的子資源）：GET／HEAD 讀定義列表、POST 建立。
+///
+/// 准入與活動資料編輯、陣營管理同一道閘（管理員加上該活動的指派），因此掛在 /admin。
+/// 這一族讀到的是完整定義，含未公開的那幾枚——管理面本來就是內部資訊的持有者。
+String adminActivityTagsPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/tags';
+
+/// 單筆標籤定義路徑：本步只有 PUT 一條編輯通路。
+///
+/// 沒有單筆 GET（列表就是這個活動的全量，另發一條會造出第二個答案來源），
+/// 也沒有 DELETE（用戶批准：只有可用／停用，沒有刪除通路，也不級聯清空歷史）。
+String adminActivityTagItemPath(String activityId, String tagId) =>
+    '${adminActivityTagsPath(activityId)}/${Uri.encodeComponent(tagId)}';
+
+/// 玩家側的公開標籤定義清單路徑：GET／HEAD。
+///
+/// 它與 `/admin/.../tags` 是兩份不同的讀法：那道給管理人看全量並帶內部欄位，
+/// 這一條只列被設成公開的定義，而且回應裡根本沒有可用性、公開旗標、時刻與計數那些格子。
+/// 準入只問「這次請求的憑據換出的是哪一個帳戶、他在這場活動有沒有成員行」。
+String playerActivityTagsPath(String activityId) =>
+    '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/tags';
+
+/// 玩家側的單枚公開定義直查路徑：GET／HEAD。
+///
+/// 查一枚未公開的定義與查一枚從未存在的標識是同一句 1001：這條路徑不當內部定義的
+/// 存在性探測器，也沒有任何一格能宣稱「我是管理人所以給我看內部標籤」。
+String playerActivityTagItemPath(String activityId, String tagId) =>
+    '${playerActivityTagsPath(activityId)}/${Uri.encodeComponent(tagId)}';
+
 /// 成員集合路徑（活動詳情路徑的子資源）：GET／HEAD 讀名冊、POST 建立成員身份。
 ///
 /// 准入與活動資料編輯、陣營管理同一道閘（管理員加上該活動的指派），因此掛在 /admin
@@ -1694,6 +1723,134 @@ class ServerApi {
         'expected_available': expectedAvailable,
       },
       decode: FactionWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀一個活動的標籤定義列表：GET `/admin/activities/{activity_id}/tags`。
+  ///
+  /// 仍列、可讀：停止與歸檔的活動照樣列出行（拒的是寫），內部定義也照樣列——這一族的閘
+  /// 是活動管理面那道。順序取後端回顯（排序值、建立時刻、標識），客戶端不重排。
+  /// 「還沒有標籤」是一份空列表而不是錯誤。
+  Future<TagListReport> activityTags({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      adminActivityTagsPath(activityId),
+      decode: TagListReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 建立一枚標籤定義：POST `/admin/activities/{activity_id}/tags`。
+  ///
+  /// 本體白名單是四欄資料加一格可選的排序值：`public` 不在其中——新建一律是管理員的
+  /// 內部資訊，要對外必須是建好之後那一跳明確的編輯（因此界面不可能「保存時預設勾公開」）；
+  /// `available` 也沒有格子（新建即可用），id／activity_id／時刻同理由服務端決定。
+  /// [sortOrder] 為 null 時不發該欄，由後端在交易內排到最後一格。
+  /// 同活動重名回 2040；活動停止回 2033、歸檔回 2029。
+  Future<TagWriteReport> createTag({
+    required String activityId,
+    required String name,
+    required String description,
+    required String icon,
+    required String color,
+    int? sortOrder,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<TagWriteReport>(
+      adminActivityTagsPath(activityId),
+      jsonBody: <String, Object?>{
+        'name': name,
+        'description': description,
+        'icon': icon,
+        'color': color,
+        'sort_order': ?sortOrder,
+      },
+      decode: TagWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯一枚標籤定義：PUT `/admin/activities/{activity_id}/tags/{tag_id}`。
+  ///
+  /// 白名單七欄新值，另帶它們各自依據的現值（compare-and-set，沿用 2013 那一枚）。
+  /// 可用性與公開兩個開關並在這條通路裡（用戶批准：旗標不是狀態機，不另設子資源），
+  /// 因此「停用」「翻公開」「收回公開」都是這一次 PUT——只翻要動的那一欄，其餘帶著現值原樣送回。
+  /// 回應裡的 `accepts_new_assignments` 是服務端派生值，本體沒有這一格：帶了會被 1004 點名。
+  /// 標識、歸屬與時刻在本體裡沒有一格可填：跨活動的標識收斂成 1001，撞同活動內他人的名字回 2040。
+  Future<TagWriteReport> updateTag({
+    required String activityId,
+    required String tagId,
+    required String name,
+    required String description,
+    required String icon,
+    required String color,
+    required int sortOrder,
+    required bool available,
+    required bool public,
+    required String expectedName,
+    required String expectedDescription,
+    required String expectedIcon,
+    required String expectedColor,
+    required int expectedSortOrder,
+    required bool expectedAvailable,
+    required bool expectedPublic,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<TagWriteReport>(
+      adminActivityTagItemPath(activityId, tagId),
+      jsonBody: <String, Object?>{
+        'name': name,
+        'description': description,
+        'icon': icon,
+        'color': color,
+        'sort_order': sortOrder,
+        'available': available,
+        'public': public,
+        'expected_name': expectedName,
+        'expected_description': expectedDescription,
+        'expected_icon': expectedIcon,
+        'expected_color': expectedColor,
+        'expected_sort_order': expectedSortOrder,
+        'expected_available': expectedAvailable,
+        'expected_public': expectedPublic,
+      },
+      decode: TagWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀一場活動裡對外公開的標籤定義清單：GET `/player/activities/{activity_id}/tags`。
+  ///
+  /// 這一條只列被設成公開的定義，且讀到的是玩家側投影（沒有可用性、公開旗標、時刻與計數）。
+  /// 準入是「這次請求的憑據換出的那個帳戶在這場活動有沒有成員行」：非成員與 Root 拿到 1001，
+  /// 匿名 2002。空清單語意是「這場活動還沒把任何標籤設成對外」，不是錯誤。
+  /// 它不改變目錄的可見範圍：一枚標籤公開與否，不讓任何人多被看見、也不多得到一項能力。
+  Future<PublicTagListReport> publicActivityTags({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      playerActivityTagsPath(activityId),
+      decode: PublicTagListReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 按標識直查一枚公開標籤定義：GET `/player/activities/{activity_id}/tags/{tag_id}`。
+  ///
+  /// 「有這枚標籤、只是沒被設成公開」與「從未有過這個標識」「它屬於另一場活動」是同一句
+  /// 1001：這一條路徑不當內部定義的存在性探測器，因此界面不能據回應分辨三者。
+  Future<PublicTagDetailReport> publicActivityTag({
+    required String activityId,
+    required String tagId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      playerActivityTagItemPath(activityId, tagId),
+      decode: PublicTagDetailReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

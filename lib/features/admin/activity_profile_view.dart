@@ -16,6 +16,8 @@
 /// * 陣營卡接在本卡尾部，准入控件由本卡讀回的活動狀態決定：停止與歸檔時陣營不收任何
 ///   寫入（2033 是「等重開」、2029 是「已經結束」，兩句在界面上也分得開），
 ///   但列表仍列、仍可讀——終態「仍列、可讀、拒寫」的口徑從帳戶一路貫到陣營。
+/// * 標籤定義卡同在本卡尾部，與陣營卡同一道準入、同一套狀態門禁；它動的是定義本身，
+///   「誰帶著哪個標籤」並不屬於這個版本，因此兩張卡都沒有一格能列出被影響的成員。
 /// * 結果不明（連不上、逾時）時絕不自動補發：資料編輯與狀態轉換的現值可能已經被別人改過，
 ///   由人重讀這一份再決定。
 library;
@@ -32,6 +34,7 @@ import 'activity_factions_view.dart';
 import 'activity_faction_select_view.dart';
 import 'activity_member_directory_view.dart';
 import 'activity_members_view.dart';
+import 'activity_tags_view.dart';
 
 /// 活動詳情卡。
 class ActivityProfileCard extends StatefulWidget {
@@ -620,6 +623,19 @@ class _ActivityProfileCardState extends State<ActivityProfileCard> {
             _load();
             widget.onSaved?.call();
           },
+        ),
+        const SizedBox(height: 20),
+        // 「標籤定義」接在目錄配置之後：同一側的活動資料、同一道準入（管理員加上該活動
+        // 一行指派），而寫入同樣先過活動的業務寫入門禁（停止 2033、歸檔 2029 各一句）。
+        // key 帶著活動標識與狀態：狀態轉換後整張重建，寫入控件的有無永遠跟隨服務端現值。
+        // 這一卡只有定義本身——「誰帶著哪個標籤」尚未落地，卡上因此沒有一格名單或計數。
+        ActivityTagsCard(
+          key: ValueKey<String>(
+            'activity-tags-${widget.activityId}-${activity.status}',
+          ),
+          api: widget.api,
+          activityId: widget.activityId,
+          activityStatus: activity.status,
         ),
       ],
     );
