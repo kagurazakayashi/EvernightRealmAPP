@@ -333,6 +333,44 @@ String adminActivityMembersPath(String activityId) =>
 String adminActivityMemberItemPath(String activityId, String memberId) =>
     '${adminActivityMembersPath(activityId)}/${Uri.encodeComponent(memberId)}';
 
+/// 活動的玩家業務狀態目錄路徑：GET／HEAD 讀狀態定義、POST 建立自訂狀態。
+///
+/// 准入與活動資料編輯、陣營與標籤管理同一道閘（管理員加上該活動的指派），因此掛在
+/// /admin：打理一場活動能用哪些狀態、各自叫什麼名，屬「管這個活動的資料」。
+/// 這一族讀到的是七個內建鍵的展示現值與全量自訂定義（含已停用的那些），停止與歸檔
+/// 的活動照樣可讀——拒的是寫，不是把當時的定義藏起來。
+String adminActivityPlayerStatusesPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/player-statuses';
+
+/// 單筆自訂狀態路徑：本族只有 PUT 一條編輯通路（改名與可用性並在同一條白名單裡）。
+///
+/// 沒有單筆 GET（目錄就是這個活動的全量，另發一條會造出第二個答案來源），
+/// 也沒有 DELETE（用戶批准於本步：自訂狀態只停用、不刪除，不級聯清空任何人的歸屬）。
+String adminActivityPlayerStatusItemPath(String activityId, String statusId) =>
+    '${adminActivityPlayerStatusesPath(activityId)}/${Uri.encodeComponent(statusId)}';
+
+/// 內建狀態顯示名稱路徑：PUT 編輯那一場活動對那個內建鍵的覆蓋。
+///
+/// 它與自訂定義分開一條路徑：改內建狀態的顯示名稱不碰任何人的內部值，
+/// 也不能順手新建或停用一枚狀態（七個內建鍵不可增刪）。路徑上的 `{status_key}`
+/// 只能是那七個穩定值之一，集合外的值回 1004 點名。
+String adminActivityPlayerStatusLabelPath(
+  String activityId,
+  String statusKey,
+) =>
+    '${adminActivityItemPath(activityId)}/player-status-labels'
+    '/${Uri.encodeComponent(statusKey)}';
+
+/// 成員業務狀態路徑：PUT 變更那一位玩家此刻的業務狀態。
+///
+/// 它掛在名冊那一族的單筆路徑之下（准入同活動資料編輯），是一條只碰狀態兩欄的白名單
+/// 子資源：改名、換組、目錄覆蓋與身分三欄都不在這條通路上（口徑同「改名不會順手換組」）。
+/// 這一族沒有 GET（狀態現值由名冊與玩家投影帶回）、也沒有 DELETE。
+String adminActivityMemberBusinessStatusPath(
+  String activityId,
+  String memberId,
+) => '${adminActivityMemberItemPath(activityId, memberId)}/business-status';
+
 /// 活動的「玩家自選陣營」那一欄配置路徑：PUT 編輯。
 ///
 /// 它是活動管理面的一條白名單子資源（準入同活動資料編輯：管理員加上該活動的指派），
@@ -1912,6 +1950,127 @@ class ServerApi {
       jsonBody: <String, Object?>{
         'nickname': nickname,
         'expected_nickname': expectedNickname,
+      },
+      decode: MemberWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀一個活動的玩家業務狀態目錄：GET `/admin/activities/{activity_id}/player-statuses`。
+  ///
+  /// 回應是兩份清單：七個內建鍵各自的顯示名稱覆蓋現值，與這場活動的全部自訂狀態定義
+  /// （含已停用的那些）。仍列、可讀：停止與歸檔的活動照樣回現值（拒的是寫入）。
+  /// 「還沒定義過任何自訂狀態」是一份空清單而不是錯誤，界面也不拿空清單冒充「沒有狀態」。
+  Future<PlayerStatusCatalogReport> playerStatusCatalog({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get(
+      adminActivityPlayerStatusesPath(activityId),
+      decode: PlayerStatusCatalogReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 建立一個自訂狀態定義：POST `/admin/activities/{activity_id}/player-statuses`。
+  ///
+  /// 本體白名單只有 `name` 一格：可用性、標識、歸屬活動與時刻都沒有格子可填
+  /// （新建即可用，其餘由服務端決定）。
+  /// 同活動重名回 2042；已歸檔回 2029（停止態仍可準備定義，因為它只是「能不能被選用」的
+  /// 一份清單，玩家那一側的寫入本來就被業務門禁擋在外面）。
+  Future<PlayerCustomStatusWriteReport> createPlayerStatus({
+    required String activityId,
+    required String name,
+    String? acceptLanguage,
+  }) {
+    return apiClient.post<PlayerCustomStatusWriteReport>(
+      adminActivityPlayerStatusesPath(activityId),
+      jsonBody: <String, Object?>{'name': name},
+      decode: PlayerCustomStatusWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯一個自訂狀態定義：PUT `/admin/activities/{activity_id}/player-statuses/{status_id}`。
+  ///
+  /// 白名單兩欄新值（名稱與可用性）加上它們各自依據的現值（compare-and-set，沿用 2013）。
+  /// 停用＝翻 `available` 那一欄：既有成員保留原狀態與標識，只擋下新的選用（回 2041），
+  /// 界面上沒有刪除这颗按鈕，也沒有任何一格能把別人的歸屬搬走。
+  /// 標識、歸屬與時刻在本體裡沒有格子可填：跨活動的標識收斂成 1001。
+  Future<PlayerCustomStatusWriteReport> updatePlayerStatus({
+    required String activityId,
+    required String statusId,
+    required String name,
+    required bool available,
+    required String expectedName,
+    required bool expectedAvailable,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<PlayerCustomStatusWriteReport>(
+      adminActivityPlayerStatusItemPath(activityId, statusId),
+      jsonBody: <String, Object?>{
+        'name': name,
+        'available': available,
+        'expected_name': expectedName,
+        'expected_available': expectedAvailable,
+      },
+      decode: PlayerCustomStatusWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 編輯內建狀態在某一場活動的顯示名稱：
+  /// PUT `/admin/activities/{activity_id}/player-status-labels/{status_key}`。
+  ///
+  /// 白名單兩格：新的 `display_name` 與它所依據的現值 `expected_display_name`。
+  /// 空字串是「恢復四語言預設文案」，不是刪除那一個狀態——七個內建鍵不可增刪。
+  /// 這一格只改展示值：任何人的 `business_status` 內部值與歷史引用都不動。
+  /// 現值已變時回 2013；已歸檔回 2029（停止態仍可準備顯示名稱）。
+  Future<PlayerStatusLabelWriteReport> updatePlayerStatusLabel({
+    required String activityId,
+    required String statusKey,
+    required String displayName,
+    required String expectedDisplayName,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<PlayerStatusLabelWriteReport>(
+      adminActivityPlayerStatusLabelPath(activityId, statusKey),
+      jsonBody: <String, Object?>{
+        'display_name': displayName,
+        'expected_display_name': expectedDisplayName,
+      },
+      decode: PlayerStatusLabelWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 變更一位玩家此刻的業務狀態：
+  /// PUT `/admin/activities/{activity_id}/members/{member_id}/business-status`。
+  ///
+  /// 白名單四格：`business_status`（七個內建穩定值之一）與 `custom_status_id`
+  /// （非 custom 時空字串），加上它們各自依據的現值 `expected_business_status`／
+  /// `expected_custom_status_id`（compare-and-set，沿用 2013）。
+  /// 成對關係不成立（custom 沒帶定義、或內建值卻帶了定義）回 1004 點名 `business_status`；
+  /// 選中已停用的自訂定義回 2041；定義屬於別的活動或從未存在收斂成 1001。
+  /// 目標與現值相同時服務端視為冪等成功（不產生第二次留痕）。
+  /// 這條通路不碰暱稱、陣營、目錄覆蓋與任何帳戶欄位；變更狀態也不清空資產、不退出活動。
+  /// 停止態回 2033、歸檔回 2029（業務寫入門禁在这一侧照样成立）。
+  Future<MemberWriteReport> updateMemberBusinessStatus({
+    required String activityId,
+    required String memberId,
+    required String businessStatus,
+    required String customStatusId,
+    required String expectedBusinessStatus,
+    required String expectedCustomStatusId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.put<MemberWriteReport>(
+      adminActivityMemberBusinessStatusPath(activityId, memberId),
+      jsonBody: <String, Object?>{
+        'business_status': businessStatus,
+        'custom_status_id': customStatusId,
+        'expected_business_status': expectedBusinessStatus,
+        'expected_custom_status_id': expectedCustomStatusId,
       },
       decode: MemberWriteReport.decode,
       acceptLanguage: acceptLanguage,

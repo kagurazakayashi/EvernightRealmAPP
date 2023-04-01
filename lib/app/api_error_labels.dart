@@ -87,6 +87,15 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       // 既不是換目標（1001）也不是重讀現值再按一次（2013）。它與 2034 分開發是刻意的——
       // 同一枚碼的語義永不因後續步驟改寫，新實體的衝突另發一枚。
       ApiMachineCode.tagNameTaken => l10n.errorCodeTagNameTaken,
+      // 2041 讲的是「那個自訂狀態已經停用，這次選用不成立」：處置是換一個仍可用的狀態，
+      // 既存成員那一格不動，也不會有第二次留痕。它與 2036（陣營不收新成員）同一形態、
+      // 各說各的實體，所以界面兩句不混用。
+      ApiMachineCode.playerStatusUnavailable =>
+        l10n.errorCodePlayerStatusUnavailable,
+      // 2042 是「同活動內已經有同名的自訂狀態了」：處置是換個名字，不是換目標（1001）
+      // 也不是重讀現值再按一次（2013）。
+      ApiMachineCode.playerStatusNameTaken =>
+        l10n.errorCodePlayerStatusNameTaken,
     };
   }
 

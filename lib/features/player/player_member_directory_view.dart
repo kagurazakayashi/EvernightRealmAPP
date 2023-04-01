@@ -19,6 +19,8 @@
 ///   不准它覆蓋新頁面的結果。
 /// * 倉庫裡沒有快取層，也沒有實時層：失效形態只有「下一筆請求按新規則判定」。
 ///   在線狀態與在線人數尚未接入，這一頁因此一個字都不猜。
+/// * 目錄裡那一格「業務狀態」是活動管理員維護的值，不是這個玩家連不連得上線：
+///   頁面把它與「沒有在線指示」兩句一起寫出來，不把 offline 那個內部值唸成在線狀態。
 /// * 簡介與頭像上傳都不在合同裡：那一格只有佔位與一句「後端還沒有這個欄位」，
 ///   不拿空白冒充已經有了，也不拿本地圖檔冒充服務端的頭像。
 library;
@@ -33,6 +35,9 @@ import '../../core/api/server_models.dart';
 import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
 import '../admin/activity_factions_view.dart' show factionIconData;
+// 業務狀態的顯示名換算只有一份（管理名冊、目錄、單筆詳情與本人投影共用），
+// 在這裡另寫一次就會出現「列表唸預設、點進去唸覆蓋」兩個答案來源。
+import '../business_status_labels.dart';
 
 /// 目錄每頁的筆數（取後端發布的預設值，界面不自造第二個上限）。
 const int kPlayerDirectoryPageSize = 20;
@@ -316,6 +321,15 @@ class ActivityMemberDirectoryCard extends StatefulWidget {
     'member-directory-profile-failed',
   );
 
+  /// 本人那一段「業務狀態不是在線狀態」那句交代的識別鍵。
+  static const Key statusScopeKey = ValueKey<String>(
+    'member-directory-status-scope',
+  );
+
+  /// 某一行（或單筆詳情）業務狀態那一列的識別鍵。
+  static Key statusRowKey(String memberId) =>
+      ValueKey<String>('member-directory-status-$memberId');
+
   @override
   State<ActivityMemberDirectoryCard> createState() =>
       _ActivityMemberDirectoryCardState();
@@ -570,6 +584,21 @@ class _ActivityMemberDirectoryCardState
               profile.factionColor,
               profile.factionAvailable,
             ),
+            playerStatusLine(
+              l10n,
+              theme,
+              businessStatus: profile.businessStatus,
+              statusDisplayName: profile.statusDisplayName,
+              customStatusName: profile.customStatusName,
+              statusAvailable: profile.statusAvailable,
+            ),
+            // 本人這一讀也講一次兩者的分別：這一格由活動管理員維護，
+            // 不是我連不連得上線；今日也沒有任何一格能隨請求或時間自己翻轉。
+            Text(
+              l10n.playerStatusNotConnectionNotice,
+              key: ActivityMemberDirectoryCard.statusScopeKey,
+              style: theme.textTheme.bodySmall,
+            ),
             Text(
               l10n.labelValuePair(
                 l10n.playerDirectoryJoinedAtLabel,
@@ -733,6 +762,15 @@ class _ActivityMemberDirectoryCardState
                     row.factionIcon,
                     row.factionColor,
                     row.factionAvailable,
+                  ),
+                  playerStatusLine(
+                    l10n,
+                    theme,
+                    key: ActivityMemberDirectoryCard.statusRowKey(row.memberId),
+                    businessStatus: row.businessStatus,
+                    statusDisplayName: row.statusDisplayName,
+                    customStatusName: row.customStatusName,
+                    statusAvailable: row.statusAvailable,
                   ),
                   Text(
                     l10n.labelValuePair(
@@ -1102,6 +1140,15 @@ class _PlayerMemberDetailCardState extends State<PlayerMemberDetailCard> {
                 l10n.playerDirectoryFactionDisabledSuffix,
                 style: theme.textTheme.bodySmall,
               ),
+            playerStatusLine(
+              l10n,
+              theme,
+              key: ActivityMemberDirectoryCard.statusRowKey(member.memberId),
+              businessStatus: member.businessStatus,
+              statusDisplayName: member.statusDisplayName,
+              customStatusName: member.customStatusName,
+              statusAvailable: member.statusAvailable,
+            ),
             _line(
               l10n,
               theme,
@@ -1218,5 +1265,42 @@ Widget _bioPlaceholder(AppLocalizations l10n, ThemeData theme) {
         ),
       ],
     ),
+  );
+}
+
+/// 業務狀態那一列：顯示名一律取自服務端算好的展示值，沒有覆蓋才走四語言預設文案。
+///
+/// 三種「讀不到」各有各的說法：自訂定義讀不到時念「讀不到那個定義」而不編一個名稱，
+/// 已停用的自訂定義仍是那一行的現值（界面講「已停用新的選用」而不是「人不見了」）。
+/// 目錄行、單筆詳情與本人投影共用這一份換算，所以三處不可能各唸一套。
+Widget playerStatusLine(
+  AppLocalizations l10n,
+  ThemeData theme, {
+  Key? key,
+  required String businessStatus,
+  required String statusDisplayName,
+  required String customStatusName,
+  required bool statusAvailable,
+}) {
+  final String? label = businessStatusLabel(
+    l10n: l10n,
+    businessStatus: businessStatus,
+    statusDisplayName: statusDisplayName,
+    customStatusName: customStatusName,
+  );
+  return Column(
+    key: key,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      Text(
+        l10n.labelValuePair(
+          l10n.playerStatusFieldLabel,
+          label ?? l10n.playerStatusCustomMissingNotice,
+        ),
+        style: theme.textTheme.bodySmall,
+      ),
+      if (!statusAvailable)
+        Text(l10n.playerStatusDisabledNotice, style: theme.textTheme.bodySmall),
+    ],
   );
 }

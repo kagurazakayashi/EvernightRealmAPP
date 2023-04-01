@@ -34,6 +34,7 @@ import 'activity_factions_view.dart';
 import 'activity_faction_select_view.dart';
 import 'activity_member_directory_view.dart';
 import 'activity_members_view.dart';
+import 'activity_player_status_view.dart';
 import 'activity_tags_view.dart';
 
 /// 活動詳情卡。
@@ -632,6 +633,20 @@ class _ActivityProfileCardState extends State<ActivityProfileCard> {
         ActivityTagsCard(
           key: ValueKey<String>(
             'activity-tags-${widget.activityId}-${activity.status}',
+          ),
+          api: widget.api,
+          activityId: widget.activityId,
+          activityStatus: activity.status,
+        ),
+        const SizedBox(height: 20),
+        // 「玩家業務狀態定義」接在標籤定義之後：同一側的活動資料、同一道準入。
+        // 它與標籤那一卡的分別是生命週期那一格——狀態定義與顯示名稱屬配置，
+        // 停止態仍可準備（玩家那一側的寫入本來就被業務門禁擋在外面），
+        // 而名冊卡上「變更某位玩家的狀態」才是業務寫入，停止 2033、歸檔 2029 各一句。
+        // key 帶著活動標識與狀態：狀態轉換後整張重建，寫入控件的有無永遠跟隨服務端現值。
+        PlayerStatusConfigCard(
+          key: ValueKey<String>(
+            'player-status-${widget.activityId}-${activity.status}',
           ),
           api: widget.api,
           activityId: widget.activityId,

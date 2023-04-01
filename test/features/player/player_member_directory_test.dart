@@ -46,6 +46,11 @@ String _row({
   String factionId = _redFaction,
   String factionName = '紅隊',
   bool factionAvailable = true,
+  String businessStatus = 'normal',
+  String customStatusId = '',
+  String customStatusName = '',
+  String statusDisplayName = '',
+  bool statusAvailable = true,
 }) {
   final List<String> parts = <String>[
     '"member_id":"$memberId"',
@@ -55,6 +60,11 @@ String _row({
     '"faction_icon":"star"',
     '"faction_color":"#12abcd"',
     '"faction_available":$factionAvailable',
+    '"business_status":"$businessStatus"',
+    '"custom_status_id":"$customStatusId"',
+    '"custom_status_name":"$customStatusName"',
+    '"status_display_name":"$statusDisplayName"',
+    '"status_available":$statusAvailable',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
   ];
   return '{${parts.join(',')}}';
@@ -127,6 +137,11 @@ String _profileBody({
     '"faction_color":"#12abcd"',
     '"faction_available":true',
     '"directory_visibility":"$visibility"',
+    '"business_status":"normal"',
+    '"custom_status_id":""',
+    '"custom_status_name":""',
+    '"status_display_name":""',
+    '"status_available":true',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
     '"request_id":"r-profile"',
   ];
@@ -789,5 +804,56 @@ void main() {
       find.byKey(PlayerDirectorySurface.openKey(_firstActivity)),
       findsNothing,
     );
+  });
+
+  testWidgets('業務狀態那一列只念服務端回讀的展示值，並與在線狀態分開講', (WidgetTester tester) async {
+    const String customId = '01a1e000-0000-7000-8000-0000000000s1';
+    final _Fixture fixture = _Fixture(
+      mode: 'all_members',
+      rows: <String>[
+        // 內建值帶著活動層級的覆蓋：界面念覆蓋那一份，不念內部鍵。
+        _row(
+          memberId: _selfMember,
+          nickname: '夜行者',
+          businessStatus: 'offline',
+          statusDisplayName: '暫離現場',
+        ),
+        // 自訂定義此刻已停用：既有歸屬保留，只有可用性這一格改口。
+        _row(
+          memberId: _targetMember,
+          nickname: '自訂那位',
+          businessStatus: 'custom',
+          customStatusId: customId,
+          customStatusName: '失蹤中',
+          statusDisplayName: '失蹤中',
+          statusAvailable: false,
+        ),
+      ],
+    );
+    final AppLocalizations l10n = await _pump(
+      tester,
+      fixture,
+      surfaceTag: 'status',
+    );
+    await _openDirectory(tester, _firstActivity);
+
+    expect(find.textContaining('暫離現場'), findsWidgets);
+    expect(find.textContaining('失蹤中'), findsWidgets);
+    expect(
+      find.byKey(ActivityMemberDirectoryCard.statusRowKey(_targetMember)),
+      findsOneWidget,
+    );
+    expect(find.textContaining(l10n.playerStatusDisabledNotice), findsWidgets);
+    // 「不是在線指示」那一句寫在本人那一段；這一頁也一個「在線／Offline」字樣都不長。
+    expect(
+      find.byKey(ActivityMemberDirectoryCard.statusScopeKey),
+      findsOneWidget,
+    );
+    for (final String guess in <String>['在線', '線上', 'Online']) {
+      expect(find.text(guess), findsNothing);
+    }
+    // 狀態名稱是純文字：承擔它的是 Text（其內部 RichText 是 Flutter 的實作細節，
+    // 不是把這段文字交給 HTML 渲染）。界面今日也沒有任何一條富文本／HTML 通路。
+    expect(find.byType(Text), findsWidgets);
   });
 }

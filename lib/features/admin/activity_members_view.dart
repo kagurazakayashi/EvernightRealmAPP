@@ -20,7 +20,14 @@
 /// * 現值過期（2013）時收起寫入控件，只留「重新讀取這份名冊」一個出口；
 ///   結果不明（連不上、逾時）絕不自動補發，由人重讀再決定。
 /// * 成功句只在寫入回應回來之後出現，內容取回應回讀的現值：保存成功前不顯示「已完成」。
+/// * 業務狀態是管理員維護的一欄，不是連線狀態：本卡沒有任何一條路徑會因請求抵達、
+///   頁面開啟或時間流逝而改它，對話框也這句話寫在按鈕上方。變更狀態只寫狀態兩欄——
+///   不凍結帳戶、不清空資產、不把人移出活動（那些語意今日都不存在，界面不冒充）。
+/// * 狀態選項的底稿是「狀態定義目錄」那一次 GET：內建七值由後端逐字列出，自訂定義
+///   帶著自己的可用性。目錄還沒讀到時對話框不長出選項，也不本地湊一份清單。
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -30,6 +37,8 @@ import '../../core/api/server_api.dart';
 import '../../core/api/server_models.dart';
 import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
+// 狀態顯示名的換算只有一份：名冊、玩家目錄與本人資料都向這裡取，不各猜一次。
+import '../business_status_labels.dart';
 
 /// 活動成員名冊卡。
 class ActivityMembersCard extends StatefulWidget {
@@ -126,6 +135,34 @@ class ActivityMembersCard extends StatefulWidget {
     'activity-members-edit-cancel',
   );
 
+  /// 某一行的業務狀態交代列識別鍵。
+  static Key statusLabelKey(String memberId) =>
+      ValueKey<String>('activity-members-status-$memberId');
+
+  /// 某一行的「變更業務狀態」按鈕識別鍵。
+  static Key statusActionKey(String memberId) =>
+      ValueKey<String>('activity-members-status-action-$memberId');
+
+  /// 狀態對話框的控件識別鍵。
+  static const Key statusTargetKey = ValueKey<String>(
+    'activity-members-status-target',
+  );
+  static const Key statusCustomKey = ValueKey<String>(
+    'activity-members-status-custom',
+  );
+  static const Key statusSubmitKey = ValueKey<String>(
+    'activity-members-status-submit',
+  );
+  static const Key statusCancelKey = ValueKey<String>(
+    'activity-members-status-cancel',
+  );
+  static const Key statusNoticeKey = ValueKey<String>(
+    'activity-members-status-notice',
+  );
+  static const Key statusLoadingKey = ValueKey<String>(
+    'activity-members-status-loading',
+  );
+
   /// 提示列識別鍵（本地校驗與失敗轉述共用）。
   static const Key noticeKey = ValueKey<String>('activity-members-notice');
 
@@ -153,6 +190,15 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
   /// 正在編輯的那一行標識與它的服務端現值（依據值只能取自這裡）。
   String? _editingId;
   MemberReport? _editingBaseline;
+
+  /// 狀態定義目錄：對話框的選項底稿，只能來自那一次 GET（未讀到時不長出選項）。
+  PlayerStatusCatalogReport? _statusCatalog;
+
+  /// 目錄讀取中（每個對話框最多補一次讀取，之後用同一份底稿）。
+  bool _statusCatalogLoading = false;
+
+  /// 目錄讀不到的那句轉述：讀不到就不讓人在猜出來的清單上按下去。
+  String? _statusCatalogError;
 
   @override
   void initState() {
@@ -418,6 +464,106 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
     );
   }
 
+  /// 讀一次狀態定義目錄（對話框的選項底稿）。
+  ///
+  /// 已有底稿時不重複讀：這一族的失效形態是「下一次請求按新值判定」，
+  /// 而對話框要的是打開那一刻的清單，管理人改完定義後會重開對話框再讀一次。
+  Future<void> _ensureStatusCatalog() async {
+    if (_statusCatalog != null || _statusCatalogLoading) {
+      return;
+    }
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    setState(() {
+      _statusCatalogLoading = true;
+      _statusCatalogError = null;
+    });
+    try {
+      final PlayerStatusCatalogReport report = await widget.api
+          .playerStatusCatalog(
+            activityId: widget.activityId,
+            acceptLanguage: _acceptLanguage,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusCatalogLoading = false;
+        _statusCatalog = report;
+      });
+    } on ApiError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusCatalogLoading = false;
+        _statusCatalog = null;
+        _statusCatalogError = apiErrorText(l10n, error);
+      });
+    }
+  }
+
+  /// 送一次業務狀態變更：本體恰好四格（兩個新值與它們各自依據的現值）。
+  ///
+  /// 目標與現值相同時後端視為冪等成功（不產生第二次留痕），界面也照實念那一句；
+  /// 選中已停用的自訂定義拿 2041、定義屬於別的活動或從未存在拿 1001，都由統一對映轉述。
+  /// 這條通路不碰暱稱、陣營與目錄覆蓋，也不會因為一個狀態名去凍結帳戶或清空資產。
+  Future<void> _submitStatus(
+    MemberReport member,
+    String status,
+    String customStatusId,
+  ) async {
+    await _write(
+      () => widget.api.updateMemberBusinessStatus(
+        activityId: widget.activityId,
+        memberId: member.memberId,
+        businessStatus: status,
+        customStatusId: customStatusId,
+        expectedBusinessStatus: member.businessStatus,
+        expectedCustomStatusId: member.customStatusId,
+        acceptLanguage: _acceptLanguage,
+      ),
+      // 冪等重送（目標與現值相同）在後端不寫第二次也不追加留痕，界面據回讀的現值
+      // 唸「什麼都沒改變」那一句，而不是把一次沒有翻轉的提交念成「已更新」。
+      successFor: (AppLocalizations l10n, MemberWriteReport report) =>
+          report.member.businessStatus == member.businessStatus &&
+              report.member.customStatusId == member.customStatusId
+          ? l10n.memberStatusUnchangedNotice
+          : l10n.memberStatusSavedNotice,
+    );
+  }
+
+  /// 打開狀態對話框：先確認目錄已在手上，再讓人在讀到的清單上選。
+  Future<void> _openStatusDialog(MemberReport member) async {
+    if (_writing) {
+      return;
+    }
+    await _ensureStatusCatalog();
+    if (!mounted) {
+      return;
+    }
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => _MemberStatusDialog(
+        member: member,
+        l10n: l10n,
+        catalog: _statusCatalog,
+        loading: _statusCatalogLoading,
+        catalogError: _statusCatalogError,
+        busy: _writing,
+        onSubmit: (String status, String customStatusId) async {
+          Navigator.of(dialogContext).pop();
+          await _submitStatus(member, status, customStatusId);
+        },
+        onClose: () => Navigator.of(dialogContext).pop(),
+        onRetryCatalog: () {
+          Navigator.of(dialogContext).pop();
+          unawaited(_ensureStatusCatalog());
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -502,6 +648,7 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
                   canWrite: _canWrite,
                   onRename: () => _beginEdit(member),
                   onToggleVisibility: () => _toggleVisibility(member),
+                  onChangeStatus: () => _openStatusDialog(member),
                 ),
             ],
           ),
@@ -608,6 +755,7 @@ class _MemberRow extends StatelessWidget {
     required this.canWrite,
     required this.onRename,
     required this.onToggleVisibility,
+    required this.onChangeStatus,
   });
 
   /// 那一行的服務端現值。
@@ -627,6 +775,9 @@ class _MemberRow extends StatelessWidget {
 
   /// 送一次目錄可見性覆蓋的回呼（收緊與放回同一顆按鈕，語意取自行現值）。
   final VoidCallback onToggleVisibility;
+
+  /// 打開業務狀態對話框的回呼（目錄讀取在那一步裡發生）。
+  final VoidCallback onChangeStatus;
 
   /// 狀態取值：active 與 disabled 各有批准過的一句人話，其餘（含deleted／retired／
   /// pending／rejected 與未來新增的任何取值）一律如實唸出服務端的機器值而不猜意思——
@@ -686,6 +837,27 @@ class _MemberRow extends StatelessWidget {
             style: theme.textTheme.bodySmall,
           ),
           Text(
+            // 業務狀態的顯示名取自服務端算好的展示值，沒有覆蓋才走四語言預設文案；
+            // 它是管理員維護的一欄，不是這位玩家連不連得上线。
+            l10n.labelValuePair(
+              l10n.memberStatusColumnLabel,
+              businessStatusLabel(
+                    l10n: l10n,
+                    businessStatus: member.businessStatus,
+                    statusDisplayName: member.statusDisplayName,
+                    customStatusName: member.customStatusName,
+                  ) ??
+                  l10n.memberStatusCustomMissingNotice,
+            ),
+            key: ActivityMembersCard.statusLabelKey(member.memberId),
+            style: theme.textTheme.bodySmall,
+          ),
+          if (!member.statusAvailable)
+            Text(
+              l10n.playerStatusDisabledNotice,
+              style: theme.textTheme.bodySmall,
+            ),
+          Text(
             member.displayName.isEmpty
                 ? l10n.memberAccountUnreadableNotice
                 : l10n.labelValuePair(
@@ -715,18 +887,279 @@ class _MemberRow extends StatelessWidget {
           if (canWrite)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: OutlinedButton(
-                key: ActivityMembersCard.visibilityActionKey(member.memberId),
-                onPressed: busy ? null : onToggleVisibility,
-                child: Text(
-                  member.directoryVisibility == 'hidden'
-                      ? l10n.memberVisibilityRestoreAction
-                      : l10n.memberVisibilityHideAction,
-                ),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: <Widget>[
+                  OutlinedButton(
+                    key: ActivityMembersCard.visibilityActionKey(
+                      member.memberId,
+                    ),
+                    onPressed: busy ? null : onToggleVisibility,
+                    child: Text(
+                      member.directoryVisibility == 'hidden'
+                          ? l10n.memberVisibilityRestoreAction
+                          : l10n.memberVisibilityHideAction,
+                    ),
+                  ),
+                  // 業務狀態與可見性各有一顆按鈕：一條通路只碰自己那一欄，
+                  // 才不會出現「把人收起來順手改了他的狀態」這種一鍵兩件事。
+                  OutlinedButton(
+                    key: ActivityMembersCard.statusActionKey(member.memberId),
+                    onPressed: busy ? null : onChangeStatus,
+                    child: Text(l10n.memberStatusChangeAction),
+                  ),
+                ],
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+/// 業務狀態對話框：在後端讀到的清單上選，提交時帶著自己依據的現值。
+///
+/// 目錄還沒讀到（或讀不到）時不長出選項，也不本地湊一份「应该有」的清單：
+/// 七個內建值由目錄逐字列出，自訂定義帶著自己的可用性，两者都只有服務端说了才算。
+class _MemberStatusDialog extends StatefulWidget {
+  /// 以一行現值、目錄與動作建立對話框。
+  const _MemberStatusDialog({
+    required this.member,
+    required this.l10n,
+    required this.catalog,
+    required this.loading,
+    required this.catalogError,
+    required this.busy,
+    required this.onSubmit,
+    required this.onClose,
+    required this.onRetryCatalog,
+  });
+
+  /// 那一行的服務端現值（兩個依據值都取自這裡）。
+  final MemberReport member;
+
+  /// 目前語言的語彙。
+  final AppLocalizations l10n;
+
+  /// 狀態定義目錄；null 表示還沒讀到。
+  final PlayerStatusCatalogReport? catalog;
+
+  /// 目錄讀取中。
+  final bool loading;
+
+  /// 目錄讀不到時那句轉述。
+  final String? catalogError;
+
+  /// 有寫入在飛：不允許第二次提交。
+  final bool busy;
+
+  /// 提交：帶著選定的內部值與自訂定義標識（非 custom 時為空字串）。
+  final void Function(String status, String customStatusId) onSubmit;
+
+  /// 關閉對話框（零請求）。
+  final VoidCallback onClose;
+
+  /// 重讀目錄。
+  final VoidCallback onRetryCatalog;
+
+  @override
+  State<_MemberStatusDialog> createState() => _MemberStatusDialogState();
+}
+
+class _MemberStatusDialogState extends State<_MemberStatusDialog> {
+  /// 選定的內部值；null 表示還沒選（底稿是那一行讀回的現值，不預先假裝有人改過）。
+  String? _status;
+
+  /// 選定的自訂定義標識；只在內部值為 custom 時才有意義。
+  String? _customStatusId;
+
+  /// 本地校驗或後端轉述的那一句。
+  String? _notice;
+
+  String get _pickedStatus => _status ?? widget.member.businessStatus;
+
+  bool get _needsCustom => _pickedStatus == 'custom';
+
+  bool get _ready => widget.catalog != null;
+
+  /// 內建值的顯示名：目錄那一格的覆蓋現值優先，沒有覆蓋走四語言預設文案。
+  String _builtinLabel(String key) {
+    final PlayerBuiltinStatusReport? row = widget.catalog?.builtinByKey(key);
+    final String override = row?.displayName ?? '';
+    if (override.isNotEmpty) {
+      return override;
+    }
+    final String? builtin = builtinBusinessStatusLabel(widget.l10n, key);
+    // 集合外的取值照實唸原值：界面不替自己發明第二套狀態語意。
+    return builtin ?? key;
+  }
+
+  /// 送交前本地先擋：custom 沒挑定義就完全不發請求。
+  void _submit() {
+    final String status = _pickedStatus;
+    if (status == 'custom' && (_customStatusId ?? '').isEmpty) {
+      setState(() => _notice = widget.l10n.memberStatusCustomRequiredNotice);
+      return;
+    }
+    widget.onSubmit(status, status == 'custom' ? (_customStatusId ?? '') : '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = widget.l10n;
+    final ThemeData theme = Theme.of(context);
+    if (widget.loading) {
+      return AlertDialog(
+        title: Text(l10n.memberStatusDialogTitle),
+        content: Text(
+          l10n.activityLoadingNotice,
+          key: ActivityMembersCard.statusLoadingKey,
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: ActivityMembersCard.statusCancelKey,
+            onPressed: widget.onClose,
+            child: Text(l10n.activityConfirmCancelAction),
+          ),
+        ],
+      );
+    }
+    if (!_ready) {
+      return AlertDialog(
+        title: Text(l10n.memberStatusDialogTitle),
+        content: Text(
+          widget.catalogError ?? l10n.memberStatusCatalogMissingNotice,
+          key: ActivityMembersCard.statusNoticeKey,
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: ActivityMembersCard.statusCancelKey,
+            onPressed: widget.onClose,
+            child: Text(l10n.activityConfirmCancelAction),
+          ),
+          FilledButton(
+            key: ActivityMembersCard.reloadKey,
+            onPressed: widget.onRetryCatalog,
+            child: Text(l10n.activityReloadAction),
+          ),
+        ],
+      );
+    }
+
+    final PlayerStatusCatalogReport catalog = widget.catalog!;
+    final List<String> builtins = <String>[
+      for (final PlayerBuiltinStatusReport row in catalog.builtinStatuses)
+        row.statusKey,
+    ];
+    final List<PlayerCustomStatusReport> customs = catalog.customStatuses;
+
+    return AlertDialog(
+      title: Text(l10n.memberStatusDialogTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            l10n.labelValuePair(
+              l10n.memberStatusCurrentLabel,
+              businessStatusLabel(
+                    l10n: l10n,
+                    businessStatus: widget.member.businessStatus,
+                    statusDisplayName: widget.member.statusDisplayName,
+                    customStatusName: widget.member.customStatusName,
+                  ) ??
+                  widget.member.customStatusId,
+            ),
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          DropdownButton<String>(
+            key: ActivityMembersCard.statusTargetKey,
+            value: _pickedStatus,
+            isExpanded: true,
+            items: <DropdownMenuItem<String>>[
+              for (final String key in builtins)
+                DropdownMenuItem<String>(
+                  value: key,
+                  child: Text(_builtinLabel(key)),
+                ),
+            ],
+            onChanged: (String? value) => setState(() {
+              _status = value;
+              _notice = null;
+              if (value != 'custom') {
+                _customStatusId = null;
+              }
+            }),
+          ),
+          if (_needsCustom) ...<Widget>[
+            const SizedBox(height: 4),
+            DropdownButton<String>(
+              key: ActivityMembersCard.statusCustomKey,
+              value:
+                  (_customStatusId != null &&
+                      customs.any(
+                        (PlayerCustomStatusReport row) =>
+                            row.customStatusId == _customStatusId,
+                      ))
+                  ? _customStatusId
+                  : null,
+              isExpanded: true,
+              hint: Text(l10n.memberStatusCustomLabel),
+              items: <DropdownMenuItem<String>>[
+                for (final PlayerCustomStatusReport row in customs)
+                  DropdownMenuItem<String>(
+                    value: row.customStatusId,
+                    child: Text(
+                      row.available
+                          ? row.name
+                          : '${row.name}${l10n.memberStatusOptionDisabledSuffix}',
+                    ),
+                  ),
+              ],
+              onChanged: (String? value) => setState(() {
+                _customStatusId = value;
+                _notice = null;
+              }),
+            ),
+            if (customs.isEmpty)
+              Text(
+                l10n.memberStatusCatalogMissingNotice,
+                style: theme.textTheme.bodySmall,
+              ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            l10n.memberStatusNotConnectionNotice,
+            key: ActivityMembersCard.statusNoticeKey,
+            style: theme.textTheme.bodySmall,
+          ),
+          if (_notice != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              _notice!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          key: ActivityMembersCard.statusCancelKey,
+          onPressed: widget.busy ? null : widget.onClose,
+          child: Text(l10n.activityConfirmCancelAction),
+        ),
+        FilledButton(
+          key: ActivityMembersCard.statusSubmitKey,
+          // 「跟現值一樣」不是非法提交：後端把它當成冪等成功，也不產生第二次留痕。
+          // 界面照樣讓它送出去，並在成功後唸出「什麼都沒改變」那句。
+          onPressed: widget.busy || !_ready ? null : _submit,
+          child: Text(l10n.memberStatusChangeAction),
+        ),
+      ],
     );
   }
 }

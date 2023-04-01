@@ -42,6 +42,11 @@ String _rowJson({
     '"faction_icon":"star"',
     '"faction_color":"#12abcd"',
     if (!omitAvailability) '"faction_available":$factionAvailable',
+    '"business_status":"normal"',
+    '"custom_status_id":""',
+    '"custom_status_name":""',
+    '"status_display_name":""',
+    '"status_available":true',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
   ];
   return '{${parts.join(',')}}';
@@ -95,6 +100,11 @@ String _profileBody({
     '"faction_icon":"star"',
     '"faction_color":"#12abcd"',
     if (!omitAvailability) '"faction_available":$factionAvailable',
+    '"business_status":"normal"',
+    '"custom_status_id":""',
+    '"custom_status_name":""',
+    '"status_display_name":""',
+    '"status_available":true',
     '"directory_visibility":"$visibility"',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
     '"request_id":"r-profile"',

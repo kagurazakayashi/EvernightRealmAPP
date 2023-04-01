@@ -51,6 +51,11 @@ String _memberJson({
       '"account_status":"$accountStatus",'
       '"directory_visibility":"$directoryVisibility",'
       '"admin_identity":$adminIdentity,'
+      '"business_status":"normal",'
+      '"custom_status_id":"",'
+      '"custom_status_name":"",'
+      '"status_display_name":"",'
+      '"status_available":true,'
       '"joined_at":"2026-10-10T03:00:00.000Z",'
       '"updated_at":"2026-10-10T04:00:00.000Z"}';
 }

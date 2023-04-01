@@ -3116,7 +3116,10 @@ class TagListReport {
       }
       tags.add(TagReport.decode(item));
     }
-    return TagListReport(tags: tags, requestId: _requireText(json, 'request_id'));
+    return TagListReport(
+      tags: tags,
+      requestId: _requireText(json, 'request_id'),
+    );
   }
 
   /// 這個活動的標籤定義行（依後端給出的順序，含未公開的那幾枚）。
@@ -3267,6 +3270,12 @@ class PublicTagDetailReport {
 ///   因此缺席與空值是兩回事——前者判合同違例，後者是如實的「還沒分組」；
 /// - `display_name` 與 `account_status` 是帳戶的投影，不是成員表的欄位：兩者同時為空
 ///   表示那一行指向的帳戶已讀不回（軟參照的代價），界面顯示通用句而不編造名字。
+/// - 狀態四欄（`business_status`／`custom_status_id`／`custom_status_name`／
+///   `status_display_name`／`status_available`）是玩家在活動內的業務狀態：
+///   `business_status` 恆是七個內建穩定值之一，`offline` 屬管理員維護的業務狀態而不是
+///   連線狀態（沒有任何請求、頁面開啟或心跳會自動改寫它）。
+///   `status_display_name` 是展示值而非內部值：內建狀態沒有覆蓋時它是空字串，界面因此
+///   走四語言預設文案；自訂狀態則帶著定義名稱。
 class MemberReport {
   /// 以已驗證的欄位建立一行成員。
   const MemberReport({
@@ -3279,6 +3288,11 @@ class MemberReport {
     required this.accountStatus,
     required this.directoryVisibility,
     required this.adminIdentity,
+    required this.businessStatus,
+    required this.customStatusId,
+    required this.customStatusName,
+    required this.statusDisplayName,
+    required this.statusAvailable,
     required this.joinedAt,
     required this.updatedAt,
   });
@@ -3300,6 +3314,14 @@ class MemberReport {
       directoryVisibility: _requireText(json, 'directory_visibility'),
       // 「此刻持有 server_admin 授予」是服務端經 internal/grant 現讀的投影，不是暱稱或標籤。
       adminIdentity: _requireBool(json, 'admin_identity'),
+      // 業務狀態的內部值恆在：缺席判合同違例，因為介面要能在七個內建鍵之間分辨它。
+      businessStatus: _requireText(json, 'business_status'),
+      // 非 custom 狀態時空字串是合法現值（「沒有自訂定義」），不是讀不到。
+      customStatusId: _textAllowingEmpty(json, 'custom_status_id'),
+      customStatusName: _textAllowingEmpty(json, 'custom_status_name'),
+      // 內建狀態沒有覆蓋時空字串代表「走四語言預設文案」；缺席才判違例。
+      statusDisplayName: _textAllowingEmpty(json, 'status_display_name'),
+      statusAvailable: _requireBool(json, 'status_available'),
       joinedAt: _requireUtcTime(json, 'joined_at'),
       updatedAt: _requireUtcTime(json, 'updated_at'),
     );
@@ -3338,6 +3360,26 @@ class MemberReport {
   /// 多得到一枚「誰是後台的人」的可列舉信號。
   final bool adminIdentity;
 
+  /// 玩家此刻的業務狀態內部值（normal／suspended／eliminated／dead／arrested／
+  /// offline／custom 七個穩定值之一）。
+  ///
+  /// 它是管理員維護的業務狀態，不是連線狀態：本介面沒有任何一格會隨請求抵達、
+  /// 頁面開啟或心跳自動改寫它，界面也不得把這一格唸成「在線／離線」。
+  final String businessStatus;
+
+  /// 自訂狀態定義的穩定標識；只有 `businessStatus` 是 custom 時非空。
+  final String customStatusId;
+
+  /// 自訂定義此刻的名稱（非 custom 或定義讀不回時為空字串）。
+  final String customStatusName;
+
+  /// 業務狀態的展示名稱：內建狀態取活動層級覆蓋（空字串＝走四語言預設文案），
+  /// 自訂狀態取定義名稱。它是顯示值，不是內部身份，也只能當純文字顯示。
+  final String statusDisplayName;
+
+  /// 這個狀態此刻是否仍可被選用：內建值恆為真，自訂定義取它的 available 現值。
+  final bool statusAvailable;
+
   /// 加入時刻（UTC；不做本機時區換算）。
   final DateTime joinedAt;
 
@@ -3346,6 +3388,13 @@ class MemberReport {
 
   /// 這一欄是否已有陣營歸屬（空字串＝尚未分組）。
   bool get hasFaction => factionId.isNotEmpty;
+
+  /// 這一欄的業務狀態是否是自訂定義。
+  bool get hasCustomStatus => businessStatus == 'custom';
+
+  /// 業務狀態該走四語言預設文案（內建值且沒有覆蓋）。
+  bool get statusUsesDefaultLabel =>
+      !hasCustomStatus && statusDisplayName.isEmpty;
 }
 
 /// `GET／HEAD /admin/activities/{activity_id}/members` 的成功回應。
@@ -3724,6 +3773,11 @@ class DirectoryMemberReport {
     required this.factionIcon,
     required this.factionColor,
     required this.factionAvailable,
+    required this.businessStatus,
+    required this.customStatusId,
+    required this.customStatusName,
+    required this.statusDisplayName,
+    required this.statusAvailable,
     required this.joinedAt,
   });
 
@@ -3739,6 +3793,12 @@ class DirectoryMemberReport {
       factionColor: _textAllowingEmpty(json, 'faction_color'),
       // 恆在欄位：缺席與讀到假是兩回事，介面拿假值會把「讀不到」講成「已停用」。
       factionAvailable: _requireBool(json, 'faction_available'),
+      // 業務狀態四欄：這是「看得見的那個人此刻是什麼狀態」，不是帳戶側事實。
+      businessStatus: _requireText(json, 'business_status'),
+      customStatusId: _textAllowingEmpty(json, 'custom_status_id'),
+      customStatusName: _textAllowingEmpty(json, 'custom_status_name'),
+      statusDisplayName: _textAllowingEmpty(json, 'status_display_name'),
+      statusAvailable: _requireBool(json, 'status_available'),
       joinedAt: _requireUtcTime(json, 'joined_at'),
     );
   }
@@ -3764,11 +3824,36 @@ class DirectoryMemberReport {
   /// 那個陣營自己的停用旗標現值。
   final bool factionAvailable;
 
+  /// 他此刻的業務狀態內部值（七個穩定值之一；與連線在線狀態無關）。
+  final String businessStatus;
+
+  /// 自訂狀態定義的穩定標識；只有 `businessStatus` 是 custom 時非空。
+  final String customStatusId;
+
+  /// 自訂定義此刻的名稱（非 custom 或定義讀不回時為空字串）。
+  final String customStatusName;
+
+  /// 業務狀態的展示名稱（內建值沒有覆蓋時為空字串＝走四語言預設文案）。
+  ///
+  /// 這一格是管理人自己打的文字，只能當純文字顯示：界面不得把它交給任何
+  /// HTML／富文本渲染通路（本應用今日也沒有那種渲染器）。
+  final String statusDisplayName;
+
+  /// 這個狀態此刻是否仍可被選用（自訂定義被停用時為假，既有歸屬仍保留）。
+  final bool statusAvailable;
+
   /// 他取得成員身份的時刻（活動內事實，非帳戶資料）。
   final DateTime joinedAt;
 
   /// 這一欄是否已有陣營歸屬。
   bool get hasFaction => factionId.isNotEmpty;
+
+  /// 他的業務狀態是否是自訂定義。
+  bool get hasCustomStatus => businessStatus == 'custom';
+
+  /// 他的業務狀態該走四語言預設文案（內建值且沒有覆蓋）。
+  bool get statusUsesDefaultLabel =>
+      !hasCustomStatus && statusDisplayName.isEmpty;
 
   /// 歸屬讀到了展示值：界面能把「已停用」那句話講在一個有名字的陣營上。
   ///
@@ -3970,6 +4055,11 @@ class OwnMemberProfileReport {
     required this.factionColor,
     required this.factionAvailable,
     required this.directoryVisibility,
+    required this.businessStatus,
+    required this.customStatusId,
+    required this.customStatusName,
+    required this.statusDisplayName,
+    required this.statusAvailable,
     required this.joinedAt,
     required this.requestId,
   });
@@ -3989,6 +4079,11 @@ class OwnMemberProfileReport {
       factionColor: _textAllowingEmpty(json, 'faction_color'),
       factionAvailable: _requireBool(json, 'faction_available'),
       directoryVisibility: _requireText(json, 'directory_visibility'),
+      businessStatus: _requireText(json, 'business_status'),
+      customStatusId: _textAllowingEmpty(json, 'custom_status_id'),
+      customStatusName: _textAllowingEmpty(json, 'custom_status_name'),
+      statusDisplayName: _textAllowingEmpty(json, 'status_display_name'),
+      statusAvailable: _requireBool(json, 'status_available'),
       joinedAt: _requireUtcTime(json, 'joined_at'),
       requestId: _requireText(json, 'request_id'),
     );
@@ -4030,6 +4125,24 @@ class OwnMemberProfileReport {
   /// 我自己那一行的目錄覆蓋：inherit｜hidden（只能收緊，集合裡沒有放寬那一格）。
   final String directoryVisibility;
 
+  /// 我此刻的業務狀態內部值（七個穩定值之一）。
+  ///
+  /// 它是管理員維護的業務狀態，不是連線狀態：沒有任何請求抵達、頁面開啟或心跳
+  /// 會把它改掉，界面也不得把它唸成「在線／離線」。
+  final String businessStatus;
+
+  /// 自訂狀態定義的穩定標識；只有 `businessStatus` 是 custom 時非空。
+  final String customStatusId;
+
+  /// 自訂定義此刻的名稱（非 custom 或定義讀不回時為空字串）。
+  final String customStatusName;
+
+  /// 業務狀態的展示名稱（內建值沒有覆蓋時為空字串＝走四語言預設文案）。
+  final String statusDisplayName;
+
+  /// 這個狀態此刻是否仍可被選用（自訂定義被停用時為假，我自己的歸屬仍保留）。
+  final bool statusAvailable;
+
   /// 加入時刻（UTC）。
   final DateTime joinedAt;
 
@@ -4039,9 +4152,223 @@ class OwnMemberProfileReport {
   /// 我是否已有歸屬。
   bool get hasFaction => factionId.isNotEmpty;
 
+  /// 我的業務狀態是否是自訂定義。
+  bool get hasCustomStatus => businessStatus == 'custom';
+
+  /// 我的業務狀態該走四語言預設文案（內建值且沒有覆蓋）。
+  bool get statusUsesDefaultLabel =>
+      !hasCustomStatus && statusDisplayName.isEmpty;
+
   /// 歸屬讀到了展示值（否則那句「已停用」無處可掛）。
   bool get hasFactionDisplay => factionName.isNotEmpty;
 
   /// 我是否把自己那一行對別人收了起來。
   bool get isSelfHidden => directoryVisibility == 'hidden';
+}
+
+/// 一個內建業務狀態在某一場活動裡的展示現值。
+///
+/// `displayName` 為空字串代表「沒有活動層級的覆蓋」，介面因此走四語言預設文案；
+/// 它是顯示值，不是內部身份——改它不改變任何人的 `businessStatus`。
+/// 內建狀態永遠可用，所以這裡刻意沒有 `available` 那一格。
+class PlayerBuiltinStatusReport {
+  /// 以已驗證的欄位建立一個內建狀態的展示現值。
+  const PlayerBuiltinStatusReport({
+    required this.statusKey,
+    required this.displayName,
+    required this.usesDefaultDisplayName,
+  });
+
+  /// 從目錄回應的 `builtin_statuses` 某一項建立一個現值。
+  static PlayerBuiltinStatusReport decode(Map<String, Object?> json) {
+    return PlayerBuiltinStatusReport(
+      statusKey: _requireText(json, 'status_key'),
+      displayName: _textAllowingEmpty(json, 'display_name'),
+      usesDefaultDisplayName: _requireBool(json, 'uses_default_display_name'),
+    );
+  }
+
+  /// 穩定內部值（七個內建鍵之一）。
+  final String statusKey;
+
+  /// 活動層級的顯示名稱覆蓋（空字串＝使用四語言預設文案）。
+  final String displayName;
+
+  /// 這一名稱是否仍走預設（服務端算好的布林，介面不再自己猜空字串的兩種可能）。
+  final bool usesDefaultDisplayName;
+}
+
+/// 一個自訂業務狀態定義：它屬於且只屬於一個活動，有自己的穩定標識、名稱與可用性。
+///
+/// 合同要點（權威在後端 `internal/activity` 與遷移 0018）：
+/// - 標識是身份，名稱不是：改名不換 `customStatusId`，也不改寫任何人的既有歸屬；
+/// - `available` 為假只擋「新的選用」，既有成員保留原狀態，界面據此顯示「已停用」那一句；
+/// - 沒有刪除通路：這一族不存在能把一行定義抹掉的動詞，也不帶任何「誰在用」的清單或計數。
+class PlayerCustomStatusReport {
+  /// 以已驗證的欄位建立一個自訂狀態定義。
+  const PlayerCustomStatusReport({
+    required this.customStatusId,
+    required this.name,
+    required this.available,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  /// 從目錄回應的 `custom_statuses`（或寫入回應的 `custom_status`）建立一行。
+  static PlayerCustomStatusReport decode(Map<String, Object?> json) {
+    return PlayerCustomStatusReport(
+      customStatusId: _requireText(json, 'custom_status_id'),
+      name: _requireText(json, 'name'),
+      available: _requireBool(json, 'available'),
+      createdAt: _requireUtcTime(json, 'created_at'),
+      updatedAt: _requireUtcTime(json, 'updated_at'),
+    );
+  }
+
+  /// 自訂狀態的穩定標識（選中它時寫進成員那一欄的就是這個值）。
+  final String customStatusId;
+
+  /// 定義名稱（同活動內唯一；它是純文字展示值，不得當成 HTML）。
+  final String name;
+
+  /// 可用性旗標現值：真＝仍可被選用，假＝已停用（既有歸屬保留）。
+  final bool available;
+
+  /// 建立時刻（UTC）。
+  final DateTime createdAt;
+
+  /// 最後一次改動時刻（UTC）。
+  final DateTime updatedAt;
+}
+
+/// `GET／HEAD /admin/activities/{activity_id}/player-statuses` 的成功回應。
+///
+/// 兩個清單都是管理面的現讀投影：內建那一份逐字列出七個鍵（固定順序，客戶端不重排、
+/// 也不自行補「日後可能出现的新值」），自訂那一份按建立時刻升序。停止與歸檔的活動
+/// 照樣可讀——「這場活動當時定義了什麼」屬歷史事實，不因生命週期而被藏起來。
+class PlayerStatusCatalogReport {
+  /// 以已驗證的欄位建立一份狀態目錄。
+  const PlayerStatusCatalogReport({
+    required this.builtinStatuses,
+    required this.customStatuses,
+    required this.requestId,
+  });
+
+  /// 從狀態目錄回應建立報告。
+  static PlayerStatusCatalogReport decode(Map<String, Object?> json) {
+    final Object? rawBuiltins = json['builtin_statuses'];
+    if (rawBuiltins is! List) {
+      throw const ApiResponseShapeException('builtin_statuses 不是清單');
+    }
+    final List<PlayerBuiltinStatusReport> builtins =
+        <PlayerBuiltinStatusReport>[];
+    for (final Object? item in rawBuiltins) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('builtin_statuses 項不是物件');
+      }
+      builtins.add(PlayerBuiltinStatusReport.decode(item));
+    }
+    final Object? rawCustom = json['custom_statuses'];
+    if (rawCustom is! List) {
+      throw const ApiResponseShapeException('custom_statuses 不是清單');
+    }
+    final List<PlayerCustomStatusReport> custom = <PlayerCustomStatusReport>[];
+    for (final Object? item in rawCustom) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('custom_statuses 項不是物件');
+      }
+      custom.add(PlayerCustomStatusReport.decode(item));
+    }
+    return PlayerStatusCatalogReport(
+      builtinStatuses: builtins,
+      customStatuses: custom,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 七個內建狀態的展示現值（順序由後端給出，客戶端不重排）。
+  final List<PlayerBuiltinStatusReport> builtinStatuses;
+
+  /// 這場活動的自訂狀態定義（可能為空清單，語意是「還沒定義過」）。
+  final List<PlayerCustomStatusReport> customStatuses;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 依內部值找內建狀態的展示現值（讀不到回 `null`：集合外的值不猜一個名稱）。
+  PlayerBuiltinStatusReport? builtinByKey(String key) {
+    for (final PlayerBuiltinStatusReport item in builtinStatuses) {
+      if (item.statusKey == key) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  /// 依標識找自訂狀態定義（讀不到回 `null`：被刪掉或從未存在都是同一句通用話）。
+  PlayerCustomStatusReport? customById(String id) {
+    for (final PlayerCustomStatusReport item in customStatuses) {
+      if (item.customStatusId == id) {
+        return item;
+      }
+    }
+    return null;
+  }
+}
+
+/// `POST／PUT /admin/activities/{activity_id}/player-statuses…` 寫入回應的共用形狀。
+///
+/// 建立與編輯自訂狀態都回這一份（`custom_status` 那一格），顯示名稱編輯回 `builtin_status`
+/// 那一格；兩者都只帶服務端讀回的事實，介面不拿提交時的意圖冒充現值。
+class PlayerCustomStatusWriteReport {
+  /// 以已驗證的欄位建立一份自訂狀態寫入回應。
+  const PlayerCustomStatusWriteReport({
+    required this.customStatus,
+    required this.requestId,
+  });
+
+  /// 從寫入回應建立報告。
+  static PlayerCustomStatusWriteReport decode(Map<String, Object?> json) {
+    final Object? raw = json['custom_status'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('custom_status 不是物件');
+    }
+    return PlayerCustomStatusWriteReport(
+      customStatus: PlayerCustomStatusReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 服務端讀回的那一份定義現值。
+  final PlayerCustomStatusReport customStatus;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+}
+
+/// `PUT /admin/activities/{activity_id}/player-status-labels/{status_key}` 的寫入回應。
+class PlayerStatusLabelWriteReport {
+  /// 以已驗證的欄位建立一份顯示名稱寫入回應。
+  const PlayerStatusLabelWriteReport({
+    required this.builtinStatus,
+    required this.requestId,
+  });
+
+  /// 從寫入回應建立報告。
+  static PlayerStatusLabelWriteReport decode(Map<String, Object?> json) {
+    final Object? raw = json['builtin_status'];
+    if (raw is! Map<String, Object?>) {
+      throw const ApiResponseShapeException('builtin_status 不是物件');
+    }
+    return PlayerStatusLabelWriteReport(
+      builtinStatus: PlayerBuiltinStatusReport.decode(raw),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 服務端讀回的那一個內建狀態展示現值。
+  final PlayerBuiltinStatusReport builtinStatus;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
 }
