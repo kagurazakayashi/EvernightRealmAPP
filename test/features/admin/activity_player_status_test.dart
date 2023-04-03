@@ -98,6 +98,7 @@ String _memberJson({
       '"custom_status_name":"$customStatusName",'
       '"status_display_name":"$statusDisplayName",'
       '"status_available":$availableText,'
+      '"restrict_login":false,"restrict_chat":false,"restrict_private_chat":false,"restrict_trade":false,"restrict_transfer":false,"restrict_item_use":false,'
       '"joined_at":"2026-10-10T03:00:00.000Z",'
       '"updated_at":"2026-10-10T04:00:00.000Z"}';
 }

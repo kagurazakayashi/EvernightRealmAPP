@@ -3293,6 +3293,12 @@ class MemberReport {
     required this.customStatusName,
     required this.statusDisplayName,
     required this.statusAvailable,
+    required this.restrictLogin,
+    required this.restrictChat,
+    required this.restrictPrivateChat,
+    required this.restrictTrade,
+    required this.restrictTransfer,
+    required this.restrictItemUse,
     required this.joinedAt,
     required this.updatedAt,
   });
@@ -3322,6 +3328,14 @@ class MemberReport {
       // 內建狀態沒有覆蓋時空字串代表「走四語言預設文案」；缺席才判違例。
       statusDisplayName: _textAllowingEmpty(json, 'status_display_name'),
       statusAvailable: _requireBool(json, 'status_available'),
+      // 六枚分項限制的現值逐欄恆在（出廠恆為假）：缺席判合同違例——
+      // 界面若把缺席讀成「沒被限制」，管理人會以為自己剛凍結的那個人還亮著。
+      restrictLogin: _requireBool(json, 'restrict_login'),
+      restrictChat: _requireBool(json, 'restrict_chat'),
+      restrictPrivateChat: _requireBool(json, 'restrict_private_chat'),
+      restrictTrade: _requireBool(json, 'restrict_trade'),
+      restrictTransfer: _requireBool(json, 'restrict_transfer'),
+      restrictItemUse: _requireBool(json, 'restrict_item_use'),
       joinedAt: _requireUtcTime(json, 'joined_at'),
       updatedAt: _requireUtcTime(json, 'updated_at'),
     );
@@ -3379,6 +3393,27 @@ class MemberReport {
 
   /// 這個狀態此刻是否仍可被選用：內建值恆為真，自訂定義取它的 available 現值。
   final bool statusAvailable;
+
+  /// 六枚分項限制的現值（遷移 0019；出廠恆為假）：逐欄獨立，各改各的。
+  ///
+  /// `restrictLogin` 禁止取得或繼續使用這一場活動的訪問資格——它不是帳戶停用，
+  /// 不停全域會話、不動其他活動。其餘五欄（聊天、私聊、交易、轉賬、使用物品）
+  /// 對應的業務尚未實現，今日它們只是被保存與如實顯示的事實。
+  final bool restrictLogin;
+  final bool restrictChat;
+  final bool restrictPrivateChat;
+  final bool restrictTrade;
+  final bool restrictTransfer;
+  final bool restrictItemUse;
+
+  /// 六欄裡是否有任意一枚被限制（名冊那一列用它決定要不要擺「有生效限制」的標示）。
+  bool get hasAnyRestriction =>
+      restrictLogin ||
+      restrictChat ||
+      restrictPrivateChat ||
+      restrictTrade ||
+      restrictTransfer ||
+      restrictItemUse;
 
   /// 加入時刻（UTC；不做本機時區換算）。
   final DateTime joinedAt;
@@ -3473,6 +3508,7 @@ class MyActivityReport {
     required this.memberId,
     required this.nickname,
     required this.factionId,
+    required this.accessRestricted,
     required this.joinedAt,
   });
 
@@ -3487,6 +3523,9 @@ class MyActivityReport {
       nickname: _requireText(json, 'nickname'),
       // 空字串＝尚未分組，是合法現值；缺席才判合同違例（口徑同成員名冊）。
       factionId: _textAllowingEmpty(json, 'faction_id'),
+      // 「我在那場活動的訪問資格此刻是否被限制」是服務端現讀的派生值，恆在回應；
+      // 缺席判合同違例，因為界面要靠它在敲壁之前說出「這一場你進不去」。
+      accessRestricted: _requireBool(json, 'access_restricted'),
       joinedAt: _requireUtcTime(json, 'joined_at'),
     );
   }
@@ -3511,6 +3550,12 @@ class MyActivityReport {
 
   /// 我在這場活動裡此刻的陣營歸屬；空字串＝尚未分組。
   final String factionId;
+
+  /// 我在那場活動的訪問資格是否已被限制（`restrict_login` 的服務端現值投影）。
+  ///
+  /// 它只影響那一場活動：清單照舊列出、全域登入與其他活動不受牽連。
+  /// 界面用它標出「訪問已被限制」，其餘通路的真正擋下由服務層每請求現讀。
+  final bool accessRestricted;
 
   /// 加入時刻（UTC）。
   final DateTime joinedAt;
@@ -3554,6 +3599,85 @@ class MyActivityListReport {
 
   /// 本次請求的關聯 ID。
   final String requestId;
+}
+
+/// 編輯分項限制時一欄的「新值＋依據值」對。
+///
+/// 這是協定白名單在客戶端的形狀：每一欄都要帶上它所依據的現值（compare-and-set，
+/// 沿用 2013），沒選中的欄位不進本體——「只改明確選擇的項」由這個形狀支撐，
+/// 取消聊天不會順手取消私聊或登入。
+class MemberRestrictionPatch {
+  /// 以新值與它所依據的現值建立一對。
+  const MemberRestrictionPatch({required this.value, required this.expected});
+
+  /// 本次要寫入的新值。
+  final bool value;
+
+  /// 提交所依據的現值（一律取剛讀回的那一份，不拿本地舊印象湊）。
+  final bool expected;
+}
+
+/// `GET／HEAD /player/activities/{activity_id}/restrictions` 的成功回應：
+/// 本人在那一場活動裡六枚限制的現值。
+///
+/// 這是用戶批准的「本人獲准查看有效結果」那一側，也是被禁止登入後唯一讀得動的
+/// 活動通路——被限制的人必須能問出「我被限制的是哪些項」。回應只有六個布林與標識：
+/// 沒有原因、沒有操作者、沒有時間（那些屬審計，本倉庫沒有審計查詢的 HTTP 入口）。
+class OwnMemberRestrictionsReport {
+  /// 以已驗證的欄位建立一份本人限制。
+  const OwnMemberRestrictionsReport({
+    required this.activityId,
+    required this.memberId,
+    required this.restrictLogin,
+    required this.restrictChat,
+    required this.restrictPrivateChat,
+    required this.restrictTrade,
+    required this.restrictTransfer,
+    required this.restrictItemUse,
+    required this.requestId,
+  });
+
+  /// 從本人限制回應建立報告。
+  static OwnMemberRestrictionsReport decode(Map<String, Object?> json) {
+    return OwnMemberRestrictionsReport(
+      activityId: _requireText(json, 'activity_id'),
+      memberId: _requireText(json, 'member_id'),
+      // 六欄逐欄恆在：每一欄的合法缺席形態都不存在，缺席一律判合同違例。
+      restrictLogin: _requireBool(json, 'restrict_login'),
+      restrictChat: _requireBool(json, 'restrict_chat'),
+      restrictPrivateChat: _requireBool(json, 'restrict_private_chat'),
+      restrictTrade: _requireBool(json, 'restrict_trade'),
+      restrictTransfer: _requireBool(json, 'restrict_transfer'),
+      restrictItemUse: _requireBool(json, 'restrict_item_use'),
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 那場活動的標識。
+  final String activityId;
+
+  /// 本人在那場活動裡的穩定標識。
+  final String memberId;
+
+  /// 六枚限制的現值（逐欄獨立；出廠恆為假）。
+  final bool restrictLogin;
+  final bool restrictChat;
+  final bool restrictPrivateChat;
+  final bool restrictTrade;
+  final bool restrictTransfer;
+  final bool restrictItemUse;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 是否有任何一枚限制正在生效（界面用它決定要不要念「你現在被限制」那一句）。
+  bool get hasAnyRestriction =>
+      restrictLogin ||
+      restrictChat ||
+      restrictPrivateChat ||
+      restrictTrade ||
+      restrictTransfer ||
+      restrictItemUse;
 }
 
 /// 玩家自選界面上的一個候選陣營：展示值加上「它此刻能不能被我選」。

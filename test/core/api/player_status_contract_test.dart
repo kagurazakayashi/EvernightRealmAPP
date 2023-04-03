@@ -92,6 +92,12 @@ String _memberJson({
     '"custom_status_name":"$customStatusName"',
     '"status_display_name":"$statusDisplayName"',
     '"status_available":$statusAvailable',
+    '"restrict_login":false',
+    '"restrict_chat":false',
+    '"restrict_private_chat":false',
+    '"restrict_trade":false',
+    '"restrict_transfer":false',
+    '"restrict_item_use":false',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
     '"updated_at":"2026-10-10T04:00:00.000Z"',
     ?extraField,
@@ -468,7 +474,13 @@ void main() {
         ApiMachineCode.fromValue(2042),
         ApiMachineCode.playerStatusNameTaken,
       );
-      expect(ApiMachineCode.fromValue(2043), isNull);
+      // 2043 已由玩家分項限制一步發布（在該活動的訪問資格已被限制——活動級，
+      // 不是帳戶停用）：界線推到 2044，那一格仍必須讀不出來。
+      expect(
+        ApiMachineCode.fromValue(2043),
+        ApiMachineCode.memberAccessRestricted,
+      );
+      expect(ApiMachineCode.fromValue(2044), isNull);
       // 「停用」的三枚碼各有各的實體：陣營不收新成員、標籤不收新貼標、
       // 自訂狀態不收新選用——同一枚碼的語義不因後續步驟改寫。
       expect(ApiMachineCode.factionNotAcceptingMembers.value, isNot(2041));

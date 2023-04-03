@@ -347,6 +347,16 @@ class _PlayerTagsCardState extends State<PlayerTagsCard> {
                         ),
                         style: theme.textTheme.bodySmall,
                       ),
+                      // 「這一場進不去」說在敲壁之前：這一格是服務端現值投影
+                      // （access_restricted），界面不本地推測，也不因為它為真就把這一列藏起來。
+                      if (entry.accessRestricted)
+                        Text(
+                          l10n.playerActivityAccessRestricted,
+                          key: ValueKey<String>(
+                            'player-tags-restricted-${entry.activityId}',
+                          ),
+                          style: theme.textTheme.bodySmall,
+                        ),
                       const SizedBox(height: 6),
                       Align(
                         alignment: AlignmentDirectional.centerEnd,

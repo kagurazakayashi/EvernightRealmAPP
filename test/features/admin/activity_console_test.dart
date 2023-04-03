@@ -51,6 +51,7 @@ String _activityJson({
     '"status":"$status"',
     // 自選模式現值恆隨活動回顯：缺席時合同判定為失敗，不由界面降級成「當它沒開放」。
     '"faction_select_mode":"$_factionSelectMode"',
+    '"access_restricted":false',
     // 目錄可見性是同一側的另一欄配置（出廠 hidden）：缺席同樣判合同違例。
     '"member_directory_mode":"hidden"',
     if (!rootCreated) '"created_by_account_id":"$_otherManagerId"',

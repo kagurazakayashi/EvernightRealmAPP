@@ -57,6 +57,7 @@ String _viewBody({
     '"name":"秋夜長談"',
     '"status":"$status"',
     '"faction_select_mode":"$mode"',
+    '"access_restricted":false',
     if (!omitted.contains('can_select_now')) '"can_select_now":$canSelectNow',
     '"member_id":"$_memberId"',
     '"nickname":"夜行者"',
@@ -189,11 +190,11 @@ void main() {
       final ServerApi api = apiWithHandler((http.Request request) async {
         return _json(
           '{"activities":[{"activity_id":"$_activityId","name":"秋夜長談",'
-          '"status":"active","faction_select_mode":"free","member_id":"$_memberId",'
+          '"status":"active","faction_select_mode":"free","access_restricted":false,"member_id":"$_memberId",'
           '"nickname":"夜行者","faction_id":"","joined_at":"2026-10-10T03:00:00.000Z"},'
           '{"activity_id":"$_activityId","name":"另一場","status":"draft",'
-          '"faction_select_mode":"disabled","member_id":"$_memberId",'
-          '"nickname":"夜行者","faction_id":"$_factionId",'
+          '"faction_select_mode":"disabled","access_restricted":false,'
+          '"member_id":"$_memberId",'          '"nickname":"夜行者","faction_id":"$_factionId",'
           '"joined_at":"2026-10-09T03:00:00.000Z"}],"request_id":"r-list"}',
           200,
         );

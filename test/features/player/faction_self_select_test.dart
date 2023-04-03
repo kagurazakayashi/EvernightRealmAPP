@@ -65,7 +65,8 @@ String _listBody(List<String> rows) =>
 
 String _listRow({String factionId = '', String mode = 'free'}) {
   return '{"activity_id":"$_activityId","name":"秋夜長談","status":"active",'
-      '"faction_select_mode":"$mode","member_id":"$_memberId",'
+      '"faction_select_mode":"$mode","access_restricted":false,"member_id":"$_memberId",'
+      '"access_restricted":false,'
       '"nickname":"夜行者","faction_id":"$factionId",'
       '"joined_at":"2026-10-10T03:00:00.000Z"}';
 }

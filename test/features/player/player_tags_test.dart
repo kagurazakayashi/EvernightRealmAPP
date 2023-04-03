@@ -71,6 +71,7 @@ String _activityRow(String activityId, String name) {
     '"name":"$name"',
     '"status":"active"',
     '"faction_select_mode":"free"',
+    '"access_restricted":false',
     '"member_id":"01a1f000-0000-7000-8000-0000000000m1"',
     '"nickname":"夜行者"',
     // 空字串＝尚未分組，是合法現值（缺席才判合同違例）。

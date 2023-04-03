@@ -15,7 +15,6 @@
 /M*.md
 /docs
 /.*
-/.w*
 # 忽略規則不得吞掉規則檔本身：.gitignore 必須永遠可被跟蹤與正常暫存。
 !.gitignore
 migrate_working_dir/

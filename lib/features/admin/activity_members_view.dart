@@ -143,6 +143,29 @@ class ActivityMembersCard extends StatefulWidget {
   static Key statusActionKey(String memberId) =>
       ValueKey<String>('activity-members-status-action-$memberId');
 
+  /// 某一行的「編輯限制」按鈕識別鍵。
+  static Key restrictionsActionKey(String memberId) =>
+      ValueKey<String>('activity-members-restrictions-action-$memberId');
+
+  /// 某一行的限制交代列識別鍵（有任意一枚生效時才出現）。
+  static Key restrictionsLabelKey(String memberId) =>
+      ValueKey<String>('activity-members-restrictions-label-$memberId');
+
+  /// 限制對話框裡一枚開關的識別鍵（欄位名就是協定欄位名）。
+  static Key restrictionsSwitchKey(String field) =>
+      ValueKey<String>('activity-restrictions-switch-$field');
+
+  /// 限制對話框的送出與取消識別鍵。
+  static const Key restrictionsSubmitKey = ValueKey<String>(
+    'activity-restrictions-submit',
+  );
+  static const Key restrictionsCancelKey = ValueKey<String>(
+    'activity-restrictions-cancel',
+  );
+  static const Key restrictionsNoticeKey = ValueKey<String>(
+    'activity-restrictions-notice',
+  );
+
   /// 狀態對話框的控件識別鍵。
   static const Key statusTargetKey = ValueKey<String>(
     'activity-members-status-target',
@@ -532,6 +555,58 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
     );
   }
 
+  /// 送一次分項限制編輯：本體只出現被改動的欄，每一欄帶著它所依據的現值。
+  ///
+  /// 沒選中的欄位不進請求、也不進後端那筆 UPDATE——取消聊天不會順手取消私聊或登入。
+  /// 全部新值與現值相同時後端視為冪等成功（不產生第二次留痕），界面照實唸那一句；
+  /// 任一欄依據值過期拿 2013 且整個編輯不落，由統一對映轉述。
+  /// 這條通路不碰暱稱、陣營、目錄覆蓋與任何帳戶欄位，也不會停用全域登入。
+  Future<void> _submitRestrictions(
+    MemberReport member,
+    Map<String, MemberRestrictionPatch> patches,
+  ) async {
+    var unchanged = true;
+    for (final MapEntry<String, MemberRestrictionPatch> entry
+        in patches.entries) {
+      if (entry.value.value != _restrictionValueOf(member, entry.key)) {
+        unchanged = false;
+        break;
+      }
+    }
+    await _write(
+      () => widget.api.updateMemberRestrictions(
+        activityId: widget.activityId,
+        memberId: member.memberId,
+        restrictions: patches,
+        acceptLanguage: _acceptLanguage,
+      ),
+      successFor: (AppLocalizations l10n, MemberWriteReport report) => unchanged
+          ? l10n.memberRestrictionNothingChanged
+          : l10n.memberRestrictionSaved,
+    );
+  }
+
+  /// 打開限制對話框：底稿只有那一行的服務端現值，沒有第二個答案來源。
+  Future<void> _openRestrictionsDialog(MemberReport member) async {
+    if (_writing) {
+      return;
+    }
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => _MemberRestrictionsDialog(
+        member: member,
+        l10n: l10n,
+        busy: _writing,
+        onSubmit: (Map<String, MemberRestrictionPatch> patches) async {
+          Navigator.of(dialogContext).pop();
+          await _submitRestrictions(member, patches);
+        },
+        onClose: () => Navigator.of(dialogContext).pop(),
+      ),
+    );
+  }
+
   /// 打開狀態對話框：先確認目錄已在手上，再讓人在讀到的清單上選。
   Future<void> _openStatusDialog(MemberReport member) async {
     if (_writing) {
@@ -649,6 +724,7 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
                   onRename: () => _beginEdit(member),
                   onToggleVisibility: () => _toggleVisibility(member),
                   onChangeStatus: () => _openStatusDialog(member),
+                  onEditRestrictions: () => _openRestrictionsDialog(member),
                 ),
             ],
           ),
@@ -756,6 +832,7 @@ class _MemberRow extends StatelessWidget {
     required this.onRename,
     required this.onToggleVisibility,
     required this.onChangeStatus,
+    required this.onEditRestrictions,
   });
 
   /// 那一行的服務端現值。
@@ -778,6 +855,9 @@ class _MemberRow extends StatelessWidget {
 
   /// 打開業務狀態對話框的回呼（目錄讀取在那一步裡發生）。
   final VoidCallback onChangeStatus;
+
+  /// 打開分項限制對話框的回呼（六欄現值全取自這一行讀回的底稿）。
+  final VoidCallback onEditRestrictions;
 
   /// 狀態取值：active 與 disabled 各有批准過的一句人話，其餘（含deleted／retired／
   /// pending／rejected 與未來新增的任何取值）一律如實唸出服務端的機器值而不猜意思——
@@ -884,6 +964,18 @@ class _MemberRow extends StatelessWidget {
               l10n.memberAdminIdentityNotice,
               style: theme.textTheme.bodySmall,
             ),
+          if (member.hasAnyRestriction)
+            Text(
+              // 六欄裡只要有任何一枚在生效，這一列就說一句「有限制生效」；
+              // restrict_login 亮著時再點名「進場已被限制」。管理人要在名冊上
+              // 一眼看見自己凍結的是哪一行，而不是翻開對話框才知道。
+              member.restrictLogin
+                  ? '${l10n.memberRestrictionBadge}／'
+                        '${l10n.playerActivityAccessRestricted}'
+                  : l10n.memberRestrictionBadge,
+              key: ActivityMembersCard.restrictionsLabelKey(member.memberId),
+              style: theme.textTheme.bodySmall,
+            ),
           if (canWrite)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -908,6 +1000,15 @@ class _MemberRow extends StatelessWidget {
                     key: ActivityMembersCard.statusActionKey(member.memberId),
                     onPressed: busy ? null : onChangeStatus,
                     child: Text(l10n.memberStatusChangeAction),
+                  ),
+                  // 分項限制是第三顆按鈕：一條通路只碰自己那組欄位，
+                  // 「改狀態順手把人凍結」與「凍結順手改了狀態」都無處發生。
+                  OutlinedButton(
+                    key: ActivityMembersCard.restrictionsActionKey(
+                      member.memberId,
+                    ),
+                    onPressed: busy ? null : onEditRestrictions,
+                    child: Text(l10n.memberRestrictionEditButton),
                   ),
                 ],
               ),
@@ -1158,6 +1259,196 @@ class _MemberStatusDialogState extends State<_MemberStatusDialog> {
           // 界面照樣讓它送出去，並在成功後唸出「什麼都沒改變」那句。
           onPressed: widget.busy || !_ready ? null : _submit,
           child: Text(l10n.memberStatusChangeAction),
+        ),
+      ],
+    );
+  }
+}
+
+/// 六枚分項限制的協定欄位名（固定順序：對話框、白名單與依據值都問這一份清單）。
+const List<String> memberRestrictionFields = <String>[
+  'restrict_login',
+  'restrict_chat',
+  'restrict_private_chat',
+  'restrict_trade',
+  'restrict_transfer',
+  'restrict_item_use',
+];
+
+/// 依協定欄位名讀一行成員的限制現值。
+///
+/// 「有沒有翻動」與「依據值該填什麼」都只問這一處，界面不會在兩個地方
+/// 各猜一次同一欄的現值。
+bool _restrictionValueOf(MemberReport member, String field) {
+  switch (field) {
+    case 'restrict_login':
+      return member.restrictLogin;
+    case 'restrict_chat':
+      return member.restrictChat;
+    case 'restrict_private_chat':
+      return member.restrictPrivateChat;
+    case 'restrict_trade':
+      return member.restrictTrade;
+    case 'restrict_transfer':
+      return member.restrictTransfer;
+    default:
+      return member.restrictItemUse;
+  }
+}
+
+/// 依協定欄位名取該欄的界面名（四語言文案由 ARB 承擔，這裡只做映射）。
+String _restrictionFieldLabel(AppLocalizations l10n, String field) {
+  switch (field) {
+    case 'restrict_login':
+      return l10n.memberRestrictionLoginLabel;
+    case 'restrict_chat':
+      return l10n.memberRestrictionChatLabel;
+    case 'restrict_private_chat':
+      return l10n.memberRestrictionPrivateChatLabel;
+    case 'restrict_trade':
+      return l10n.memberRestrictionTradeLabel;
+    case 'restrict_transfer':
+      return l10n.memberRestrictionTransferLabel;
+    default:
+      return l10n.memberRestrictionItemUseLabel;
+  }
+}
+
+/// 分項限制對話框：六個開關的底稿只有那一行的服務端現值。
+///
+/// 送出去的本體只包含與底稿不同的欄（每一欄帶著它所依據的現值，compare-and-set）；
+/// 一個都沒改時完全不發請求——那顆「保存」不該製造一次注定 1004 或零效果的往返。
+/// 六欄各存各的、各改各的；這裡沒有「一鍵全清」，也沒有任何一格能把限制
+/// 寫進別人身上；聊天與資產業務尚未上線，對話框因此只交代「判定依據」，
+/// 不擺還不存在的功能入口（用戶批准：未實現的能力不得偽裝可用）。
+class _MemberRestrictionsDialog extends StatefulWidget {
+  /// 以一行現值與動作建立對話框。
+  const _MemberRestrictionsDialog({
+    required this.member,
+    required this.l10n,
+    required this.busy,
+    required this.onSubmit,
+    required this.onClose,
+  });
+
+  /// 那一行的服務端現值（六個依據值都取自這裡）。
+  final MemberReport member;
+
+  /// 目前語言的語彙。
+  final AppLocalizations l10n;
+
+  /// 有寫入在飛：不允許第二次提交。
+  final bool busy;
+
+  /// 提交：只帶被改動的欄，每一欄是新值與它所依據的現值。
+  final void Function(Map<String, MemberRestrictionPatch> patches) onSubmit;
+
+  /// 關閉對話框（零請求）。
+  final VoidCallback onClose;
+
+  @override
+  State<_MemberRestrictionsDialog> createState() =>
+      _MemberRestrictionsDialogState();
+}
+
+class _MemberRestrictionsDialogState extends State<_MemberRestrictionsDialog> {
+  /// 六欄的本地草稿；底稿是那一行讀回的現值，不預先假裝有人改過。
+  late final Map<String, bool> _draft = <String, bool>{
+    for (final String field in memberRestrictionFields)
+      field: _restrictionValueOf(widget.member, field),
+  };
+
+  /// 本地擋下的那句（一個都没改就送出）。
+  String? _notice;
+
+  /// 與底稿不同的欄才算被選中；每一欄的依據值恆為那一行的服務端現值。
+  Map<String, MemberRestrictionPatch> _selected() {
+    final Map<String, MemberRestrictionPatch> patches =
+        <String, MemberRestrictionPatch>{};
+    for (final String field in memberRestrictionFields) {
+      final bool current = _restrictionValueOf(widget.member, field);
+      if (_draft[field] != current) {
+        patches[field] = MemberRestrictionPatch(
+          value: _draft[field]!,
+          expected: current,
+        );
+      }
+    }
+    return patches;
+  }
+
+  /// 送交前本地先擋：什麼都沒改就完全不發請求。
+  void _submit() {
+    final Map<String, MemberRestrictionPatch> patches = _selected();
+    if (patches.isEmpty) {
+      setState(() => _notice = widget.l10n.memberRestrictionEmptySubmitHint);
+      return;
+    }
+    widget.onSubmit(patches);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = widget.l10n;
+    final ThemeData theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(l10n.memberRestrictionDialogTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // 對話框先在標題下唸出「改的是哪一個人」：依據值取自這一行現值，
+          // 而這一格只是把名冊那一列的暱稱原樣帶進來，不是第二個答案來源。
+          Text(widget.member.nickname, style: theme.textTheme.bodySmall),
+          for (final String field in memberRestrictionFields)
+            SwitchListTile(
+              key: ActivityMembersCard.restrictionsSwitchKey(field),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(_restrictionFieldLabel(l10n, field)),
+              value: _draft[field]!,
+              onChanged: widget.busy
+                  ? null
+                  : (bool value) => setState(() => _draft[field] = value),
+            ),
+          if (_notice != null)
+            Text(
+              _notice!,
+              key: ActivityMembersCard.restrictionsNoticeKey,
+              style: theme.textTheme.bodySmall,
+            ),
+          // 三句邊界常駐：它們回答「這一欄管多大、管不管得上還沒上線的功能、
+          // 生效是什麼形態」，不藏在任何一顆按鈕或提示語之後。
+          Text(
+            l10n.memberRestrictionActivityOnlyNote,
+            style: theme.textTheme.bodySmall,
+          ),
+          Text(
+            l10n.memberRestrictionNotWiredNote,
+            style: theme.textTheme.bodySmall,
+          ),
+          Text(
+            l10n.memberRestrictionIndependentNote,
+            style: theme.textTheme.bodySmall,
+          ),
+          Text(
+            l10n.memberRestrictionRequestLevelNote,
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          key: ActivityMembersCard.restrictionsCancelKey,
+          onPressed: widget.busy ? null : widget.onClose,
+          child: Text(l10n.activityConfirmCancelAction),
+        ),
+        FilledButton(
+          key: ActivityMembersCard.restrictionsSubmitKey,
+          // 「跟現值一樣」在後端是冪等成功；但本地一個都沒改時不發請求，
+          // 因為那時連一欄都不在選中之內，本体会是空的（1004）。
+          onPressed: widget.busy ? null : _submit,
+          child: Text(l10n.memberRestrictionEditButton),
         ),
       ],
     );

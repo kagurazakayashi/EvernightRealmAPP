@@ -437,7 +437,8 @@ void main() {
       // 2036～2039 再由玩家自選陣營一步發布（陣營停用／活動沒開放自選／活動還在草稿／
       // 僅首次模式下已選過），2040 再由標籤定義一步發布（同活動內標籤重名），
       // 2041／2042 再由玩家業務狀態一步發布（自訂狀態已停用、不再接收新的選用／
-      // 同活動內自訂狀態重名）：界線因此推到 2043，那一格仍必須讀不出來。
+      // 同活動內自訂狀態重名），2043 再由玩家分項限制一步發布（在該活動的訪問資格
+      // 已被管理人限制——活動級，不是帳戶停用）：界線因此推到 2044，那一格仍必須讀不出來。
       expect(ApiMachineCode.fromValue(2029), ApiMachineCode.activityArchived);
       expect(
         ApiMachineCode.fromValue(2032),
@@ -469,7 +470,11 @@ void main() {
         ApiMachineCode.fromValue(2042),
         ApiMachineCode.playerStatusNameTaken,
       );
-      expect(ApiMachineCode.fromValue(2043), isNull);
+      expect(
+        ApiMachineCode.fromValue(2043),
+        ApiMachineCode.memberAccessRestricted,
+      );
+      expect(ApiMachineCode.fromValue(2044), isNull);
       // 兩種終態是兩枚碼而不是一枚：它們各自的處置不同（一個別再管，一個去讀綁定留痕）。
       expect(
         ApiMachineCode.accountDeleted.value,

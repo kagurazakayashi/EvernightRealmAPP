@@ -96,6 +96,11 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       // 也不是重讀現值再按一次（2013）。
       ApiMachineCode.playerStatusNameTaken =>
         l10n.errorCodePlayerStatusNameTaken,
+      // 2043 讲的是「你在這一場的訪問被限制了，但你沒有被全站停用」：界面那句必須
+      // 同時說出「只针对这一场活动」与「去讀自己的限制狀態」，否则人会把活动级
+      // 读成账户停用，也会以为沒有任何渠道能確認自己被限制的是什么。
+      ApiMachineCode.memberAccessRestricted =>
+        l10n.errorCodeMemberAccessRestricted,
     };
   }
 

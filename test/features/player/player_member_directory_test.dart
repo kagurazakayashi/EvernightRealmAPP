@@ -65,6 +65,12 @@ String _row({
     '"custom_status_name":"$customStatusName"',
     '"status_display_name":"$statusDisplayName"',
     '"status_available":$statusAvailable',
+    '"restrict_login":false',
+    '"restrict_chat":false',
+    '"restrict_private_chat":false',
+    '"restrict_trade":false',
+    '"restrict_transfer":false',
+    '"restrict_item_use":false',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
   ];
   return '{${parts.join(',')}}';
@@ -142,6 +148,12 @@ String _profileBody({
     '"custom_status_name":""',
     '"status_display_name":""',
     '"status_available":true',
+    '"restrict_login":false',
+    '"restrict_chat":false',
+    '"restrict_private_chat":false',
+    '"restrict_trade":false',
+    '"restrict_transfer":false',
+    '"restrict_item_use":false',
     '"joined_at":"2026-10-10T03:00:00.000Z"',
     '"request_id":"r-profile"',
   ];
@@ -155,7 +167,8 @@ String _detailBody({String nickname = '被點名那一行'}) {
 
 String _activityRow(String activityId, String name) {
   return '{"activity_id":"$activityId","name":"$name","status":"active",'
-      '"faction_select_mode":"free","member_id":"$_selfMember",'
+      '"faction_select_mode":"free","access_restricted":false,"member_id":"$_selfMember",'
+      '"access_restricted":false,'
       '"nickname":"夜行者","faction_id":"$_redFaction",'
       '"joined_at":"2026-10-10T03:00:00.000Z"}';
 }

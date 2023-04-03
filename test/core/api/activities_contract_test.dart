@@ -41,6 +41,7 @@ String _activityJson({
     // 「玩家能不能自己選陣營」屬活動自己的一欄配置，出廠 disabled；
     // 它缺席時本檔把它當成合同違例，不降級成「讀不懂就當沒開放」。
     '"faction_select_mode":"$factionSelectMode"',
+    '"access_restricted":false',
     // 「誰能在玩家目錄裡看見誰」是同一側的另一欄配置，出廠 hidden：
     // 缺席同樣判合同違例——把「讀不懂」當成「沒開放」會讓配置卡畫出一個與庫裡不同的開關。
     '"member_directory_mode":"$memberDirectoryMode"',

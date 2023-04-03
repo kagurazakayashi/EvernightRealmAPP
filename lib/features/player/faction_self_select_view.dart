@@ -213,6 +213,17 @@ class _PlayerFactionSurfaceState extends State<PlayerFactionSurface> {
                         ),
                         style: theme.textTheme.bodySmall,
                       ),
+                      // 「這一場進不去」說在敲壁之前：這一格是服務端現值投影
+                      // （access_restricted），界面不本地推測，也不因為它為真就把
+                      // 這一列藏起來；按下去得到的 2043 由統一對映念它那一句。
+                      if (entry.accessRestricted)
+                        Text(
+                          l10n.playerActivityAccessRestricted,
+                          key: ValueKey<String>(
+                            'player-faction-restricted-${entry.activityId}',
+                          ),
+                          style: theme.textTheme.bodySmall,
+                        ),
                       const SizedBox(height: 6),
                       Align(
                         alignment: AlignmentDirectional.centerEnd,

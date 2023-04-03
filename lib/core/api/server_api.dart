@@ -371,6 +371,17 @@ String adminActivityMemberBusinessStatusPath(
   String memberId,
 ) => '${adminActivityMemberItemPath(activityId, memberId)}/business-status';
 
+/// 成員分項限制路徑：PUT 逐欄編輯那一位玩家在这一场的六枚限制旗標。
+///
+/// 它掛在名冊那一族的單筆路徑之下（准入同活動資料編輯），是一條只碰被選中
+/// `restrict_*` 欄的白名單子資源：每一欄都要帶上它所依據的現值（compare-and-set，
+/// 沿用 2013），沒選中的欄位不進本體、也不進 UPDATE——「取消聊天不順手取消私聊」
+/// 成立在這個形狀上。這一族沒有 DELETE（取消就是寫 0，沒有「清回未設定」那種形態）。
+String adminActivityMemberRestrictionsPath(
+  String activityId,
+  String memberId,
+) => '${adminActivityMemberItemPath(activityId, memberId)}/restrictions';
+
 /// 活動的「玩家自選陣營」那一欄配置路徑：PUT 編輯。
 ///
 /// 它是活動管理面的一條白名單子資源（準入同活動資料編輯：管理員加上該活動的指派），
@@ -414,6 +425,14 @@ String playerActivityMemberItemPath(String activityId, String memberId) =>
 /// 這一條照舊成功——介面因此能把「別人看不見我」與「我看見的自己」分兩句講。
 String playerActivityProfilePath(String activityId) =>
     '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/profile';
+
+/// 本人分項限制查閱路徑：GET／HEAD。
+///
+/// 這是用戶批准的「本人獲准查看有效結果」那一側，也是被 `restrict_login` 擋下之後
+/// 唯一還讀得動的活動通路——被限制的人必須能問出「我被限制的是哪些項」。
+/// 回應只有六個布林與標識：沒有原因、沒有操作者、也沒有時間（那些屬審計）。
+String playerActivityRestrictionsPath(String activityId) =>
+    '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/restrictions';
 
 /// 活動的「玩家目錄可見性」那一欄配置路徑：PUT 編輯。
 ///
@@ -2073,6 +2092,54 @@ class ServerApi {
         'expected_custom_status_id': expectedCustomStatusId,
       },
       decode: MemberWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 逐欄編輯一位成員的分項限制：
+  /// PUT `/admin/activities/{activity_id}/members/{member_id}/restrictions`。
+  ///
+  /// `restrictions` 的鍵就是協定欄位名（`restrict_login`／`restrict_chat`／
+  /// `restrict_private_chat`／`restrict_trade`／`restrict_transfer`／
+  /// `restrict_item_use`），每一鍵帶一對「新值＋依據值」：本體裡只出現被選中的欄，
+  /// 沒選中的欄位不進請求、也不進資料庫的 UPDATE——取消聊天不會順手取消私聊或登入。
+  /// 空映射在客戶端就拒發（那顆按鈕不該按下去撞 1004）；任一欄依據值過期回 2013
+  /// 且整個編輯不落；全部新值等於現值時服務端視為冪等成功（不產生第二次留痕）。
+  /// 停止態回 2033、歸檔回 2029（業務寫入門禁在這一側照樣成立）。
+  Future<MemberWriteReport> updateMemberRestrictions({
+    required String activityId,
+    required String memberId,
+    required Map<String, MemberRestrictionPatch> restrictions,
+    String? acceptLanguage,
+  }) {
+    if (restrictions.isEmpty) {
+      throw ArgumentError.value(restrictions, 'restrictions', '至少需要一欄被選中的限制');
+    }
+    final Map<String, Object?> body = <String, Object?>{};
+    for (final MapEntry<String, MemberRestrictionPatch> entry
+        in restrictions.entries) {
+      body[entry.key] = entry.value.value;
+      body['expected_${entry.key}'] = entry.value.expected;
+    }
+    return apiClient.put<MemberWriteReport>(
+      adminActivityMemberRestrictionsPath(activityId, memberId),
+      jsonBody: body,
+      decode: MemberWriteReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀本人在某一場活動裡的六枚限制現值：GET `/player/activities/{activity_id}/restrictions`。
+  ///
+  /// 被 `restrict_login` 擋下的人這一條照舊讀得動（它是「有效結果」的本人查閱，
+  /// 不是使用訪問資格）；除此之外玩家族其餘通路在服務層逐請求現讀擋下，回 2043。
+  Future<OwnMemberRestrictionsReport> ownMemberRestrictions({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get<OwnMemberRestrictionsReport>(
+      playerActivityRestrictionsPath(activityId),
+      decode: OwnMemberRestrictionsReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }
