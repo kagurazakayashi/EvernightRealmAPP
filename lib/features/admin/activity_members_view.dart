@@ -39,6 +39,7 @@ import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
 // 狀態顯示名的換算只有一份：名冊、玩家目錄與本人資料都向這裡取，不各猜一次。
 import '../business_status_labels.dart';
+import 'member_capabilities_view.dart';
 
 /// 活動成員名冊卡。
 class ActivityMembersCard extends StatefulWidget {
@@ -146,6 +147,10 @@ class ActivityMembersCard extends StatefulWidget {
   /// 某一行的「編輯限制」按鈕識別鍵。
   static Key restrictionsActionKey(String memberId) =>
       ValueKey<String>('activity-members-restrictions-action-$memberId');
+
+  /// 某一行的「有效能力」按鈕識別鍵（只讀來源摘要，停止與歸檔也看得到）。
+  static Key capabilitiesActionKey(String memberId) =>
+      ValueKey<String>('activity-members-capabilities-action-$memberId');
 
   /// 某一行的限制交代列識別鍵（有任意一枚生效時才出現）。
   static Key restrictionsLabelKey(String memberId) =>
@@ -607,6 +612,21 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
     );
   }
 
+  /// 打開「有效能力與來源摘要」對話框：只讀，停止與歸檔也看得到。
+  ///
+  /// 管理人解除手動項之後，這個對話框仍會如實顯示狀態或其他來源是否還在拒絕；
+  /// 它不顯示審計原因、操作者或時刻。
+  Future<void> _openCapabilitiesDialog(MemberReport member) async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => MemberCapabilitiesDialog(
+        api: widget.api,
+        activityId: widget.activityId,
+        member: member,
+      ),
+    );
+  }
+
   /// 打開狀態對話框：先確認目錄已在手上，再讓人在讀到的清單上選。
   Future<void> _openStatusDialog(MemberReport member) async {
     if (_writing) {
@@ -725,6 +745,7 @@ class _ActivityMembersCardState extends State<ActivityMembersCard> {
                   onToggleVisibility: () => _toggleVisibility(member),
                   onChangeStatus: () => _openStatusDialog(member),
                   onEditRestrictions: () => _openRestrictionsDialog(member),
+                  onShowCapabilities: () => _openCapabilitiesDialog(member),
                 ),
             ],
           ),
@@ -833,6 +854,7 @@ class _MemberRow extends StatelessWidget {
     required this.onToggleVisibility,
     required this.onChangeStatus,
     required this.onEditRestrictions,
+    required this.onShowCapabilities,
   });
 
   /// 那一行的服務端現值。
@@ -858,6 +880,9 @@ class _MemberRow extends StatelessWidget {
 
   /// 打開分項限制對話框的回呼（六欄現值全取自這一行讀回的底稿）。
   final VoidCallback onEditRestrictions;
+
+  /// 打開「有效能力與來源摘要」對話框的回呼（只讀；停止與歸檔也看得到）。
+  final VoidCallback onShowCapabilities;
 
   /// 狀態取值：active 與 disabled 各有批准過的一句人話，其餘（含deleted／retired／
   /// pending／rejected 與未來新增的任何取值）一律如實唸出服務端的機器值而不猜意思——
@@ -1013,6 +1038,14 @@ class _MemberRow extends StatelessWidget {
                 ],
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: OutlinedButton(
+              key: ActivityMembersCard.capabilitiesActionKey(member.memberId),
+              onPressed: busy ? null : onShowCapabilities,
+              child: Text(l10n.memberCapabilitiesOpenAction),
+            ),
+          ),
         ],
       ),
     );
@@ -1429,6 +1462,12 @@ class _MemberRestrictionsDialogState extends State<_MemberRestrictionsDialog> {
           ),
           Text(
             l10n.memberRestrictionIndependentNote,
+            style: theme.textTheme.bodySmall,
+          ),
+          // 解除手動項不等於「已解凍」：狀態規則、生命週期與身份資格是另外的來源。
+          // 這一句擺在開關旁邊，管理人不必先打開有效能力對話框才知道這件事。
+          Text(
+            l10n.memberRestrictionEffectiveNote,
             style: theme.textTheme.bodySmall,
           ),
           Text(

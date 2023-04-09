@@ -32,6 +32,7 @@ import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
 import 'activity_factions_view.dart';
 import 'activity_faction_select_view.dart';
+import 'activity_capability_rules_view.dart';
 import 'activity_member_directory_view.dart';
 import 'activity_members_view.dart';
 import 'activity_player_status_view.dart';
@@ -647,6 +648,17 @@ class _ActivityProfileCardState extends State<ActivityProfileCard> {
         PlayerStatusConfigCard(
           key: ValueKey<String>(
             'player-status-${widget.activityId}-${activity.status}',
+          ),
+          api: widget.api,
+          activityId: widget.activityId,
+          activityStatus: activity.status,
+        ),
+        const SizedBox(height: 20),
+        // 「狀態能力規則」接在狀態定義之後：它只改狀態來源的矩陣，不覆蓋手動限制、
+        // 生命週期或身份資格；自訂狀態不參與。停止態仍可準備，歸檔只讀。
+        ActivityCapabilityRulesCard(
+          key: ValueKey<String>(
+            'capability-rules-${widget.activityId}-${activity.status}',
           ),
           api: widget.api,
           activityId: widget.activityId,

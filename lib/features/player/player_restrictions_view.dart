@@ -29,6 +29,7 @@ import '../../core/api/server_models.dart';
 import '../../core/app_locale.dart';
 import '../../l10n/app_localizations.dart';
 import '../admin/activity_members_view.dart' show memberRestrictionFields;
+import '../capability_labels.dart';
 
 /// 玩家端的本人限制查閱通路（含本人的活動清單）。
 class PlayerRestrictionsCard extends StatefulWidget {
@@ -77,6 +78,40 @@ class PlayerRestrictionsCard extends StatefulWidget {
     'player-restrictions-boundary',
   );
 
+  /// 有效能力區標題識別鍵。
+  static const Key capabilitiesSectionKey = ValueKey<String>(
+    'player-capabilities-section',
+  );
+
+  /// 有效能力載入中識別鍵。
+  static const Key capabilitiesLoadingKey = ValueKey<String>(
+    'player-capabilities-loading',
+  );
+
+  /// 有效能力讀不到那句的識別鍵。
+  static const Key capabilitiesNoticeKey = ValueKey<String>(
+    'player-capabilities-notice',
+  );
+
+  /// 「進場被拒、其餘能力規則上仍可能允許」那句的識別鍵。
+  static const Key capabilitiesAccessLineKey = ValueKey<String>(
+    'player-capabilities-access-line',
+  );
+
+  /// 某一項能力那一行識別鍵。
+  static Key capabilityRowKey(String capability) =>
+      ValueKey<String>('player-capabilities-row-$capability');
+
+  /// 規則版本那一行識別鍵。
+  static const Key capabilitiesRevisionKey = ValueKey<String>(
+    'player-capabilities-revision',
+  );
+
+  /// 有效能力常駐邊界句識別鍵。
+  static const Key capabilitiesBoundaryKey = ValueKey<String>(
+    'player-capabilities-boundary',
+  );
+
   /// 返回清單按鈕的識別鍵。
   static const Key backKey = ValueKey<String>('player-restrictions-back');
 
@@ -100,10 +135,16 @@ class _PlayerRestrictionsCardState extends State<PlayerRestrictionsCard> {
   /// 限制那一讀失敗那一句；非 null 時結果一律不長（不拿上一批冒充現值）。
   String? _restrictionsNotice;
 
-  /// 兩段讀法各自的請求序號：清單與單場查閱是兩筆獨立請求，
+  /// 本人有效能力（與六枚手動限制是兩份讀法：一份讀旗標，一份讀組合結果）。
+  OwnCapabilitiesReport? _capabilities;
+  bool _capabilitiesLoading = false;
+  String? _capabilitiesNotice;
+
+  /// 三段讀法各自的請求序號：清單與單場查閱是幾筆獨立請求，
   /// 共用計數器會讓先回的那筆把後回的當成過期件。
   int _activitiesGeneration = 0;
   int _restrictionsGeneration = 0;
+  int _capabilitiesGeneration = 0;
 
   @override
   void initState() {
@@ -187,6 +228,7 @@ class _PlayerRestrictionsCardState extends State<PlayerRestrictionsCard> {
   void _open(String activityId) {
     setState(() => _openActivityId = activityId);
     _loadRestrictions(activityId);
+    _loadCapabilities(activityId);
   }
 
   void _back() {
@@ -194,7 +236,49 @@ class _PlayerRestrictionsCardState extends State<PlayerRestrictionsCard> {
       _openActivityId = null;
       _restrictions = null;
       _restrictionsNotice = null;
+      _capabilities = null;
+      _capabilitiesNotice = null;
     });
+  }
+
+  /// 讀本人此刻的有效能力（組合了手動限制、狀態規則、生命週期與身份資格）。
+  ///
+  /// 這是被擋下的人也讀得動的一條路徑：它回答「哪幾項被拒絕、屬於哪一類來源」，
+  /// 但沒有業務狀態、活動狀態、帳戶狀態、逐來源細節、原因、操作者或時刻。
+  /// 失敗整段清掉，不拿上一批冒充現值。
+  Future<void> _loadCapabilities(String activityId) async {
+    final int generation = ++_capabilitiesGeneration;
+    setState(() {
+      _capabilitiesLoading = true;
+      _capabilitiesNotice = null;
+      _capabilities = null;
+    });
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    try {
+      final OwnCapabilitiesReport report = await _api.ownCapabilities(
+        activityId: activityId,
+        acceptLanguage: _acceptLanguage,
+      );
+      if (!mounted ||
+          generation != _capabilitiesGeneration ||
+          activityId != _openActivityId) {
+        return;
+      }
+      setState(() {
+        _capabilitiesLoading = false;
+        _capabilities = report;
+      });
+    } on ApiError catch (error) {
+      if (!mounted ||
+          generation != _capabilitiesGeneration ||
+          activityId != _openActivityId) {
+        return;
+      }
+      setState(() {
+        _capabilitiesLoading = false;
+        _capabilitiesNotice = apiErrorText(l10n, error);
+      });
+    }
   }
 
   String _statusLabel(AppLocalizations l10n, String status) {
@@ -343,6 +427,42 @@ class _PlayerRestrictionsCardState extends State<PlayerRestrictionsCard> {
     ];
   }
 
+  /// 六項能力的逐項結論（只列後端實際回來的項；認不得的鍵不編造一行）。
+  List<Widget> _capabilityRows(AppLocalizations l10n, ThemeData theme) {
+    final OwnCapabilitiesReport? report = _capabilities;
+    if (report == null) {
+      return const <Widget>[];
+    }
+    final List<Widget> rows = <Widget>[];
+    for (final String capability in kCapabilityKeys) {
+      final OwnCapabilityDecision? item = report.decisionFor(capability);
+      if (item == null) {
+        continue;
+      }
+      rows.add(
+        Text(
+          l10n.labelValuePair(
+            capabilityLabel(l10n, capability),
+            item.allowed
+                ? l10n.capabilityAllowedValue
+                : l10n.capabilityDeniedValue,
+          ),
+          key: PlayerRestrictionsCard.capabilityRowKey(capability),
+          style: theme.textTheme.bodyMedium,
+        ),
+      );
+      if (!item.allowed && item.sources.isNotEmpty) {
+        rows.add(
+          Text(
+            capabilitySourcesLine(l10n, item.sources),
+            style: theme.textTheme.bodySmall,
+          ),
+        );
+      }
+    }
+    return rows;
+  }
+
   List<Widget> _buildDetail(AppLocalizations l10n, ThemeData theme) {
     return <Widget>[
       if (_restrictionsLoading)
@@ -374,6 +494,54 @@ class _PlayerRestrictionsCardState extends State<PlayerRestrictionsCard> {
             key: PlayerRestrictionsCard.accessLineKey,
             style: theme.textTheme.bodySmall,
           ),
+      ],
+      const SizedBox(height: 10),
+      // 有效能力是六枚手動限制的組合結果：它另外合併了業務狀態規則、活動生命週期
+      // 與身份資格。六個旗標只回答「手動限制」那一側；這一節回答「此刻實際如何」。
+      Text(
+        l10n.playerCapabilitiesSectionTitle,
+        key: PlayerRestrictionsCard.capabilitiesSectionKey,
+        style: theme.textTheme.titleSmall,
+      ),
+      const SizedBox(height: 4),
+      if (_capabilitiesLoading)
+        Text(
+          l10n.activityLoadingNotice,
+          key: PlayerRestrictionsCard.capabilitiesLoadingKey,
+          style: theme.textTheme.bodySmall,
+        ),
+      if (_capabilitiesNotice != null)
+        Text(
+          _capabilitiesNotice!,
+          key: PlayerRestrictionsCard.capabilitiesNoticeKey,
+          style: theme.textTheme.bodySmall,
+        ),
+      if (_capabilities != null) ...<Widget>[
+        if (!_capabilities!.accessAllowed)
+          Text(
+            l10n.playerCapabilitiesAccessDeniedNote,
+            key: PlayerRestrictionsCard.capabilitiesAccessLineKey,
+            style: theme.textTheme.bodySmall,
+          ),
+        ..._capabilityRows(l10n, theme),
+        Text(
+          l10n.capabilityRulesRevisionLine(_capabilities!.rulesRevision),
+          key: PlayerRestrictionsCard.capabilitiesRevisionKey,
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(
+          l10n.playerCapabilitiesLifecycleNote,
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(
+          l10n.playerCapabilitiesNotWiredNote,
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(
+          l10n.playerCapabilitiesIndependentNote,
+          key: PlayerRestrictionsCard.capabilitiesBoundaryKey,
+          style: theme.textTheme.bodySmall,
+        ),
       ],
       const SizedBox(height: 6),
       // 邊界句常駐：它不藏在任何一顆按鈕或錯誤之後——玩家最需要的時候

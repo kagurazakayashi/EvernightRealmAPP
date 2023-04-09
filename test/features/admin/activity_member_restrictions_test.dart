@@ -238,6 +238,7 @@ void main() {
       l10n.memberRestrictionActivityOnlyNote,
       l10n.memberRestrictionNotWiredNote,
       l10n.memberRestrictionIndependentNote,
+      l10n.memberRestrictionEffectiveNote,
       l10n.memberRestrictionRequestLevelNote,
     ]) {
       expect(find.text(boundaryNotice), findsOneWidget);

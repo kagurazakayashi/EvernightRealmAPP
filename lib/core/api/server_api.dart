@@ -382,6 +382,23 @@ String adminActivityMemberRestrictionsPath(
   String memberId,
 ) => '${adminActivityMemberItemPath(activityId, memberId)}/restrictions';
 
+/// 狀態能力規則路徑：GET／HEAD 讀矩陣、PUT 換整份矩陣。
+///
+/// 它是一條活動層級的配置子資源（準入同活動資料編輯：管理員加上該活動的指派）。
+/// 本體只認 `expected_revision` 與七列 `rules`；42 格之外的任何派生值都沒有格子。
+/// 停止態仍可準備，歸檔回 2029；每次判定都現讀，沒有快取。
+String adminActivityCapabilityRulesPath(String activityId) =>
+    '${adminActivityItemPath(activityId)}/capability-rules';
+
+/// 管理側成員有效能力路徑：GET／HEAD 讀來源摘要。
+///
+/// 它是派生讀法，不寫入任何東西：成員行、狀態矩陣、活動生命週期與帳戶狀態
+/// 各自現讀一次，再按同一套組合規則合成。停止與歸檔的活動照樣可讀。
+String adminActivityMemberCapabilitiesPath(
+  String activityId,
+  String memberId,
+) => '${adminActivityMemberItemPath(activityId, memberId)}/capabilities';
+
 /// 活動的「玩家自選陣營」那一欄配置路徑：PUT 編輯。
 ///
 /// 它是活動管理面的一條白名單子資源（準入同活動資料編輯：管理員加上該活動的指派），
@@ -433,6 +450,14 @@ String playerActivityProfilePath(String activityId) =>
 /// 回應只有六個布林與標識：沒有原因、沒有操作者、也沒有時間（那些屬審計）。
 String playerActivityRestrictionsPath(String activityId) =>
     '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/restrictions';
+
+/// 本人有效能力路徑：GET／HEAD。
+///
+/// 與 `.../restrictions` 同一條批准語意的另一面：即使 login 被手動限制或狀態規則
+/// 拒絕，這一條仍讀得動。回應只有能力鍵、允許／拒絕與來源類別——沒有業務狀態、
+/// 活動狀態、帳戶狀態、逐來源細節、原因、操作者或時刻。
+String playerActivityCapabilitiesPath(String activityId) =>
+    '${playerActivitiesPath()}/${Uri.encodeComponent(activityId)}/capabilities';
 
 /// 活動的「玩家目錄可見性」那一欄配置路徑：PUT 編輯。
 ///
@@ -2140,6 +2165,102 @@ class ServerApi {
     return apiClient.get<OwnMemberRestrictionsReport>(
       playerActivityRestrictionsPath(activityId),
       decode: OwnMemberRestrictionsReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀一個活動的狀態能力矩陣：
+  /// GET `/admin/activities/{activity_id}/capability-rules`。
+  ///
+  /// 回應帶七列規則、六項能力鍵、`revision` 與 `configured`；revision 為 0 且
+  /// configured 為假表示活動從未配置，規則是出廠預設。停止與歸檔的活動照樣可讀。
+  Future<CapabilityRulesReport> capabilityRules({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get<CapabilityRulesReport>(
+      adminActivityCapabilityRulesPath(activityId),
+      decode: CapabilityRulesReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 以 revision 比較-and-set 換掉一個活動的整份狀態能力矩陣：
+  /// PUT `/admin/activities/{activity_id}/capability-rules`。
+  ///
+  /// [deniedByStatus] 以狀態鍵對應拒絕的能力鍵集合；本體固定送七列（缺的一列按
+  /// 空集合送出，語意是「這個狀態不拒絕任何能力」）。`custom` 一列必須為空：
+  /// 自訂狀態不參與矩陣，讓名稱推測行為不是本功能的語意。沒變的矩陣與相同 revision
+  /// 的重送是服務端冪等成功；舊 revision 回 2013；歸檔回 2029。
+  Future<CapabilityRulesReport> updateCapabilityRules({
+    required String activityId,
+    required int expectedRevision,
+    required Map<String, Set<String>> deniedByStatus,
+    String? acceptLanguage,
+  }) {
+    final Set<String> customDenied =
+        deniedByStatus['custom'] ?? const <String>{};
+    if (customDenied.isNotEmpty) {
+      throw ArgumentError.value(
+        customDenied,
+        'deniedByStatus',
+        '自訂狀態不參與能力矩陣，custom 一列必須為空',
+      );
+    }
+    final List<Map<String, Object?>> rules = <Map<String, Object?>>[];
+    for (final String status in kCapabilityStatusKeys) {
+      final Set<String> denied =
+          deniedByStatus[status] ?? const <String>{};
+      final List<String> ordered = <String>[
+        for (final String key in kCapabilityKeys)
+          if (denied.contains(key)) key,
+      ];
+      rules.add(<String, Object?>{
+        'status_key': status,
+        'denied_capabilities': ordered,
+      });
+    }
+    return apiClient.put<CapabilityRulesReport>(
+      adminActivityCapabilityRulesPath(activityId),
+      jsonBody: <String, Object?>{
+        'expected_revision': expectedRevision,
+        'rules': rules,
+      },
+      decode: CapabilityRulesReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀管理側的成員有效能力與來源摘要：
+  /// GET `/admin/activities/{activity_id}/members/{member_id}/capabilities`。
+  ///
+  /// 它是派生讀法：成員行、狀態矩陣、活動生命週期與帳戶狀態各自現讀一次。
+  /// 回應帶逐來源布林，讓操作者看懂「解除手動後為什麼仍被拒絕」；仍不含審計原因、
+  /// 操作者與時刻。查無成員、跨活動與幽靈活動都收斂成 1001。
+  Future<MemberCapabilitiesReport> memberCapabilities({
+    required String activityId,
+    required String memberId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get<MemberCapabilitiesReport>(
+      adminActivityMemberCapabilitiesPath(activityId, memberId),
+      decode: MemberCapabilitiesReport.decode,
+      acceptLanguage: acceptLanguage,
+    );
+  }
+
+  /// 讀本人在某一場活動裡的有效能力：
+  /// GET `/player/activities/{activity_id}/capabilities`。
+  ///
+  /// 被手動限制或狀態規則擋下時這一條仍讀得動；回應只有能力鍵、允許／拒絕與
+  /// 來源類別。它不是業務端點，也不代表聊天／交易等業務已上線。
+  Future<OwnCapabilitiesReport> ownCapabilities({
+    required String activityId,
+    String? acceptLanguage,
+  }) {
+    return apiClient.get<OwnCapabilitiesReport>(
+      playerActivityCapabilitiesPath(activityId),
+      decode: OwnCapabilitiesReport.decode,
       acceptLanguage: acceptLanguage,
     );
   }

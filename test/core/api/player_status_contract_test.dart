@@ -474,13 +474,17 @@ void main() {
         ApiMachineCode.fromValue(2042),
         ApiMachineCode.playerStatusNameTaken,
       );
-      // 2043 已由玩家分項限制一步發布（在該活動的訪問資格已被限制——活動級，
-      // 不是帳戶停用）：界線推到 2044，那一格仍必須讀不出來。
+      // 2044 再由狀態規則與手動限制的組合判定一步發布（業務狀態規則拒絕訪問資格）：
+      // 下一枚未發碼是 2045，那一格仍必須讀不出來。
       expect(
         ApiMachineCode.fromValue(2043),
         ApiMachineCode.memberAccessRestricted,
       );
-      expect(ApiMachineCode.fromValue(2044), isNull);
+      expect(
+        ApiMachineCode.fromValue(2044),
+        ApiMachineCode.memberStatusRestricted,
+      );
+      expect(ApiMachineCode.fromValue(2045), isNull);
       // 「停用」的三枚碼各有各的實體：陣營不收新成員、標籤不收新貼標、
       // 自訂狀態不收新選用——同一枚碼的語義不因後續步驟改寫。
       expect(ApiMachineCode.factionNotAcceptingMembers.value, isNot(2041));

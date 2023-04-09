@@ -298,8 +298,13 @@ void main() {
         ApiMachineCode.fromValue(2043),
         ApiMachineCode.memberAccessRestricted,
       );
-      // 下一枚未發碼仍是 2044：前端不得提前收錄一枚還沒發布的碼。
-      expect(ApiMachineCode.fromValue(2044), isNull);
+      // 2044 已由狀態規則與手動限制的組合判定一步發布（業務狀態規則拒絕訪問資格，
+      // 與 2043 的「管理人限制」分開）；下一枚未發碼是 2045。
+      expect(
+        ApiMachineCode.fromValue(2044),
+        ApiMachineCode.memberStatusRestricted,
+      );
+      expect(ApiMachineCode.fromValue(2045), isNull);
       // 它與「不屬於管理員這個身份面」（2011）、「查無／不可分辨」（1001）、
       // 「現值過期」（2013）、「終態／停止」（2029／2033）都是不同的句子：
       // 數值互不相同，處置各說各話。

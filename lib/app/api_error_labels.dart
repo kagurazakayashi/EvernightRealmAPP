@@ -101,6 +101,11 @@ String apiErrorText(AppLocalizations l10n, ApiError error) {
       // 读成账户停用，也会以为沒有任何渠道能確認自己被限制的是什么。
       ApiMachineCode.memberAccessRestricted =>
         l10n.errorCodeMemberAccessRestricted,
+      // 2044 讲的是「你的業務狀態規則拒絕了這一場的訪問」：它與 2043 的「管理人限制」
+      // 分開，界面那句必須說出「這不是帳戶停用」與「去讀自己的有效能力」，
+      // 否則人會把活動級讀成全域停用，也會以為沒有任何渠道能核實來源。
+      ApiMachineCode.memberStatusRestricted =>
+        l10n.errorCodeMemberStatusRestricted,
     };
   }
 

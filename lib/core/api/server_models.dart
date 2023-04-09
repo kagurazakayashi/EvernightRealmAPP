@@ -168,6 +168,30 @@ List<String> _requireTextList(Map<String, Object?> json, String field) {
 /// 前端拿它決定要呈現哪些入口。
 const String kServerAdminRole = 'server_admin';
 
+/// 七個內建業務狀態鍵的固定呈現順序。
+///
+/// 它是協議的穩定集合，不是可自訂枚舉：顯示名稱可以按活動覆寫，內部值永不改名。
+/// 自訂狀態不參與能力矩陣，因此不在這份清單裡。
+const List<String> kCapabilityStatusKeys = <String>[
+  'normal',
+  'suspended',
+  'eliminated',
+  'dead',
+  'arrested',
+  'offline',
+  'custom',
+];
+
+/// 六項能力鍵的固定順序（與六枚分項限制同名）。
+const List<String> kCapabilityKeys = <String>[
+  'login',
+  'chat',
+  'private_chat',
+  'trade',
+  'transfer',
+  'item_use',
+];
+
 /// 判斷時間字串是否自帶 `Z` 或 `±HH:MM` 尾綴。
 ///
 /// `DateTime.parse` 對沒有標記的寫法會回傳本機時間，無法由結果區分，因此先看文字。
@@ -3678,6 +3702,324 @@ class OwnMemberRestrictionsReport {
       restrictTrade ||
       restrictTransfer ||
       restrictItemUse;
+}
+
+/// 狀態能力規則的一列：某個內建狀態拒絕哪幾項能力。
+class CapabilityRuleGroupReport {
+  /// 以已驗證的欄位建立一列規則。
+  const CapabilityRuleGroupReport({
+    required this.statusKey,
+    required this.deniedCapabilities,
+  });
+
+  /// 從規則回應的一列建立報告。
+  static CapabilityRuleGroupReport decode(Map<String, Object?> json) {
+    return CapabilityRuleGroupReport(
+      statusKey: _requireText(json, 'status_key'),
+      deniedCapabilities: _requireTextList(json, 'denied_capabilities'),
+    );
+  }
+
+  /// 七個內建狀態鍵之一。
+  final String statusKey;
+
+  /// 這個狀態拒絕的能力鍵（固定順序、不重複）。
+  final List<String> deniedCapabilities;
+}
+
+/// `GET／PUT /admin/activities/{activity_id}/capability-rules` 的成功回應：
+/// 一個活動的七列狀態能力矩陣與它的 revision。
+///
+/// [revision] 為 0 且 [configured] 為假表示活動從未配置，[rules] 是出廠預設。
+/// 編輯時以 [revision] 作 compare-and-set 的依據；服務端每次判定都現讀，沒有快取。
+class CapabilityRulesReport {
+  /// 以已驗證的欄位建立一份規則矩陣。
+  const CapabilityRulesReport({
+    required this.activityId,
+    required this.revision,
+    required this.configured,
+    required this.capabilityKeys,
+    required this.rules,
+    required this.requestId,
+  });
+
+  /// 從規則回應建立報告。
+  static CapabilityRulesReport decode(Map<String, Object?> json) {
+    final Object? rawRules = json['rules'];
+    if (rawRules is! List) {
+      throw const ApiResponseShapeException('rules 不是清單');
+    }
+    final List<CapabilityRuleGroupReport> rules = <CapabilityRuleGroupReport>[];
+    for (final Object? item in rawRules) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('rules 項不是物件');
+      }
+      rules.add(CapabilityRuleGroupReport.decode(item));
+    }
+    return CapabilityRulesReport(
+      activityId: _requireText(json, 'activity_id'),
+      revision: _requireInt(json, 'revision'),
+      configured: _requireBool(json, 'configured'),
+      capabilityKeys: _requireTextList(json, 'capability_keys'),
+      rules: rules,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 那場活動的標識。
+  final String activityId;
+
+  /// 這份矩陣的版本；0＝出廠預設、尚未落地。
+  final int revision;
+
+  /// 是否已有一份落地的矩陣。
+  final bool configured;
+
+  /// 六項能力鍵的固定順序（供界面如實渲染整個矩陣）。
+  final List<String> capabilityKeys;
+
+  /// 七列規則（依後端固定順序）。
+  final List<CapabilityRuleGroupReport> rules;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 某個狀態拒絕的能力鍵集合；不認得的狀態回空集合。
+  Set<String> deniedFor(String statusKey) {
+    for (final CapabilityRuleGroupReport group in rules) {
+      if (group.statusKey == statusKey) {
+        return group.deniedCapabilities.toSet();
+      }
+    }
+    return const <String>{};
+  }
+}
+
+/// 管理側的一項有效能力：允許／拒絕、來源類別與逐來源布林。
+class MemberCapabilityDecision {
+  /// 以已驗證的欄位建立一項能力結論。
+  const MemberCapabilityDecision({
+    required this.capability,
+    required this.allowed,
+    required this.sources,
+    required this.manualDenied,
+    required this.statusDenied,
+    required this.lifecycleDenied,
+    required this.identityDenied,
+  });
+
+  /// 從管理側摘要的一項建立報告。
+  static MemberCapabilityDecision decode(Map<String, Object?> json) {
+    return MemberCapabilityDecision(
+      capability: _requireText(json, 'capability'),
+      allowed: _requireBool(json, 'allowed'),
+      sources: _requireTextList(json, 'sources'),
+      manualDenied: _requireBool(json, 'manual_denied'),
+      statusDenied: _requireBool(json, 'status_denied'),
+      lifecycleDenied: _requireBool(json, 'lifecycle_denied'),
+      identityDenied: _requireBool(json, 'identity_denied'),
+    );
+  }
+
+  /// 能力鍵（login／chat／private_chat／trade／transfer／item_use）。
+  final String capability;
+
+  /// 是否沒有任何來源拒絕。
+  final bool allowed;
+
+  /// 拒絕來源類別（identity／lifecycle／status／manual；允許時為空）。
+  final List<String> sources;
+
+  /// 同名手動限制為真。
+  final bool manualDenied;
+
+  /// 當前業務狀態的規則拒絕這項能力。
+  final bool statusDenied;
+
+  /// 活動生命週期拒絕這項業務能力。
+  final bool lifecycleDenied;
+
+  /// 身份資格失效（拒絕所有能力）。
+  final bool identityDenied;
+}
+
+/// `GET /admin/activities/{activity_id}/members/{member_id}/capabilities` 的成功回應：
+/// 管理側的成員有效能力與來源摘要。
+class MemberCapabilitiesReport {
+  /// 以已驗證的欄位建立一份管理側摘要。
+  const MemberCapabilitiesReport({
+    required this.activityId,
+    required this.memberId,
+    required this.businessStatus,
+    required this.activityStatus,
+    required this.accountStatus,
+    required this.rulesRevision,
+    required this.accessAllowed,
+    required this.capabilities,
+    required this.requestId,
+  });
+
+  /// 從管理側摘要回應建立報告。
+  static MemberCapabilitiesReport decode(Map<String, Object?> json) {
+    final Object? rawItems = json['capabilities'];
+    if (rawItems is! List) {
+      throw const ApiResponseShapeException('capabilities 不是清單');
+    }
+    final List<MemberCapabilityDecision> capabilities =
+        <MemberCapabilityDecision>[];
+    for (final Object? item in rawItems) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('capabilities 項不是物件');
+      }
+      capabilities.add(MemberCapabilityDecision.decode(item));
+    }
+    return MemberCapabilitiesReport(
+      activityId: _requireText(json, 'activity_id'),
+      memberId: _requireText(json, 'member_id'),
+      businessStatus: _requireText(json, 'business_status'),
+      activityStatus: _requireText(json, 'activity_status'),
+      // 帳戶行被物理清理時後端如實回空字串：那是事實的缺席，不是合同違例。
+      accountStatus: _textAllowingEmpty(json, 'account_status'),
+      rulesRevision: _requireInt(json, 'rules_revision'),
+      accessAllowed: _requireBool(json, 'access_allowed'),
+      capabilities: capabilities,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 那場活動的標識。
+  final String activityId;
+
+  /// 那位成員的活動內標識。
+  final String memberId;
+
+  /// 成員當前的業務狀態內部值。
+  final String businessStatus;
+
+  /// 活動的生命週期狀態。
+  final String activityStatus;
+
+  /// 成員指向的帳戶狀態；帳戶讀不到時為空字串。
+  final String accountStatus;
+
+  /// 本次判定所讀到的規則版本。
+  final int rulesRevision;
+
+  /// login 那一項的派生結果。
+  final bool accessAllowed;
+
+  /// 六項能力（依後端固定順序）。
+  final List<MemberCapabilityDecision> capabilities;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 取某一項能力；不認得的鍵回 `null`。
+  MemberCapabilityDecision? decisionFor(String capability) {
+    for (final MemberCapabilityDecision item in capabilities) {
+      if (item.capability == capability) {
+        return item;
+      }
+    }
+    return null;
+  }
+}
+
+/// 玩家側的一項有效能力：只有能力鍵、允許／拒絕與來源類別。
+class OwnCapabilityDecision {
+  /// 以已驗證的欄位建立一項能力結論。
+  const OwnCapabilityDecision({
+    required this.capability,
+    required this.allowed,
+    required this.sources,
+  });
+
+  /// 從本人摘要的一項建立報告。
+  static OwnCapabilityDecision decode(Map<String, Object?> json) {
+    return OwnCapabilityDecision(
+      capability: _requireText(json, 'capability'),
+      allowed: _requireBool(json, 'allowed'),
+      sources: _requireTextList(json, 'sources'),
+    );
+  }
+
+  /// 能力鍵。
+  final String capability;
+
+  /// 是否沒有任何來源拒絕。
+  final bool allowed;
+
+  /// 拒絕來源類別（允許時為空）。
+  final List<String> sources;
+}
+
+/// `GET /player/activities/{activity_id}/capabilities` 的成功回應：
+/// 本人在那一場活動裡的有效能力。
+///
+/// 它刻意不帶業務狀態、活動狀態、帳戶狀態或逐來源細節：那一句話對玩家的意義是
+/// 「哪幾項被拒絕、屬於哪一類來源」，不是後台的原因與人員。這一條在被手動限制
+/// 或狀態規則擋下時仍讀得動，是被擋的人唯一能核實「為什麼」的活動通路。
+class OwnCapabilitiesReport {
+  /// 以已驗證的欄位建立一份本人有效能力。
+  const OwnCapabilitiesReport({
+    required this.activityId,
+    required this.memberId,
+    required this.rulesRevision,
+    required this.accessAllowed,
+    required this.capabilities,
+    required this.requestId,
+  });
+
+  /// 從本人摘要回應建立報告。
+  static OwnCapabilitiesReport decode(Map<String, Object?> json) {
+    final Object? rawItems = json['capabilities'];
+    if (rawItems is! List) {
+      throw const ApiResponseShapeException('capabilities 不是清單');
+    }
+    final List<OwnCapabilityDecision> capabilities = <OwnCapabilityDecision>[];
+    for (final Object? item in rawItems) {
+      if (item is! Map<String, Object?>) {
+        throw const ApiResponseShapeException('capabilities 項不是物件');
+      }
+      capabilities.add(OwnCapabilityDecision.decode(item));
+    }
+    return OwnCapabilitiesReport(
+      activityId: _requireText(json, 'activity_id'),
+      memberId: _requireText(json, 'member_id'),
+      rulesRevision: _requireInt(json, 'rules_revision'),
+      accessAllowed: _requireBool(json, 'access_allowed'),
+      capabilities: capabilities,
+      requestId: _requireText(json, 'request_id'),
+    );
+  }
+
+  /// 那場活動的標識。
+  final String activityId;
+
+  /// 本人在那場活動裡的穩定標識。
+  final String memberId;
+
+  /// 本次判定所讀到的規則版本。
+  final int rulesRevision;
+
+  /// login 那一項的派生結果。
+  final bool accessAllowed;
+
+  /// 六項能力（依後端固定順序）。
+  final List<OwnCapabilityDecision> capabilities;
+
+  /// 本次請求的關聯 ID。
+  final String requestId;
+
+  /// 取某一項能力；不認得的鍵回 `null`。
+  OwnCapabilityDecision? decisionFor(String capability) {
+    for (final OwnCapabilityDecision item in capabilities) {
+      if (item.capability == capability) {
+        return item;
+      }
+    }
+    return null;
+  }
 }
 
 /// 玩家自選界面上的一個候選陣營：展示值加上「它此刻能不能被我選」。
